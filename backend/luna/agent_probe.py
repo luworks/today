@@ -91,7 +91,7 @@ class Probe:
                          | {'input': (usage or {}).get('input_tokens'), 'output': (usage or {}).get('output_tokens')}), flush=True)
         return line
 
-    def worker(self, path, body, method='POST', stream=False):
+    def worker(self, path, body=None, method='POST', stream=False):
         headers = {'Authorization': 'Bearer ' + self.token} if self.token else {}
         return http(self.args.base + path, body, headers, method, stream=stream)
 
