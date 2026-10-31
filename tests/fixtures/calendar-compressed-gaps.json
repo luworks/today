@@ -1,0 +1,74 @@
+{
+  "version": 1,
+  "about": "Calendar compression design fixture; dates relative to launch.",
+  "lists": [],
+  "reminders": [],
+  "events": [
+    {
+      "title": "School",
+      "start": {
+        "day": 0,
+        "time": "08:00"
+      },
+      "minutes": 30
+    },
+    {
+      "title": "Design review",
+      "start": {
+        "day": 0,
+        "time": "09:00"
+      },
+      "minutes": 120
+    },
+    {
+      "title": "Project work",
+      "start": {
+        "day": 0,
+        "time": "11:00"
+      },
+      "minutes": 240
+    },
+    {
+      "title": "Dinner",
+      "start": {
+        "day": 0,
+        "time": "18:00"
+      },
+      "minutes": 60
+    },
+    {
+      "title": "Morning meeting",
+      "start": {
+        "day": 1,
+        "time": "08:00"
+      },
+      "minutes": 60
+    },
+    {
+      "title": "Planning",
+      "start": {
+        "day": 1,
+        "time": "10:00"
+      },
+      "minutes": 180
+    },
+    {
+      "title": "Review",
+      "start": {
+        "day": 1,
+        "time": "14:00"
+      },
+      "minutes": 60
+    },
+    {
+      "title": "Evening",
+      "start": {
+        "day": 1,
+        "time": "18:00"
+      },
+      "minutes": 60
+    }
+  ],
+  "alarms": [],
+  "chats": []
+}

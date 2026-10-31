@@ -44,4 +44,27 @@ final class CalendarEmptyHoursTests: XCTestCase {
       predicate: NSPredicate(format: "value == %@", "Collapsed"), object: app.buttons[id])
     XCTAssertEqual(XCTWaiter().wait(for: [collapsedValue], timeout: 5), .completed)
   }
+  func testGapBandLabelDoesNotOverlapHourLabels() throws {
+    let app = XCUIApplication()
+    app.launchArguments =
+      TestData.fixtureArguments("calendar-compressed-gaps.json") + [
+        "-uiTestingNow", "09:00", "-uiTestingPrefs", "compressEmptyHours=1", "-AppleLocale",
+        "en_US",
+      ]
+    app.launch()
+    app.buttons["Calendar"].firstMatch.tap()
+    let band = app.buttons["calendar.gapBand.0.8"]
+    XCTAssertTrue(band.waitForExistence(timeout: 10))
+    XCTAssertEqual(band.label, "00–08")
+    XCTAssertGreaterThanOrEqual(band.frame.height, 44)
+    let labels = app.staticTexts.matching(
+      NSPredicate(format: "identifier BEGINSWITH 'calendar.hour.'"))
+    XCTAssertGreaterThan(labels.count, 0)
+    for hour in labels.allElementsBoundByIndex where hour.exists {
+      XCTAssertFalse(band.frame.intersects(hour.frame), "Gap label overlaps \(hour.identifier)")
+    }
+    band.tap()
+    XCTAssertEqual(app.buttons["calendar.gap.0.8"].value as? String, "Expanded")
+  }
+
 }

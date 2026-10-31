@@ -1218,7 +1218,7 @@
     /// The hour height when the current pinch started.
     @State private var pinchStart: CGFloat?
     @State private var pendingDelete: CalEntry?
-    private let gutter: CGFloat = 44
+    private let gutter: CGFloat = 52
     private let range = -800...800
     private var cal: Calendar {
       Preferences.firstWeekdayChoice(presentation.defaults).calendar(base: presentation.calendar)
@@ -1343,7 +1343,7 @@
       }
       return CalendarGapLayout(
         days: compressEmptyHours ? days : [], pointsPerHour: Double(hourHeight),
-        minimumGapMinutes: 120, compressedGapHeight: 28, expandedGaps: expandedGaps)
+        minimumGapMinutes: 120, compressedGapHeight: 44, expandedGaps: expandedGaps)
     }
 
     /// Hour labels stay put on the left; the day columns scroll sideways and snap to a day, one day per swipe.
@@ -1376,6 +1376,7 @@
             scroll.columns = CGFloat(range.lowerBound) + x
           }
           .frame(height: CGFloat(axis.height))
+          .overlay(alignment: .top) { gapBands(axis) }
         }
         .padding(.top, 10)
         .padding(.bottom, 12)
@@ -1395,6 +1396,31 @@
       .accessibilityIdentifier("calendar.dayGrid")
     }
 
+    private func gapBands(_ axis: CalendarGapLayout) -> some View {
+      GeometryReader { geometry in
+        ForEach(axis.gaps, id: \.self) { gap in
+          if !expandedGaps.contains(gap) {
+            Button {
+              expandedGaps.insert(gap)
+            } label: {
+              Text(CalendarGapPresentation.rangeLabel(start: gap.start, end: gap.end))
+                .font(.system(size: 10).monospacedDigit())
+                .foregroundStyle(.secondary)
+                .frame(width: geometry.size.width, height: 44)
+                .background(Color(.secondarySystemBackground).opacity(0.5))
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .position(
+              x: geometry.size.width / 2,
+              y: CGFloat(CalendarGapPresentation.centerY(axis: axis, gap: gap))
+            )
+            .accessibilityIdentifier("calendar.gapBand.\(Int(gap.start / 60)).\(Int(gap.end / 60))")
+          }
+        }
+      }
+    }
+
     private func hourLabels(_ axis: CalendarGapLayout) -> some View {
       ZStack(alignment: .topLeading) {
         ForEach(0..<24, id: \.self) { h in
@@ -1406,7 +1432,7 @@
               .foregroundStyle(.secondary)
               .frame(width: gutter - 4, alignment: .trailing)
               .offset(y: CGFloat(axis.y(forMinute: Double(h * 60))) - 6)
-              .accessibilityHidden(true)
+              .accessibilityIdentifier("calendar.hour.\(h)")
           }
         }
         ForEach(axis.gaps, id: \.self) { gap in
@@ -1414,14 +1440,10 @@
           Button {
             if expanded { expandedGaps.remove(gap) } else { expandedGaps.insert(gap) }
           } label: {
-            VStack(spacing: 1) {
-              Image(systemName: expanded ? "chevron.compact.up" : "arrow.up.and.down")
-              Text(String(format: "%02d–%02d", Int(gap.start / 60), Int(gap.end / 60)))
-                .font(.system(size: 9).monospacedDigit())
-            }
-            .foregroundStyle(.secondary)
-            .frame(width: gutter, height: 28)
-            .contentShape(Rectangle())
+            Image(systemName: expanded ? "chevron.compact.up" : "arrow.up.and.down")
+              .foregroundStyle(.secondary)
+              .frame(width: gutter, height: 44)
+              .contentShape(Rectangle())
           }
           .buttonStyle(.plain)
           .offset(y: CGFloat(axis.y(forMinute: gap.start)))
@@ -1620,16 +1642,6 @@
           hourLines
           // Bottom layer: long-press an empty slot to make an event there. Blocks and chips keep their own taps and menus.
           pressLayer(blockRects + markRects.compactMap { $0 }, width: width)
-          ForEach(axis.gaps, id: \.self) { gap in
-            if !expandedGaps.contains(gap) {
-              Color(.secondarySystemBackground).opacity(0.5)
-                .frame(width: width, height: CGFloat(axis.height(from: gap.start, to: gap.end)))
-                .contentShape(Rectangle())
-                .onTapGesture { expandedGaps.insert(gap) }
-                .offset(y: CGFloat(axis.y(forMinute: gap.start)))
-                .accessibilityHidden(true)
-            }
-          }
           ForEach(drawOrder, id: \.self) { i in
             let r = blockRects[i]
             block(

@@ -100,4 +100,15 @@ final class CalendarGapLayoutTests: XCTestCase {
     XCTAssertEqual(axis.height, 24, accuracy: 0.0001)
     XCTAssertEqual(axis.minute(atY: 12), 720, accuracy: 0.0001)
   }
+  func testGapLabelAndCenterFollowCompressedAxis() {
+    let axis = CalendarGapLayout(
+      days: [Day(intervals: [Gap(start: 480, end: 900)])], pointsPerHour: 48,
+      minimumGapMinutes: 120, compressedGapHeight: 44)
+    let gap = Gap(start: 0, end: 480)
+    XCTAssertEqual(CalendarGapPresentation.rangeLabel(start: gap.start, end: gap.end), "00–08")
+    XCTAssertEqual(CalendarGapPresentation.rangeLabel(start: 900, end: 1440), "15–24")
+    XCTAssertEqual(CalendarGapPresentation.centerY(axis: axis, gap: gap), 22, accuracy: 0.001)
+    XCTAssertEqual(axis.y(forMinute: gap.end), 44, accuracy: 0.001)
+  }
+
 }

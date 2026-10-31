@@ -129,3 +129,18 @@ public struct CalendarGapLayout: Sendable {
     max(0, y(forMinute: end) - y(forMinute: start))
   }
 }
+
+/// Presentation values shared by the calendar gap label and its placement.
+public enum CalendarGapPresentation {
+  public static func rangeLabel(start: Double, end: Double) -> String {
+    func hour(_ minute: Double) -> String {
+      let value = Int(minute / 60)
+      return value < 10 ? "0\(value)" : "\(value)"
+    }
+    return "\(hour(start))–\(hour(end))"
+  }
+
+  public static func centerY(axis: CalendarGapLayout, gap: CalendarGapLayout.Interval) -> Double {
+    (axis.y(forMinute: gap.start) + axis.y(forMinute: gap.end)) / 2
+  }
+}
