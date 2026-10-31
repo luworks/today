@@ -21,9 +21,9 @@ final class ExplicitPlannerRequestSafetyTests: XCTestCase {
         minutes: 30, attendees: 0)
     }
     let request = "Move [QA] dentist to 5pm"
-    XCTAssertEqual(ChatRouting.intent(request), .unsure)
-    XCTAssertNil(OneOffReminderRequest.capture(request, now: now, calendar: calendar))
-    XCTAssertTrue(Editing.looksLikeEdit(request, items: items, now: now, calendar: calendar))
+    XCTAssertEqual(FastLane.intent(request), .unsure)
+    XCTAssertNil(FastLane.oneOffReminder(request, now: now, calendar: calendar))
+    XCTAssertTrue(FastLane.looksLikeEdit(request, items: items, now: now, calendar: calendar))
     let result = Editing.decide(
       text: request, plan: nil, items: items, now: now, calendar: calendar)
     XCTAssertEqual(result.op, .clarify)
@@ -42,18 +42,18 @@ final class ExplicitPlannerRequestSafetyTests: XCTestCase {
       "Move dentist to 5pm", "Please reschedule dentist to tomorrow at 3pm",
       "Postpone meeting to 5pm", "Delete dentist tomorrow at 3pm",
     ] {
-      XCTAssertNil(OneOffReminderRequest.capture(request, now: now, calendar: calendar), request)
+      XCTAssertNil(FastLane.oneOffReminder(request, now: now, calendar: calendar), request)
     }
     XCTAssertNotNil(
-      OneOffReminderRequest.capture(
+      FastLane.oneOffReminder(
         "Remind me to move the boxes at 5pm", now: now, calendar: calendar))
   }
 
   func testExplicitCalendarEventReachesAnEventPreviewWithItsOriginalTimeRange() {
     let request = "Create a calendar event [QA] project review tomorrow from 2pm to 3pm"
-    XCTAssertEqual(ChatRouting.intent(request), .capture)
-    XCTAssertNil(OneOffReminderRequest.capture(request, now: now, calendar: calendar))
-    let draft = CaptureConversation.parse(request, now: now, calendar: calendar)
+    XCTAssertEqual(FastLane.intent(request), .capture)
+    XCTAssertNil(FastLane.oneOffReminder(request, now: now, calendar: calendar))
+    let draft = FastLane.parse(request, now: now, calendar: calendar)
     XCTAssertEqual(draft.kind, .event)
     XCTAssertEqual(draft.title, "[QA] project review")
     XCTAssertEqual(draft.hour, 14)
@@ -67,9 +67,9 @@ final class ExplicitPlannerRequestSafetyTests: XCTestCase {
   func testEventTypeCannotAuthorizeAReminderWhenNoTimeRangeWasGiven() {
     for request in ["Create a calendar event Review tomorrow at 2pm", "Please add an event Review"]
     {
-      XCTAssertEqual(ChatRouting.intent(request), .capture, request)
-      XCTAssertNil(OneOffReminderRequest.capture(request, now: now, calendar: calendar), request)
-      XCTAssertEqual(CaptureConversation.parse(request, now: now, calendar: calendar).kind, .event)
+      XCTAssertEqual(FastLane.intent(request), .capture, request)
+      XCTAssertNil(FastLane.oneOffReminder(request, now: now, calendar: calendar), request)
+      XCTAssertEqual(FastLane.parse(request, now: now, calendar: calendar).kind, .event)
     }
   }
 
@@ -81,9 +81,9 @@ final class ExplicitPlannerRequestSafetyTests: XCTestCase {
       "Don't create a calendar event Review tomorrow at 2pm",
       "What happens if I create a calendar event Review tomorrow at 2pm?",
     ] {
-      XCTAssertFalse(ChatRouting.requestsEvent(request), request)
-      XCTAssertNotEqual(ChatRouting.intent(request), .capture, request)
-      XCTAssertNil(OneOffReminderRequest.capture(request, now: now, calendar: calendar), request)
+      XCTAssertFalse(FastLane.requestsEvent(request), request)
+      XCTAssertNotEqual(FastLane.intent(request), .capture, request)
+      XCTAssertNil(FastLane.oneOffReminder(request, now: now, calendar: calendar), request)
     }
   }
 }

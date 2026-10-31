@@ -740,8 +740,13 @@
         change?.expectedTask = Ledger.snapshot(of: task)
         return
       }
-      let intent = ChatRouting.intent(text)
-      if intent != .conversation, ChatRouting.hasMaterialCorrection(text) {
+      let intent = FastLane.intent(text)
+      // Rule gates first, in this order; only `.directReminder` writes without a card.
+      switch FastLane.decide(
+        text, intent: intent, context: turnContext, pending: pending,
+        editItems: { editCandidates().items }, now: sentAt, calendar: runtime.calendar)
+      {
+      case .clarifyCorrection:
         recordTurn("clarify", text)
         messages.append(
           reply(
@@ -750,27 +755,18 @@
               : "Please restate the item, date and time so I use the corrected date. Nothing has been added."
           ))
         return
-      }
-      if !Editing.looksLikeEdit(
-        text, items: editCandidates().items, now: sentAt, calendar: runtime.calendar),
-        let capture = OneOffReminderRequest.capture(text, now: sentAt, calendar: runtime.calendar)
-      {
+      case .directReminder(let capture):
         recordTurn("capture", text)
         clearPreviews()
         createSubmittedReminder(capture)
         return
-      }
-      if let resolved = CaptureConversation.resolve(
-        text, context: turnContext, pending: pending, now: now(), calendar: runtime.calendar)
-      {
+      case .continuation(let resolved, let direct):
         recordTurn("answer", text)
-        if OneOffReminderRequest.eligible(resolved),
-          OneOffReminderRequest.contextAllows(turnContext)
-        {
+        if direct {
           // A subjectless continuation never duplicates a previously decided card, including
           // after reopening the chat. Undo/Cancel require a deliberate Add again/new request.
           if let existing = proposals.last(where: {
-            OneOffReminderRequest.matches($0.capture, resolved)
+            FastLane.sameOneOff($0.capture, resolved)
           }) {
             if existing.status == .open {
               commit(existing.id)
@@ -808,6 +804,7 @@
                 ? "预览已更新，点 Add 后才会添加。" : "The preview is ready. Tap Add to create it."))
         }
         return
+      case .notFastLane: break
       }
       // A question-shaped answer to our time prompt may edit a preview; other conversation cannot.
       let hasTimeContext: Bool
@@ -868,7 +865,7 @@
         id: "attached", type: type, title: subject.title,
         start: start, minutes: subject.minutes, attendees: 0)
       guard
-        let edit = AttachedItemEditing.parse(
+        let edit = FastLane.attachedEdit(
           text, attachedItemID: "attached", items: [candidate], now: now(),
           calendar: runtime.calendar)
       else { return false }
@@ -1683,7 +1680,7 @@
           if result.localOnly {
             messages.append(reply("Saved in Today only. Apple Calendar is not connected."))
           }
-        } else if proposals[i].retainsDraft && OneOffReminderRequest.eligible(capture) {
+        } else if proposals[i].retainsDraft && FastLane.isEligibleOneOff(capture) {
           written = try actions.insertOneOffReminder(
             capture, requestID: id,
             recoveryExternalID: proposals[i].pendingExternalID, into: context)

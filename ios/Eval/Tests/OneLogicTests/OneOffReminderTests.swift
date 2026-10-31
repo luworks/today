@@ -14,8 +14,8 @@ final class OneOffReminderTests: XCTestCase {
   private let utterance = "11点去 costco 加油 买 粒粒"
 
   func testScreenshotRoutesToReminderWithExactDeadline() {
-    XCTAssertEqual(ChatRouting.intent(utterance), .capture)
-    let capture = CaptureConversation.parse(utterance, now: now, calendar: calendar)
+    XCTAssertEqual(FastLane.intent(utterance), .capture)
+    let capture = FastLane.parse(utterance, now: now, calendar: calendar)
     XCTAssertEqual(capture.kind, .task)
     XCTAssertEqual(capture.title, "去 costco 加油 买 粒粒")
     XCTAssertEqual(capture.hour, 11)
@@ -28,8 +28,8 @@ final class OneOffReminderTests: XCTestCase {
 
   func testChineseMixedReminderRequestAndFollowUpPreserveSlots() throws {
     let text = "增加一个 reminder，今天下午两点吧，我需要去学这个八段锦"
-    XCTAssertEqual(ChatRouting.intent(text), .capture)
-    let capture = try XCTUnwrap(OneOffReminderRequest.capture(text, now: now, calendar: calendar))
+    XCTAssertEqual(FastLane.intent(text), .capture)
+    let capture = try XCTUnwrap(FastLane.oneOffReminder(text, now: now, calendar: calendar))
     XCTAssertEqual(capture.title, "我需要去学这个八段锦")
     XCTAssertEqual(capture.kind, .task)
     XCTAssertEqual(capture.day, calendar.startOfDay(for: now))
@@ -38,7 +38,7 @@ final class OneOffReminderTests: XCTestCase {
     XCTAssertNil(capture.repeatRule)
     let context = ConversationContext(turns: [.init(isUser: true, text: text, timestamp: now)])
     let recovered = try XCTUnwrap(
-      CaptureConversation.resolve(
+      FastLane.resolve(
         "增加提醒", context: context, pending: nil, now: now, calendar: calendar))
     XCTAssertEqual(recovered, capture)
   }
@@ -52,16 +52,16 @@ final class OneOffReminderTests: XCTestCase {
     ]
     for (text, hour, dayOffset) in cases {
       let capture = try XCTUnwrap(
-        OneOffReminderRequest.capture(text, now: now, calendar: calendar), text)
+        FastLane.oneOffReminder(text, now: now, calendar: calendar), text)
       XCTAssertEqual(capture.kind, .task, text)
       XCTAssertEqual(capture.hour, hour, text)
       XCTAssertEqual(
         calendar.dateComponents([.day], from: calendar.startOfDay(for: now), to: capture.day).day,
         dayOffset, text)
     }
-    XCTAssertNil(OneOffReminderRequest.capture("每周五下午两点提醒我买牛奶", now: now, calendar: calendar))
-    XCTAssertNil(OneOffReminderRequest.capture("增加一个闹钟，明天早上8点", now: now, calendar: calendar))
-    XCTAssertNil(OneOffReminderRequest.capture("今天还剩什么", now: now, calendar: calendar))
+    XCTAssertNil(FastLane.oneOffReminder("每周五下午两点提醒我买牛奶", now: now, calendar: calendar))
+    XCTAssertNil(FastLane.oneOffReminder("增加一个闹钟，明天早上8点", now: now, calendar: calendar))
+    XCTAssertNil(FastLane.oneOffReminder("今天还剩什么", now: now, calendar: calendar))
     XCTAssertTrue(ChatRouting.isAgendaQuestion("今天还剩什么"))
   }
 
@@ -69,7 +69,7 @@ final class OneOffReminderTests: XCTestCase {
     var turns: [ConversationContext.Turn] = [.init(isUser: true, text: utterance, timestamp: now)]
     for text in ["setting reminder", "one off"] {
       let capture = try XCTUnwrap(
-        CaptureConversation.resolve(
+        FastLane.resolve(
           text,
           context: ConversationContext(turns: turns), pending: nil, now: now, calendar: calendar))
       XCTAssertEqual(capture.title, "去 costco 加油 买 粒粒")
@@ -81,14 +81,14 @@ final class OneOffReminderTests: XCTestCase {
   }
 
   func testGeneratedChineseReminderWrapperIsNotTheActionTitle() {
-    let capture = CaptureConversation.parse("设置11点去costco加油买粒粒的提醒", now: now, calendar: calendar)
+    let capture = FastLane.parse("设置11点去costco加油买粒粒的提醒", now: now, calendar: calendar)
     XCTAssertEqual(capture.title, "去costco加油买粒粒")
     XCTAssertEqual(capture.hour, 11)
   }
   func testDirectAuthorityDefaultsToOnceButExcludesRecurrenceAndChat() throws {
     for text in [utterance, "Buy milk", "Remind me to call Alex tomorrow at 11am"] {
       let capture = try XCTUnwrap(
-        OneOffReminderRequest.capture(text, now: now, calendar: calendar), text)
+        FastLane.oneOffReminder(text, now: now, calendar: calendar), text)
       XCTAssertNil(capture.repeatRule)
       XCTAssertEqual(capture.kind, .task)
     }
@@ -101,39 +101,39 @@ final class OneOffReminderTests: XCTestCase {
       "Set an alarm for 11am", "Set an alarm", "Wake me up", "设置闹钟",
       "Lunch with Alex tomorrow at 11am", "增加库存", "增加提醒了吗？",
     ] {
-      XCTAssertNil(OneOffReminderRequest.capture(text, now: now, calendar: calendar), text)
+      XCTAssertNil(FastLane.oneOffReminder(text, now: now, calendar: calendar), text)
     }
   }
 
   func testClockRollover() throws {
     let late = calendar.date(bySettingHour: 12, minute: 0, second: 0, of: now)!
     let capture = try XCTUnwrap(
-      OneOffReminderRequest.capture(utterance, now: late, calendar: calendar))
+      FastLane.oneOffReminder(utterance, now: late, calendar: calendar))
     XCTAssertEqual(
       capture.day, calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: now)))
     XCTAssertEqual(capture.hour, 11)
-    let working = CaptureConversation.parse(
+    let working = FastLane.parse(
       "Work on the report tomorrow at 11am for 2 hours", now: now, calendar: calendar)
     XCTAssertNotNil(working.taskTiming(calendar: calendar).due)
   }
 
   func testFailedDraftRoundTripsAndContinuationOnlyMatchesSameAction() throws {
     let capture = try XCTUnwrap(
-      OneOffReminderRequest.capture(utterance, now: now, calendar: calendar))
+      FastLane.oneOffReminder(utterance, now: now, calendar: calendar))
     let card = StoredCard(
       id: UUID(), anchor: UUID(), batch: UUID(), batchSize: 1,
       capture: capture, status: .open, retainsDraft: true,
       pendingExternalID: "synthetic-accepted-id")
     XCTAssertEqual(StoredCard.restore(StoredCard.encode([card])), [card])
-    XCTAssertTrue(OneOffReminderRequest.matches(card.capture, capture))
+    XCTAssertTrue(FastLane.sameOneOff(card.capture, capture))
     var other = capture
     other.hour = 12
-    XCTAssertFalse(OneOffReminderRequest.matches(other, capture))
+    XCTAssertFalse(FastLane.sameOneOff(other, capture))
     let context = ConversationContext(turns: [
       .init(isUser: true, text: "每天11点提醒我买奶", timestamp: now)
     ])
     XCTAssertNil(
-      CaptureConversation.resolve(
+      FastLane.resolve(
         "one off", context: context, pending: nil, now: now, calendar: calendar))
   }
 
