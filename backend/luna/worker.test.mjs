@@ -11,6 +11,37 @@ test('fixed model, reasoning, storage and tools cannot be overridden',()=>{
  assert.throws(()=>prepare({...payload,input:'x'.repeat(12001)}));
 });
 
+test('decisions route validates requests, authenticates and reserves budget',async()=>{
+ let calls=0, sent, denied=false;
+ const mf=new Miniflare({modules:true,scriptPath:new URL('./worker.mjs',import.meta.url).pathname,compatibilityDate:'2026-07-30',d1Databases:['DB'],bindings:{OPENAI_API_KEY:'offline-test-only'},outboundService:async req=>{
+  calls++;assert.equal(new URL(req.url).pathname,'/v1/decisions');sent=await req.json();
+  if(denied)return Response.json({error:{message:'not enabled'}},{status:403});
+  return Response.json({model:'gpt-6-luna',answers:[],usage:{input_tokens:100,output_tokens:0}});
+ }});
+ try{
+  const db=await mf.getD1Database('DB');
+  const schema=(await readFile(new URL('./schema.sql',import.meta.url),'utf8')).replace(/--[^\n]*/g,'');
+  await db.exec(schema.replace(/\n/g,' '));
+  const req=(path,body,token)=>mf.dispatchFetch('https://api.test'+path,{method:'POST',headers:{'content-type':'application/json',...(token?{authorization:'Bearer '+token}:{})},body:JSON.stringify(body)});
+  const question={type:'predicate',name:'missing',instructions:'Is information missing?'};
+  const body={model:'gpt-6-luna',input:[{role:'user',content:'Remind me tomorrow'}],questions:[question,{type:'choice',name:'kind',instructions:'Choose kind',choices:[{value:'reminder'},{value:'event'}]},{type:'score',name:'quality',instructions:'Rate it',levels:[{label:'low'},{label:'high'}]}]};
+  assert.equal((await req('/v1/decisions',body)).status,401);
+  const account=await (await req('/auth/register',{username:'decisionuser',password:'synthetic-password-123'})).json();
+  for(const invalid of [{...body,model:'other'},{...body,questions:Array(9).fill(question)},{...body,questions:[{...question,type:'bad'}]},{...body,store:true},{...body,input:'x'.repeat(12001)}])assert.ok((await req('/v1/decisions',invalid,account.token)).status>=400);
+  assert.equal(calls,0);
+  const initialBudget=(await db.prepare('SELECT used FROM budget').first()).used;
+  assert.equal((await req('/v1/decisions',body,account.token)).status,200);
+  assert.deepEqual(sent,body);assert.equal(calls,1);
+  assert.equal((await db.prepare('SELECT used FROM budget').first()).used,initialBudget+10);
+  assert.equal((await db.prepare("SELECT count FROM buckets WHERE key LIKE 'daily:%'").first()).count,1);
+  denied=true;
+  const deniedResponse=await req('/v1/decisions',body,account.token);
+  assert.equal(deniedResponse.status,403);
+  assert.equal((await deniedResponse.json()).upstream_status,403);
+  assert.equal((await db.prepare('SELECT used FROM budget').first()).used,initialBudget+10010);
+ }finally{await mf.dispose();}
+});
+
 test('D1-backed sessions, isolation, revocation, limits and unknown-charge reservation',async()=>{
  let calls=0;let failure=false;let lastBody;
  const mf=new Miniflare({modules:true,scriptPath:new URL('./worker.mjs',import.meta.url).pathname,compatibilityDate:'2026-07-30',d1Databases:['DB'],bindings:{OPENAI_API_KEY:'offline-test-only'},outboundService:async req=>{

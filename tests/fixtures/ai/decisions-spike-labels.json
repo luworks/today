@@ -1,0 +1,508 @@
+{
+  "fixture_sha256": "715c00cdb15bb455321dcaa45536fe5f52fd26d8fe3a9481899aca90cbbacd97",
+  "label_policy": "Classify the contextual request; date-only and undated reminders may be created without a clock time. missing_info means information required to act is absent. Pending preview corrections retain their original kind; changes to saved items are edit_existing. Target is scored only for edit_existing. The followup-repeat second turn has the first turn saved, as required by the fixture.",
+  "cases": [
+    {
+      "id": "zh-owner",
+      "seeded_items": [
+        {
+          "id": "dentist_1500",
+          "description": "Reminder [QA] dentist today at 15:00"
+        },
+        {
+          "id": "dentist_1600",
+          "description": "Reminder [QA] dentist today at 16:00"
+        }
+      ],
+      "turns": [
+        {
+          "kind": "reminder",
+          "cardinality": "one",
+          "missing_info": false
+        }
+      ]
+    },
+    {
+      "id": "zh-tomorrow",
+      "seeded_items": [
+        {
+          "id": "dentist_1500",
+          "description": "Reminder [QA] dentist today at 15:00"
+        },
+        {
+          "id": "dentist_1600",
+          "description": "Reminder [QA] dentist today at 16:00"
+        }
+      ],
+      "turns": [
+        {
+          "kind": "reminder",
+          "cardinality": "one",
+          "missing_info": false
+        }
+      ]
+    },
+    {
+      "id": "zh-weekday",
+      "seeded_items": [
+        {
+          "id": "dentist_1500",
+          "description": "Reminder [QA] dentist today at 15:00"
+        },
+        {
+          "id": "dentist_1600",
+          "description": "Reminder [QA] dentist today at 16:00"
+        }
+      ],
+      "turns": [
+        {
+          "kind": "reminder",
+          "cardinality": "one",
+          "missing_info": false
+        }
+      ]
+    },
+    {
+      "id": "en-oneoff",
+      "seeded_items": [
+        {
+          "id": "dentist_1500",
+          "description": "Reminder [QA] dentist today at 15:00"
+        },
+        {
+          "id": "dentist_1600",
+          "description": "Reminder [QA] dentist today at 16:00"
+        }
+      ],
+      "turns": [
+        {
+          "kind": "reminder",
+          "cardinality": "one",
+          "missing_info": false
+        }
+      ]
+    },
+    {
+      "id": "mixed-oneoff",
+      "seeded_items": [
+        {
+          "id": "dentist_1500",
+          "description": "Reminder [QA] dentist today at 15:00"
+        },
+        {
+          "id": "dentist_1600",
+          "description": "Reminder [QA] dentist today at 16:00"
+        }
+      ],
+      "turns": [
+        {
+          "kind": "reminder",
+          "cardinality": "one",
+          "missing_info": false
+        }
+      ]
+    },
+    {
+      "id": "date-only",
+      "seeded_items": [
+        {
+          "id": "dentist_1500",
+          "description": "Reminder [QA] dentist today at 15:00"
+        },
+        {
+          "id": "dentist_1600",
+          "description": "Reminder [QA] dentist today at 16:00"
+        }
+      ],
+      "turns": [
+        {
+          "kind": "reminder",
+          "cardinality": "one",
+          "missing_info": false
+        }
+      ]
+    },
+    {
+      "id": "no-time",
+      "seeded_items": [
+        {
+          "id": "dentist_1500",
+          "description": "Reminder [QA] dentist today at 15:00"
+        },
+        {
+          "id": "dentist_1600",
+          "description": "Reminder [QA] dentist today at 16:00"
+        }
+      ],
+      "turns": [
+        {
+          "kind": "reminder",
+          "cardinality": "one",
+          "missing_info": false
+        }
+      ]
+    },
+    {
+      "id": "repeat-zh",
+      "seeded_items": [
+        {
+          "id": "dentist_1500",
+          "description": "Reminder [QA] dentist today at 15:00"
+        },
+        {
+          "id": "dentist_1600",
+          "description": "Reminder [QA] dentist today at 16:00"
+        }
+      ],
+      "turns": [
+        {
+          "kind": "reminder",
+          "cardinality": "one",
+          "missing_info": false
+        }
+      ]
+    },
+    {
+      "id": "repeat-en",
+      "seeded_items": [
+        {
+          "id": "dentist_1500",
+          "description": "Reminder [QA] dentist today at 15:00"
+        },
+        {
+          "id": "dentist_1600",
+          "description": "Reminder [QA] dentist today at 16:00"
+        }
+      ],
+      "turns": [
+        {
+          "kind": "reminder",
+          "cardinality": "one",
+          "missing_info": false
+        }
+      ]
+    },
+    {
+      "id": "alarm",
+      "seeded_items": [
+        {
+          "id": "dentist_1500",
+          "description": "Reminder [QA] dentist today at 15:00"
+        },
+        {
+          "id": "dentist_1600",
+          "description": "Reminder [QA] dentist today at 16:00"
+        }
+      ],
+      "turns": [
+        {
+          "kind": "alarm",
+          "cardinality": "one",
+          "missing_info": false
+        }
+      ]
+    },
+    {
+      "id": "event",
+      "seeded_items": [
+        {
+          "id": "dentist_1500",
+          "description": "Reminder [QA] dentist today at 15:00"
+        },
+        {
+          "id": "dentist_1600",
+          "description": "Reminder [QA] dentist today at 16:00"
+        }
+      ],
+      "turns": [
+        {
+          "kind": "event",
+          "cardinality": "one",
+          "missing_info": false
+        }
+      ]
+    },
+    {
+      "id": "agenda",
+      "seeded_items": [
+        {
+          "id": "dentist_1500",
+          "description": "Reminder [QA] dentist today at 15:00"
+        },
+        {
+          "id": "dentist_1600",
+          "description": "Reminder [QA] dentist today at 16:00"
+        }
+      ],
+      "turns": [
+        {
+          "kind": "question",
+          "cardinality": "one",
+          "missing_info": false
+        }
+      ]
+    },
+    {
+      "id": "capability-question",
+      "seeded_items": [
+        {
+          "id": "dentist_1500",
+          "description": "Reminder [QA] dentist today at 15:00"
+        },
+        {
+          "id": "dentist_1600",
+          "description": "Reminder [QA] dentist today at 16:00"
+        }
+      ],
+      "turns": [
+        {
+          "kind": "question",
+          "cardinality": "one",
+          "missing_info": false
+        }
+      ]
+    },
+    {
+      "id": "existing-edit",
+      "seeded_items": [
+        {
+          "id": "dentist_1500",
+          "description": "Reminder [QA] dentist today at 15:00"
+        },
+        {
+          "id": "dentist_1600",
+          "description": "Reminder [QA] dentist today at 16:00"
+        }
+      ],
+      "turns": [
+        {
+          "kind": "edit_existing",
+          "cardinality": "one",
+          "missing_info": false,
+          "target": "dentist_1500"
+        }
+      ]
+    },
+    {
+      "id": "ambiguous-edit",
+      "seeded_items": [
+        {
+          "id": "dentist_1500",
+          "description": "Reminder [QA] dentist today at 15:00"
+        },
+        {
+          "id": "dentist_1600",
+          "description": "Reminder [QA] dentist today at 16:00"
+        }
+      ],
+      "turns": [
+        {
+          "kind": "edit_existing",
+          "cardinality": "one",
+          "missing_info": true,
+          "target": "none_or_unclear"
+        }
+      ]
+    },
+    {
+      "id": "slot-followup",
+      "seeded_items": [
+        {
+          "id": "dentist_1500",
+          "description": "Reminder [QA] dentist today at 15:00"
+        },
+        {
+          "id": "dentist_1600",
+          "description": "Reminder [QA] dentist today at 16:00"
+        }
+      ],
+      "turns": [
+        {
+          "kind": "reminder",
+          "cardinality": "one",
+          "missing_info": false
+        },
+        {
+          "kind": "reminder",
+          "cardinality": "one",
+          "missing_info": false
+        }
+      ]
+    },
+    {
+      "id": "followup-repeat",
+      "seeded_items": [
+        {
+          "id": "dentist_1500",
+          "description": "Reminder [QA] dentist today at 15:00"
+        },
+        {
+          "id": "dentist_1600",
+          "description": "Reminder [QA] dentist today at 16:00"
+        },
+        {
+          "id": "medicine_reminder",
+          "description": "Reminder [QA] 药 tomorrow at 08:00, created after the first turn"
+        }
+      ],
+      "turns": [
+        {
+          "kind": "reminder",
+          "cardinality": "one",
+          "missing_info": false
+        },
+        {
+          "kind": "edit_existing",
+          "cardinality": "one",
+          "missing_info": false,
+          "target": "medicine_reminder"
+        }
+      ]
+    },
+    {
+      "id": "followup-correction",
+      "seeded_items": [
+        {
+          "id": "dentist_1500",
+          "description": "Reminder [QA] dentist today at 15:00"
+        },
+        {
+          "id": "dentist_1600",
+          "description": "Reminder [QA] dentist today at 16:00"
+        }
+      ],
+      "turns": [
+        {
+          "kind": "alarm",
+          "cardinality": "one",
+          "missing_info": false
+        },
+        {
+          "kind": "alarm",
+          "cardinality": "one",
+          "missing_info": false
+        }
+      ]
+    },
+    {
+      "id": "reported",
+      "seeded_items": [
+        {
+          "id": "dentist_1500",
+          "description": "Reminder [QA] dentist today at 15:00"
+        },
+        {
+          "id": "dentist_1600",
+          "description": "Reminder [QA] dentist today at 16:00"
+        }
+      ],
+      "turns": [
+        {
+          "kind": "chat",
+          "cardinality": "one",
+          "missing_info": false
+        }
+      ]
+    },
+    {
+      "id": "negation",
+      "seeded_items": [
+        {
+          "id": "dentist_1500",
+          "description": "Reminder [QA] dentist today at 15:00"
+        },
+        {
+          "id": "dentist_1600",
+          "description": "Reminder [QA] dentist today at 16:00"
+        }
+      ],
+      "turns": [
+        {
+          "kind": "chat",
+          "cardinality": "one",
+          "missing_info": false
+        }
+      ]
+    },
+    {
+      "id": "question-not-action",
+      "seeded_items": [
+        {
+          "id": "dentist_1500",
+          "description": "Reminder [QA] dentist today at 15:00"
+        },
+        {
+          "id": "dentist_1600",
+          "description": "Reminder [QA] dentist today at 16:00"
+        }
+      ],
+      "turns": [
+        {
+          "kind": "question",
+          "cardinality": "one",
+          "missing_info": false
+        }
+      ]
+    },
+    {
+      "id": "missing-alarm-time",
+      "seeded_items": [
+        {
+          "id": "dentist_1500",
+          "description": "Reminder [QA] dentist today at 15:00"
+        },
+        {
+          "id": "dentist_1600",
+          "description": "Reminder [QA] dentist today at 16:00"
+        }
+      ],
+      "turns": [
+        {
+          "kind": "alarm",
+          "cardinality": "one",
+          "missing_info": true
+        }
+      ]
+    },
+    {
+      "id": "multi-item",
+      "seeded_items": [
+        {
+          "id": "dentist_1500",
+          "description": "Reminder [QA] dentist today at 15:00"
+        },
+        {
+          "id": "dentist_1600",
+          "description": "Reminder [QA] dentist today at 16:00"
+        }
+      ],
+      "turns": [
+        {
+          "kind": "reminder",
+          "cardinality": "several",
+          "missing_info": false
+        }
+      ]
+    },
+    {
+      "id": "self-correction",
+      "seeded_items": [
+        {
+          "id": "dentist_1500",
+          "description": "Reminder [QA] dentist today at 15:00"
+        },
+        {
+          "id": "dentist_1600",
+          "description": "Reminder [QA] dentist today at 16:00"
+        }
+      ],
+      "turns": [
+        {
+          "kind": "reminder",
+          "cardinality": "one",
+          "missing_info": false
+        }
+      ]
+    }
+  ]
+}

@@ -299,7 +299,9 @@ dataset load clock, then relaunches its isolated persistent store on the next da
 synthetic bilingual manual Live-app scenarios, with explicit expected outcomes
 and a simulator-only setup. [`ai-chat-capability-protocol.md`](../../docs/qa/ai-chat-capability-protocol.md)
 defines evidence, attribution and scoring; this authored set is development data,
-not a blind holdout or a claim of model execution. It has no automated consumer.
+not a blind holdout or a claim of model execution. The Decisions spike uses its
+separate frozen labels in [`ai/decisions-spike-labels.json`](ai/decisions-spike-labels.json)
+and the consumer `scripts/ai/decisions_eval.py`.
 
 Today button color tests keep small opaque RGB inputs inline in
 `ios/Eval/Tests/OneLogicTests/TodayButtonColorTests.swift`; the simulator journey
