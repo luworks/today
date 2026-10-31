@@ -12,9 +12,10 @@ test('fixed model, reasoning, storage and tools cannot be overridden',()=>{
 });
 
 test('decisions route validates requests, authenticates and reserves budget',async()=>{
- let calls=0, sent;
+ let calls=0, sent, denied=false;
  const mf=new Miniflare({modules:true,scriptPath:new URL('./worker.mjs',import.meta.url).pathname,compatibilityDate:'2026-07-30',d1Databases:['DB'],bindings:{OPENAI_API_KEY:'offline-test-only'},outboundService:async req=>{
   calls++;assert.equal(new URL(req.url).pathname,'/v1/decisions');sent=await req.json();
+  if(denied)return Response.json({error:{message:'not enabled'}},{status:403});
   return Response.json({model:'gpt-6-luna',answers:[],usage:{input_tokens:100,output_tokens:0}});
  }});
  try{
@@ -33,6 +34,11 @@ test('decisions route validates requests, authenticates and reserves budget',asy
   assert.deepEqual(sent,body);assert.equal(calls,1);
   assert.equal((await db.prepare('SELECT used FROM budget').first()).used,initialBudget+10);
   assert.equal((await db.prepare("SELECT count FROM buckets WHERE key LIKE 'daily:%'").first()).count,1);
+  denied=true;
+  const deniedResponse=await req('/v1/decisions',body,account.token);
+  assert.equal(deniedResponse.status,403);
+  assert.equal((await deniedResponse.json()).upstream_status,403);
+  assert.equal((await db.prepare('SELECT used FROM budget').first()).used,initialBudget+10010);
  }finally{await mf.dispose();}
 });
 

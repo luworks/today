@@ -114,7 +114,13 @@ export default {async fetch(request,env) {
   let upstream;
   try {
    upstream=await fetch("https://api.openai.com"+path,{method:"POST",headers:{"authorization":"Bearer "+env.OPENAI_API_KEY,"content-type":"application/json"},body:payload,redirect:"manual",signal:AbortSignal.timeout(20000)});
-   if(!upstream.ok)throw new Error("upstream");
+   if(!upstream.ok){
+    if(decision&&[403,404].includes(upstream.status)){
+     await db.prepare("UPDATE calls SET status='unknown' WHERE id=?").bind(id).run();
+     return json({error:'upstream_unavailable',upstream_status:upstream.status,request_id:id},upstream.status);
+    }
+    throw new Error("upstream");
+   }
    const result=await boundedJSON(upstream);const u=result.usage;
    if(Number.isSafeInteger(u?.input_tokens)&&u.input_tokens>=0&&Number.isSafeInteger(u?.output_tokens)&&u.output_tokens>=0){
     // Conservatively retain the Responses rate for output and cache writes.
