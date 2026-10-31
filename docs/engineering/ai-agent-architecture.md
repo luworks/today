@@ -17,7 +17,7 @@
 3. **模型永远不直接写。** 写类工具只能生成"提议卡"（`Proposal`）。是直接执行、显示预览，还是要用户确认后果，由 `ActionPolicy`（代码）决定；用户点 Apply 时还会再检查一次。产品原则 1–6 写在 `ActionPolicy` 里。
 4. **快车道只用规则，离线也能用。** 规则有把握的输入（提醒、事件、闹钟）都在本地直接出预览卡；只有"清楚的一次性提醒"可以直接建（现行例外，范围不变）。Decisions API 只作为**可选**的额外检查，要在盲测集上做到零误判才启用。
 5. **我们领先的地方要保住：精确的 Undo 收据和 Activity 账本。** 调研中没有任何竞品公开写明"每一次 AI 改动都能精确撤销"。
-6. **有三件事需要你定（§4.7）**，最急的是预算：$0.50 的总上限已经用掉 $0.31，第一轮评测就会用完。建议提高到 **$5**，同时修正 Worker 的记账（现在缓存 token 按全价记）。
+6. **三项决定已定（§4.7）**：预算提到 $5 并修正记账，effort 用 `low`，离线由快车道出预览卡。
 
 ---
 
@@ -55,7 +55,7 @@
 | `FastLane` | 规则判定加 `CaptureParser`，有把握就生成 Proposal | 从现有 `OneOffReminderRequest` 及其依赖的判定函数收拢而来（见 §4.5 P1） |
 | `AgentRunner` | 循环：发请求 → 收流 → 执行工具 → 回填结果 → 直到模型给出最终回复，或碰到步数、时间上限。纯 Swift，没有 UI | 新写 |
 | `ModelClient`（协议） | `respond(_:) -> AsyncThrowingStream<AgentEvent>`。实现有 `HostedLunaClient`（线上）和 `ScriptedModelClient`（测试时回放录好的响应） | 新写，替换 `HostedGPT.generate` |
-| Worker `/v1/agent` | 鉴权、按轮计额度并记录步数、固定模型和工具清单、SSE 透传、`store:false` | 改写 `backend/luna/worker.mjs` |
+| Worker `/v1/responses`（扩展现有接口，不新增） | 鉴权、按轮计额度并记录步数、固定模型和工具清单、SSE 透传、`store:false` | 改写 `backend/luna/worker.mjs` |
 | `ToolRegistry` | 每个工具一条：strict JSON schema、风险元数据、Swift 执行函数。App 内 agent 和 Siri App Intents 共用 | 新写外壳，内部调用现有 `PlannerActions` 等 |
 | `ActionPolicy` | 输入 Proposal 和动态事实，输出 `direct / preview / confirmConsequence / refuse`。原则 1–6 在这里实现 | 新写，纯逻辑，有单元测试 |
 | Skills | 每类事情一小段说明：提醒、事件、闹钟、修改、整理逾期、日程问答。Markdown 文件，带版本号，打包进 App | 新写，替代 `AskQuickKind.skill` 和散落在各处的 prompt |
@@ -185,7 +185,23 @@ AgentRunner ─ModelClient─ Worker ─ Luna  │
 
 成本估算：每轮约 3 步。每步固定前缀约 6K token，命中缓存按 $0.01/M；新输入约 2K token，按 $0.10/M；输出加推理约 800 token，按 $0.50/M。合计每轮约 $0.002。如果不修记账（缓存 token 按 $0.10/M 记），账面上约 $0.0036 一轮。
 
-### 4.4 Worker 合同（`/v1/agent`）
+### 4.4 Worker 合同（扩展现有的 `/v1/responses`，不新增接口）
+
+整个 agent 都建在 **OpenAI Responses API**（`POST https://api.openai.com/v1/responses`）上。手机只和我们自己 Worker 上的 `/v1/responses` 通信，由 Worker 补上固定的模型、系统提示和工具清单，再转发给 OpenAI。迁移期间，这个接口同时支持两种请求：旧管线的"strict JSON、不带工具"和新 agent 的"items 加工具"。到 P4 删掉旧管线时，旧模式也一起删掉。
+
+用到的 Responses 功能：
+
+| 功能 | 用法 |
+|---|---|
+| function calling（`tools`，`strict: true`） | 12 个工具，schema 由服务端按 `tools_version` 注入 |
+| `function_call` / `function_call_output` items | 手机执行工具，把结果回填 |
+| `parallel_tool_calls: true` | 读类工具并行执行 |
+| `stream: true`（SSE） | 文字逐字显示；`function_call_arguments.done` 一到就显示卡片 |
+| `store: false` + 加密 reasoning items | 不在 OpenAI 端存数据；历史由手机回放 |
+| prompt caching（固定前缀） | 系统提示、工具、skills 放在最前面，保持不变 |
+| `reasoning.effort: low` | 已定（§4.7） |
+
+新旧对比：
 
 | 项目 | 现在（`/v1/responses`） | v3 |
 |---|---|---|
@@ -203,7 +219,7 @@ AgentRunner ─ModelClient─ Worker ─ Luna  │
 
 | 阶段 | 内容 | 删除什么 |
 |---|---|---|
-| **P0** | Worker `/v1/agent`：runs 表、缓存计价、SSE、白名单，加测试；用一次真实请求验证 §4.8 的未知项 | — |
+| **P0** | 扩展 Worker `/v1/responses` 支持 agent 模式：runs 表、缓存计价、SSE、白名单，加测试；用一次真实请求验证 §4.8 的未知项 | — |
 | **P1** | 抽出 `ToolRegistry`、`ActionPolicy`、`FastLane`，**行为不变**。① 先用内存 `ModelContainer` 加假的 `CalendarService`，给 `AskNativeActions.applyChange` 和 `applyTidy`（`AskView.swift` 约 2232–2470 行）以及系统事件改期的编排写**行为快照测试**，然后再抽取。② 把快车道要用的判定函数收进 `FastLane`：`ChatRouting.intent / requestsEvent / hasMultipleActions / hasMaterialCorrection`、`CaptureConversation.parse / referencesReminder / resolve / isOneOffAnswer`、`Editing.looksLikeEdit` | — |
 | **P2** | `AgentRunner`、`ModelClient`、`HostedLunaClient`、`ScriptedModelClient`、skills 文件，放在开关 `today.ai.agent` 后面（默认关） | — |
 | **P3** | 评测：开发集加**新写的盲测集**，新旧两套架构跑同一套题，量 §4.3 的全部指标。可选：在同一套题上测 Decisions 能否作为快车道的额外检查 | — |
@@ -228,11 +244,11 @@ AgentRunner ─ModelClient─ Worker ─ Luna  │
 
 **一句话**：这是同时满足"数据留在本机、写入由代码决定、离线能用、成本可控"这四个条件的最简单结构。大部分零件（写入、Undo、卡片、日期解析、快车道的规则）都已经有了，新写的只有 `AgentRunner`、`ToolRegistry` 外壳、`ActionPolicy` 和 Worker 的一个新接口。
 
-### 4.7 需要你定
+### 4.7 已定（2026-10-31，按推荐执行）
 
-1. **预算上限**：建议从 $0.50 提到 **$5**，同时修正记账。修正后大约能跑 2,500 轮，不修正约 1,400 轮，足够 P3 跑几轮评测，再加上日常自用。
-2. **effort**：建议先用 **`low`**。P3 评测时同时跑一遍 `medium`；如果完成率高出 5 个百分点以上，再升级。
-3. **离线和没开云端的用户**：建议**由快车道在本地出预览卡**（规则有把握的提醒、事件、闹钟都能出），整理逾期继续用 `TidySheet`，其他功能提示"AI 离线"。不再维护第二套引擎。这比现在少一些离线能力：离线时不能再按名字匹配改期，也不能做日程问答，不过 Today tab 本身就能看到日程。
+1. **预算上限**：已定。从 $0.50 提到 **$5**，同时修正记账。修正后大约能跑 2,500 轮，不修正约 1,400 轮，足够 P3 跑几轮评测，再加上日常自用。
+2. **effort**：已定。先用 **`low`**。P3 评测时同时跑一遍 `medium`；如果完成率高出 5 个百分点以上，再升级。
+3. **离线和没开云端的用户**：已定。**由快车道在本地出预览卡**（规则有把握的提醒、事件、闹钟都能出），整理逾期继续用 `TidySheet`，其他功能提示"AI 离线"。不再维护第二套引擎。这比现在少一些离线能力：离线时不能再按名字匹配改期，也不能做日程问答，不过 Today tab 本身就能看到日程。
 
 ### 4.8 P0 要用一次真实请求验证的未知项（这些都不作为设计前提）
 
