@@ -4,9 +4,8 @@ Read `CLAUDE.md` and `ios/README.md` before changing the app. Their product prin
 
 ## Dev hosts
 
-- The GitHub repo is `luworks/today` (renamed from `luworks/one-app`). On ubuntu03 the checkout is `/home/sn0admin/code/today` (`/home/sn0admin/code/one-app` is a symlink to it); on the MacBook Pro it is still `/Users/yuanlu/code/one-app`.
-- **ubuntu03** is the default host: agents edit code, open PRs and watch CI there. It has no Xcode or Swift toolchain, so it cannot build or run the app; `./dev test helpers`, `./dev test qa` and the Python tests run, and CI (macOS runners) does the rest.
-- **MacBook Pro** only for what needs Xcode on a real device: signed device builds, installing to the owner's iPhone with `devicectl`, real-device checks, and occasional simulator measurement.
+- The GitHub repo is `luworks/today` (renamed from `luworks/one-app`); the Mac checkout is `/Users/yuanlu/code/today`.
+- Agents work on the MacBook Pro: edit code, open PRs, watch CI, run simulator checks, and perform signed device builds and phone installs there.
 
 ## Testing: CI owns it
 
