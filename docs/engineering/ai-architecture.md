@@ -1,5 +1,7 @@
 # Today AI architecture
 
+> Target design: [ai-agent-architecture.md](ai-agent-architecture.md) replaces this pipeline; this file remains the as-is audit until the migration (P4) deletes it.
+
 Snapshot: `main` at `c89cbdb4f4cf30ed3c9883b5cca2598484cfa58a`, inspected 2026-10-30. This is a static code audit, not a production health check or a new evaluation. The native iOS app is the product; the HTML prototype's `isQuestion` and scripted reply are not its implementation. Paths below are repository-relative.
 
 ## Overview
