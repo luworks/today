@@ -32,7 +32,7 @@ final class EditRoutingTests: XCTestCase {
   ]
 
   private func isEdit(_ text: String) -> Bool {
-    Editing.looksLikeEdit(text, items: items, now: now, calendar: cal)
+    FastLane.looksLikeEdit(text, items: items, now: now, calendar: cal)
   }
 
   // MARK: The reported conversation
