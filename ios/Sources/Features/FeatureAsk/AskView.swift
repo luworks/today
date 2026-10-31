@@ -1432,60 +1432,22 @@
 
     private func apply(_ c: PendingChange) {
       if case .systemEvent = c.subject, let snapshot = c.systemMove, let start = c.newStart {
-        do {
-          let outcome = try calendarSync.moveEvent(
-            expected: snapshot, to: start, acknowledgingAudience: true)
+        let result = AskNativeActions.applySystemMove(
+          snapshot, to: start, context: context, calendar: calendarSync, ledger: ledger,
+          runtime: runtime, report: { messages.append($0) })
+        if result.feedback.applied {
           recordCard(resolved: "change", "applied")
           change = nil
-          switch outcome {
-          case .verified(let receipt):
-            let entry = ledger.record(
-              .moved, kind: "event", title: snapshot.title,
-              before: ledger.timeLabel(snapshot.start), after: ledger.timeLabel(start),
-              beforeDate: snapshot.start, afterDate: start, actor: .todayAI, channel: .ask,
-              approval: .asked, snapshot: receipt, context: context)
-            subject?.itemRef = receipt.after.externalID
-            subject?.start = receipt.after.start
-            subject?.isAllDay = false
-            subject?.minutes = Int(receipt.after.end.timeIntervalSince(receipt.after.start) / 60)
-            thread?.subject = subject
-            try? context.save()
-            messages.append(reply("The calendar event was moved."))
-            offerUndo("Moved the event. Calendar may notify attendees again.", card: "change") {
-              do {
-                switch try calendarSync.undoMove(receipt, acknowledgingAudience: true) {
-                case .verified:
-                  ledger.recordUndo(of: entry, channel: .ask, context: context)
-                  messages.append(reply("The event was restored."))
-                case .committedUnverified:
-                  ledger.record(
-                    .edited, kind: "event", title: snapshot.title,
-                    after: "Undo committed; result not verified", actor: .you, channel: .ask,
-                    approval: .userMade, snapshot: receipt, context: context)
-                  messages.append(
-                    reply(
-                      "Calendar accepted Undo, but the result couldn't be verified. Open Calendar to check it."
-                    ))
-                }
-              } catch {
-                messages.append(reply("Couldn't undo the event change. Open Calendar to check it."))
-              }
-            }
-          case .committedUnverified(let pending):
-            ledger.record(
-              .moved, kind: "event", title: snapshot.title,
-              before: ledger.timeLabel(snapshot.start),
-              after: "Calendar accepted; result unverified",
-              beforeDate: snapshot.start, afterDate: start, actor: .todayAI, channel: .ask,
-              approval: .asked, snapshot: pending, context: context)
-            messages.append(
-              reply(
-                "Calendar accepted the change, but the result couldn't be verified. Open Calendar to check it before trying again."
-              ))
-          }
-        } catch {
-          messages.append(reply("The event could not be changed. Open Calendar to check it."))
         }
+        if let after = result.moved {
+          subject?.itemRef = after.externalID
+          subject?.start = after.start
+          subject?.isAllDay = false
+          subject?.minutes = Int(after.end.timeIntervalSince(after.start) / 60)
+          thread?.subject = subject
+          try? context.save()
+        }
+        show(result.feedback, card: "change")
         return
       }
       if case .task(let task) = c.subject, let operation = c.attachedOperation,
@@ -2415,6 +2377,72 @@
         }
       }
       return feedback
+    }
+
+    /// A user-approved move of one Apple Calendar occurrence. `report` posts replies that arrive later (Undo).
+    /// `moved` is the verified result, so the caller can point its attached subject at it.
+    package static func applySystemMove(
+      _ snapshot: CalendarMoveSnapshot, to start: Date, context: ModelContext,
+      calendar: any CalendarService, ledger: Ledger, runtime: PlannerRuntime,
+      report: @escaping (ChatMessage) -> Void
+    ) -> (feedback: AskActionFeedback, moved: CalendarMoveSnapshot?) {
+      func reply(_ text: String) -> ChatMessage {
+        ChatMessage(role: .ai, text: text, timestamp: runtime.now())
+      }
+      var feedback = AskActionFeedback()
+      do {
+        let outcome = try calendar.moveEvent(
+          expected: snapshot, to: start, acknowledgingAudience: true)
+        switch outcome {
+        case .verified(let receipt):
+          let entry = ledger.record(
+            .moved, kind: "event", title: snapshot.title,
+            before: ledger.timeLabel(snapshot.start), after: ledger.timeLabel(start),
+            beforeDate: snapshot.start, afterDate: start, actor: .todayAI, channel: .ask,
+            approval: .asked, snapshot: receipt, context: context)
+          feedback.messages.append(reply("The calendar event was moved."))
+          feedback.undo = UndoRow(
+            label: "Moved the event. Calendar may notify attendees again.",
+            action: {
+              do {
+                switch try calendar.undoMove(receipt, acknowledgingAudience: true) {
+                case .verified:
+                  ledger.recordUndo(of: entry, channel: .ask, context: context)
+                  report(reply("The event was restored."))
+                case .committedUnverified:
+                  ledger.record(
+                    .edited, kind: "event", title: snapshot.title,
+                    after: "Undo committed; result not verified", actor: .you, channel: .ask,
+                    approval: .userMade, snapshot: receipt, context: context)
+                  report(
+                    reply(
+                      "Calendar accepted Undo, but the result couldn't be verified. Open Calendar to check it."
+                    ))
+                }
+              } catch {
+                report(reply("Couldn't undo the event change. Open Calendar to check it."))
+              }
+            })
+          return (feedback, receipt.after)
+        case .committedUnverified(let pending):
+          ledger.record(
+            .moved, kind: "event", title: snapshot.title,
+            before: ledger.timeLabel(snapshot.start),
+            after: "Calendar accepted; result unverified",
+            beforeDate: snapshot.start, afterDate: start, actor: .todayAI, channel: .ask,
+            approval: .asked, snapshot: pending, context: context)
+          feedback.messages.append(
+            reply(
+              "Calendar accepted the change, but the result couldn't be verified. Open Calendar to check it before trying again."
+            ))
+          return (feedback, nil)
+        }
+      } catch {
+        feedback.applied = false
+        feedback.messages.append(
+          reply("The event could not be changed. Open Calendar to check it."))
+        return (feedback, nil)
+      }
     }
 
     private static func recallNote(_ c: PendingChange) -> String {

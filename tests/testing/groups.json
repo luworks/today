@@ -11,7 +11,8 @@
       "integration": [
         "StoreUpgradeTests/baselineStorePreservesAllFieldsAcrossReopenAndMutation",
         "PlannerSessionTests",
-        "AskInteractionTests"
+        "AskInteractionTests",
+        "AskWriteSnapshotTests"
       ]
     },
     "ui": {

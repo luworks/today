@@ -159,7 +159,23 @@
     }
     package func isRepeating(externalID: String?) -> Bool { event(externalID)?.repeats ?? false }
     package func audience(externalID: String?) -> (attendees: Int, isOrganizer: Bool)? { nil }
-    package func canDelete(externalID: String?) -> Bool { !isDisposed && externalID == nil }
+    package func canDelete(externalID: String?) -> Bool {
+      guard !isDisposed else { return false }
+      guard let externalID else { return true }
+      return writableExternalIDs.contains(externalID)
+    }
+    /// Explicit fixtures for linked-event writes. Empty by default: no external write is accepted.
+    package var writableExternalIDs: Set<String> = []
+    /// Explicit `save` results; nil keeps the default refusal.
+    @ObservationIgnored package var saveResult: ((OneEvent) -> String?)?
+    package private(set) var saveRequests: [String?] = []
+    /// Explicit system-move fixtures; nil keeps the default `CalendarMoveError.unavailable`.
+    @ObservationIgnored package var moveSnapshotResult:
+      ((String, Date) throws -> CalendarMoveSnapshot)?
+    @ObservationIgnored package var moveEventResult:
+      ((CalendarMoveSnapshot, Date) throws -> CalendarMoveOutcome)?
+    @ObservationIgnored package var undoMoveResult:
+      ((CalendarMoveReceipt) throws -> CalendarMoveUndoOutcome)?
     package var creationFailure: CalendarCreationError?
     package var defaultCalendarID: String?
     package private(set) var creationCalendarIDs: [String] = []
@@ -184,19 +200,28 @@
     }
     // A fake never silently claims a system move succeeded without an explicit fixture.
     package func moveSnapshot(externalID: String, occurrence: Date) throws -> CalendarMoveSnapshot {
-      throw CalendarMoveError.unavailable
+      guard !isDisposed, let fixture = moveSnapshotResult else {
+        throw CalendarMoveError.unavailable
+      }
+      return try fixture(externalID, occurrence)
     }
     package func moveEvent(
       expected: CalendarMoveSnapshot, to start: Date, acknowledgingAudience: Bool
     ) throws -> CalendarMoveOutcome {
-      throw CalendarMoveError.unavailable
+      guard !isDisposed, let fixture = moveEventResult else { throw CalendarMoveError.unavailable }
+      return try fixture(expected, start)
     }
     package func undoMove(_ receipt: CalendarMoveReceipt, acknowledgingAudience: Bool) throws
       -> CalendarMoveUndoOutcome
     {
-      throw CalendarMoveError.unavailable
+      guard !isDisposed, let fixture = undoMoveResult else { throw CalendarMoveError.unavailable }
+      return try fixture(receipt)
     }
-    package func save(_ event: OneEvent, span: EKSpan) -> String? { nil }
+    package func save(_ event: OneEvent, span: EKSpan) -> String? {
+      guard !isDisposed, let fixture = saveResult else { return nil }
+      saveRequests.append(event.externalID)
+      return fixture(event)
+    }
     package func delete(_ event: OneEvent, span: EKSpan) -> Bool {
       delete(externalID: event.externalID, occurrence: event.start, span: span)
     }
