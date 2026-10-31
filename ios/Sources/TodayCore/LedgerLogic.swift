@@ -151,7 +151,7 @@ public enum LedgerAction: String {
 public enum LedgerApproval: String {
   /// The user tapped Apply / Add on an AI card.
   case asked
-  /// Applied by itself under a grant the user gave (see `AutonomyPolicy`).
+  /// Applied by itself under a grant the user gave (retired; see `ActionPolicy`).
   case autoUnderGrant = "auto"
   /// The user did it.
   case userMade = "user"
