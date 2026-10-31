@@ -53,6 +53,16 @@ def percentile(values, q):
     return values[math.ceil(len(values) * q) - 1]
 
 
+def input_cost(usage):
+    details = usage.get('input_tokens_details', {})
+    cached = details.get('cached_tokens', 0)
+    writes = details.get('cache_write_tokens', 0)
+    ordinary = usage['input_tokens'] - cached - writes
+    if min(ordinary, cached, writes) < 0:
+        raise ValueError('Invalid token usage breakdown')
+    return (ordinary * .10 + cached * .01 + writes * .125) / 1_000_000
+
+
 def report(rows):
     print('question n correct accuracy | threshold: correct/covered accuracy coverage')
     for name in ('kind', 'cardinality', 'target', 'missing_info'):
@@ -86,6 +96,7 @@ def report(rows):
         latency = [r['latency_seconds'] for r in rows]
         print(f'latency seconds p50={statistics.median(latency):.3f} p90={percentile(latency,.9):.3f}')
         print('tokens input=',sum(r['response']['usage']['input_tokens'] for r in rows),'output=',sum(r['response']['usage'].get('output_tokens',0) for r in rows))
+        print(f'usage-priced cost ${sum(input_cost(r["response"]["usage"]) for r in rows):.6f}')
 
 
 def main():
@@ -127,9 +138,9 @@ def main():
                         usage=response.get('usage',{})
                         if not isinstance(usage.get('input_tokens'),int) or not isinstance(usage.get('output_tokens'),int):
                             raise RuntimeError('Missing usage; reservation retained $0.01')
-                        cost=math.ceil(usage['input_tokens']*.1+usage['output_tokens']*.5)/1_000_000
+                        cost=max(math.ceil(usage['input_tokens']*.1+usage['output_tokens']*.5)/1_000_000,input_cost(usage))
                         conservative += cost-.01
-                        actual += usage['input_tokens']*.1/1_000_000
+                        actual += input_cost(usage)
                         rows.append(row)
             finally:
                 if token:
@@ -137,7 +148,7 @@ def main():
                     print(f'cleanup {username}: HTTP {status}',flush=True)
                     if status!=200: raise RuntimeError(f'account cleanup failed: HTTP {status} {response}')
     report(rows)
-    print(f'input list-price estimate ${actual:.6f}; conservative budget charge ${conservative:.6f} (excludes cache discounts, includes output at Responses rate)')
+    print(f'usage-priced cost ${actual:.6f}; conservative spend bound ${conservative:.6f}')
 
 
 if __name__ == '__main__':
