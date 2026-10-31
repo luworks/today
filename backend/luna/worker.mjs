@@ -42,6 +42,30 @@ export function prepare(body) {
  if(format?.type!=="json_schema"||format.strict!==true||!format.schema||typeof format.schema!=="object"||!/^[a-zA-Z0-9_-]{1,64}$/.test(format.name))fail("strict_schema_required");
  return {model:"gpt-6-luna",reasoning:{effort:"medium"},store:false,max_output_tokens:OUTPUT,instructions:body.instructions,input:body.input,text:{format}};
 }
+const only = (value, keys) => value && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).every(k => keys.includes(k));
+const nonempty = value => typeof value === 'string' && value.trim().length > 0;
+export function prepareDecision(body) {
+ if(!only(body,['model','input','questions'])||body.model!=='gpt-6-luna')fail('invalid_request');
+ const input=body.input;
+ if(!(nonempty(input)||(Array.isArray(input)&&input.length>0&&input.length<=32&&input.every(m=>only(m,['role','content'])&&['user','assistant'].includes(m.role)&&nonempty(m.content)))))fail('invalid_request');
+ if(bytes(JSON.stringify(input)).length>12000)fail('context_too_large',413);
+ if(!Array.isArray(body.questions)||body.questions.length<1||body.questions.length>8)fail('invalid_request');
+ const names=new Set();
+ for(const q of body.questions){
+  if(!only(q,['type','name','instructions',...(q?.type==='choice'?['choices']:q?.type==='score'?['levels']:[])])||!['predicate','choice','score'].includes(q.type)||!nonempty(q.name)||!/^[a-zA-Z0-9_-]{1,64}$/.test(q.name)||names.has(q.name)||!nonempty(q.instructions))fail('invalid_request');
+  names.add(q.name);
+  if(q.type!=='predicate'){
+   const key=q.type==='choice'?'choices':'levels', field=q.type==='choice'?'value':'label', options=q[key];
+   if(!Array.isArray(options)||options.length<2||options.length>(q.type==='score'?10:255))fail('invalid_request');
+   const seen=new Set();
+   for(const option of options){
+    if(!only(option,[field,'description'])||!(nonempty(option[field])||(field==='value'&&typeof option[field]==='boolean'))||(option.description!==undefined&&typeof option.description!=='string')||seen.has(JSON.stringify(option[field])))fail('invalid_request');
+    seen.add(JSON.stringify(option[field]));
+   }
+  }
+ }
+ return {model:'gpt-6-luna',input,questions:body.questions};
+}
 export default {async fetch(request,env) {
  const now=Math.floor(Date.now()/1000), path=new URL(request.url).pathname,db=env.DB;
  try {
@@ -75,10 +99,12 @@ export default {async fetch(request,env) {
   }
   if(path==="/auth/logout"&&request.method==="POST") {await db.prepare("DELETE FROM sessions WHERE token_hash=?").bind(user.tokenHash).run();return json({ok:true});}
   if(path==="/auth/account"&&request.method==="DELETE") {await db.batch([db.prepare("DELETE FROM sessions WHERE user_id=?").bind(user.id),db.prepare("DELETE FROM calls WHERE user_id=?").bind(user.id),db.prepare("DELETE FROM users WHERE id=?").bind(user.id)]);return json({ok:true});}
-  if(path!=="/v1/responses"||request.method!=="POST")fail("not_found",404);
+  if(!["/v1/responses","/v1/decisions"].includes(path)||request.method!=="POST")fail("not_found",404);
   if(!env.OPENAI_API_KEY)fail("service_unavailable",503);
-  const payload=JSON.stringify(prepare(await boundedJSON(request)));
+  const decision=path==='/v1/decisions';
+  const payload=JSON.stringify((decision?prepareDecision:prepare)(await boundedJSON(request)));
   // Each counter is atomic; denied attempts may consume quota, never call OpenAI.
+  // A decision consumes one unit of the existing per-user minute and daily quotas.
   await bucket(db,"minute:"+user.id+":"+Math.floor(now/60),6);
   await bucket(db,"daily:"+user.id+":"+Math.floor(now/86400),40);
   const reserve=10000, id=crypto.randomUUID();
@@ -87,10 +113,11 @@ export default {async fetch(request,env) {
   await db.prepare("INSERT INTO calls VALUES (?,?,?,?,NULL,'pending')").bind(id,user.id,now,reserve).run();
   let upstream;
   try {
-   upstream=await fetch("https://api.openai.com/v1/responses",{method:"POST",headers:{"authorization":"Bearer "+env.OPENAI_API_KEY,"content-type":"application/json"},body:payload,redirect:"manual",signal:AbortSignal.timeout(20000)});
+   upstream=await fetch("https://api.openai.com"+path,{method:"POST",headers:{"authorization":"Bearer "+env.OPENAI_API_KEY,"content-type":"application/json"},body:payload,redirect:"manual",signal:AbortSignal.timeout(20000)});
    if(!upstream.ok)throw new Error("upstream");
    const result=await boundedJSON(upstream);const u=result.usage;
    if(Number.isSafeInteger(u?.input_tokens)&&u.input_tokens>=0&&Number.isSafeInteger(u?.output_tokens)&&u.output_tokens>=0){
+    // Conservatively retain the Responses rate for output and cache writes.
     const charged=Math.ceil(u.input_tokens*.1+u.output_tokens*.5);
     await db.batch([db.prepare("UPDATE calls SET charged=?,status=? WHERE id=?").bind(charged,result.status||"unknown",id),db.prepare("UPDATE budget SET used=used-?+? WHERE id=1").bind(reserve,charged)]);
    }
