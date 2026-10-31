@@ -22,7 +22,8 @@ Wrangler stdin; it is neither a plain-text binding nor a source/config/bundle va
 | `/auth/session` | GET | Bearer; username and daily call usage/limit |
 | `/auth/logout` | POST | Revokes this bearer |
 | `/auth/account` | DELETE | Deletes this AI user and all their sessions; local planner data remains |
-| `/v1/responses` | POST | Bearer; bounded strict-schema Responses request |
+| `/v1/responses` | POST | Bearer; bounded strict-schema Responses request, or agent mode (below) |
+| `/v1/decisions` | POST | Bearer; bounded Decisions request |
 
 Passwords use per-user random salt + PBKDF2-SHA256 (100,000 iterations). Random
 256-bit sessions expire after 30 days; only their SHA-256 hashes are stored server-side.
@@ -34,9 +35,41 @@ Offline sign-out clears local credentials and states that remote revocation is u
 Requests are limited to24KB total,8KB instructions and12KB input, enforced by both
 mobile transport and server. The existing feature-specific prompts and bounded context
 remain authoritative; do not upload whole local data stores. The server fixes
-`gpt-6-luna`, medium reasoning, store=false and4096 total output tokens; no tools,
-model substitution, redirects, automatic retries or Apple fallback. D1 stores account
+`gpt-6-luna`, medium reasoning, store=false and4096 total output tokens; no tools
+(agent mode below has server-owned tools only), model substitution, redirects,
+automatic retries or Apple fallback. D1 stores account
 credentials/session hashes, counters and accounting metadata, not chat or planner text.
+
+## Agent mode (`/v1/responses` with `tools_version`)
+
+Phase P0 of `docs/engineering/ai-agent-architecture.md`. A body containing
+`tools_version` is an agent step; any other body is the strict-JSON mode above, unchanged.
+
+- Body: exactly `{input, tools_version, run_id, stream?}`, at most 256 KB. `input` is 1–256
+  replayed items: `message` (roles `user`/`assistant`, text parts only), `function_call`
+  (name must be a v1 tool), `function_call_output` and `reasoning`, passed upstream verbatim
+  (ids, `phase` and `encrypted_content` included). `system`/`developer` roles,
+  `instructions`, client `tools`/`tool_choice`, images/files, other item types and any other
+  key (model, reasoning, store, text, service_tier, previous_response_id…) are rejected
+  with 400 before any quota or budget is touched.
+- The Worker injects the versioned prompt and the 12 strict tools from `agent-v1.mjs`
+  (§1.3 table plus a nullable `why` on write tools, §3 O4) and fixes `gpt-6-luna`,
+  `reasoning.effort: low`, `store: false`, `include: [reasoning.encrypted_content]`,
+  `parallel_tool_calls: true`, `tool_choice: auto` and 4096 output tokens. No `text.format`:
+  the final reply is plain text and proposals come only from tool calls.
+  `agent-v1.mjs` is the cacheable prefix; change it only as a new `tools_version`.
+- `run_id` (8–64 of `[A-Za-z0-9_-]`, one per user message) is counted in the D1 `runs`
+  table: at most 6 steps per run (`run_step_limit`), 40 new runs per user per UTC day
+  (`run_quota`; an unfinished run may still finish), a run belongs to its creator (409).
+  Agent steps use their own 20/minute backstop and do not consume the 40 calls/day bucket of
+  strict mode. `/auth/session` reports `runsUsed`/`dailyRunLimit`.
+- Upstream timeout is 30 s per step; the abort signal is meant to cover a streamed body too (fetch spec behavior, not exercised offline). Responses up to 4 MB.
+- `stream: true` passes the upstream SSE through unchanged. The Worker reads the upstream
+  stream to its end inside `ctx.waitUntil` even if the phone disconnects or stalls, then
+  settles the ledger from the `response.completed`/`incomplete`/`failed` usage; a stream
+  without a usage receipt keeps its reservation as `unknown`.
+- An upstream 400 (OpenAI rejected the request before generating) releases the
+  reservation and returns `upstream_rejected` with OpenAI's code/param/message.
 
 ## Quotas and evaluation budget
 
@@ -45,14 +78,16 @@ limited to100 active accounts and3 registrations/day/IP; login is rate limited p
 IP and username. Account deletion does not refund global model spending. A message
 can use multiple calls, including optional suggestion/title requests.
 
-The global table starts with the exact prior conservative evaluation spend
-USD0.023951 and a **USD0.50 cumulative ceiling**, preserving the owner's validation
-budget. Before each model request, reserve USD0.01 atomically; after a valid usage
-receipt, replace the reservation with conservatively rounded token cost. Unknown
-outcomes keep their reservation across restarts. Denied calls never reach OpenAI.
-Never reset the table, recreate the database or raise the ceiling to bypass the cap.
-An ongoing production allowance beyond this bounded rollout needs a separate owner
-budget decision; this implementation does not authorize one.
+The global table started with the exact prior conservative evaluation spend
+USD0.023951 and a USD0.50 cumulative ceiling. On 2026-10-31 the owner approved raising
+the ceiling to **USD5.00** (architecture doc §4.7): one `UPDATE budget SET ceiling=5000000`,
+from used 312805 / ceiling 500000 to used 312805 / ceiling 5000000 (micro-dollars);
+`used` was not touched. Before each model request (or agent step), reserve USD0.01
+atomically; after a valid usage receipt, replace the reservation with the rounded-up
+token cost: uncached input USD0.10/M, cached input (`input_tokens_details.cached_tokens`)
+USD0.01/M, output including reasoning USD0.50/M. Unknown outcomes keep their reservation
+across restarts. Denied calls never reach OpenAI. Never reset the table, recreate the
+database or raise the ceiling beyond an explicit owner budget decision.
 
 ## Verification and operations
 
@@ -68,6 +103,9 @@ and always attempts deletion of its synthetic account. It refuses to overwrite a
 receipt and never prints passwords/tokens. Requests identify the client honestly as
 TodayAPISmoke; the default Python-urllib user agent is rejected by Cloudflare1010.
 The app uses Today-iOS as its client identifier. No Cloudflare security setting was widened.
+
+`python3 agent_probe.py --output <fresh-private-results>/probe.jsonl` runs the bounded
+P0 real-request checks (synthetic data only; see `docs/qa/agent-p0-20261031.md`).
 
 Deployment uses the existing authorized Wrangler profile, `wrangler d1 execute DB
 --remote --file schema.sql` and `wrangler deploy`. Schema is additive/idempotent;

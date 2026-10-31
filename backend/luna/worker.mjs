@@ -1,5 +1,10 @@
+import * as agentV1 from './agent-v1.mjs';
 const encoder = new TextEncoder();
 const MAX_BODY = 24000;
+// Agent mode (tools_version present): bounded replayed history, server-owned prompt and tools.
+const AGENT = {v1: agentV1};
+const MAX_AGENT_BODY = 262144, MAX_AGENT_UPSTREAM = 4194304, MAX_ITEMS = 256;
+const MAX_STEPS = 6, DAILY_RUNS = 40, AGENT_MINUTE = 20, RESERVE = 10000;
 const OUTPUT = 4096;
 const headers = {"content-type":"application/json", "cache-control":"no-store", "x-content-type-options":"nosniff"};
 const json = (body, status=200) => new Response(JSON.stringify(body), {status, headers});
@@ -13,13 +18,15 @@ async function passwordHash(password, salt) {
  return hex(await crypto.subtle.deriveBits({name:"PBKDF2",salt:bytes(salt),iterations:100000,hash:"SHA-256"},key,256));
 }
 function equal(a,b) { let d=a.length^b.length; for(let i=0;i<Math.max(a.length,b.length);i++)d|=(a.charCodeAt(i)||0)^(b.charCodeAt(i)||0);return d===0; }
-async function boundedJSON(request) {
- const reader=request.body?.getReader(); if(!reader)fail("missing_body");
+async function boundedText(source,max) {
+ const reader=source.body?.getReader(); if(!reader)fail("missing_body");
  let length=0;const chunks=[];
- while(true){const {value,done}=await reader.read();if(done)break;length+=value.length;if(length>MAX_BODY){await reader.cancel();fail("request_too_large",413);}chunks.push(value);}
+ while(true){const {value,done}=await reader.read();if(done)break;length+=value.length;if(length>max){await reader.cancel();fail("request_too_large",413);}chunks.push(value);}
  const all=new Uint8Array(length);let offset=0;for(const c of chunks){all.set(c,offset);offset+=c.length;}
- try{return JSON.parse(new TextDecoder().decode(all));}catch{fail("invalid_json");}
+ return {text:new TextDecoder().decode(all),length};
 }
+const parse = text => { try{return JSON.parse(text);}catch{fail("invalid_json");} };
+const boundedJSON = async (source,max=MAX_BODY) => parse((await boundedText(source,max)).text);
 async function bucket(db,key,limit) {
  const r=await db.prepare("INSERT INTO buckets VALUES (?,1) ON CONFLICT(key) DO UPDATE SET count=count+1 WHERE count<? RETURNING count").bind(key,limit).first();
  if(!r)fail("rate_limit",429);
@@ -66,10 +73,91 @@ export function prepareDecision(body) {
  }
  return {model:'gpt-6-luna',input,questions:body.questions};
 }
-export default {async fetch(request,env) {
+const ROLES = new Set(['user','assistant']), PARTS = new Set(['input_text','output_text','refusal']);
+function checkItem(item,version) {
+ if(!item||typeof item!=='object'||Array.isArray(item))fail('invalid_item');
+ if('role' in item&&!ROLES.has(item.role))fail('role_not_allowed');
+ const type=item.type??('role' in item?'message':undefined);
+ if(type==='message'){
+  const c=item.content;
+  if(!ROLES.has(item.role)||!(nonempty(c)||(Array.isArray(c)&&c.length>0&&c.length<=64&&c.every(p=>p&&PARTS.has(p.type)&&typeof (p.text??p.refusal)==='string'))))fail('invalid_item');
+ } else if(type==='function_call'){
+  if(!version.toolNames.has(item.name)||!nonempty(item.call_id)||typeof item.arguments!=='string')fail('invalid_item');
+ } else if(type==='function_call_output'){
+  if(!nonempty(item.call_id)||typeof item.output!=='string')fail('invalid_item');
+ } else if(type!=='reasoning')fail('invalid_item');
+}
+// Agent mode: the client sends only replayed items; prompt, tools, model and limits are fixed here.
+export function prepareAgent(body) {
+ if(!body||typeof body!=='object'||Array.isArray(body))fail('invalid_request');
+ if('tools' in body||'tool_choice' in body)fail('client_tools_not_allowed');
+ if('instructions' in body)fail('role_not_allowed');
+ if(!only(body,['input','tools_version','run_id','stream']))fail('invalid_request');
+ if(!Object.hasOwn(AGENT,body.tools_version))fail('unsupported_tools_version');
+ if(typeof body.run_id!=='string'||!/^[A-Za-z0-9_-]{8,64}$/.test(body.run_id))fail('invalid_run_id');
+ if(body.stream!==undefined&&typeof body.stream!=='boolean')fail('invalid_request');
+ const version=AGENT[body.tools_version], input=body.input;
+ if(!Array.isArray(input)||!input.length||input.length>MAX_ITEMS)fail('invalid_request');
+ for(const item of input)checkItem(item,version);
+ return {model:'gpt-6-luna',instructions:version.instructions,input,tools:version.tools,tool_choice:'auto',parallel_tool_calls:true,
+  reasoning:{effort:'low'},store:false,include:['reasoning.encrypted_content'],max_output_tokens:OUTPUT,stream:body.stream===true};
+}
+// One run = one user message; the server counts its steps so a client cannot loop forever.
+async function runStep(db,user,runId,now) {
+ const next=()=>db.prepare("UPDATE runs SET steps=steps+1 WHERE run_id=? AND user_id=? AND steps<? RETURNING steps").bind(runId,user.id,MAX_STEPS).first();
+ let r=await next();if(r)return r.steps;
+ r=await db.prepare("INSERT INTO runs SELECT ?,?,1,? WHERE (SELECT COUNT(*) FROM runs WHERE user_id=? AND started>=?)<? ON CONFLICT(run_id) DO NOTHING RETURNING steps")
+  .bind(runId,user.id,now,user.id,Math.floor(now/86400)*86400,DAILY_RUNS).first();
+ if(r)return r.steps;
+ const existing=await db.prepare("SELECT user_id FROM runs WHERE run_id=?").bind(runId).first();
+ if(!existing)fail('run_quota',429);
+ if(existing.user_id!==user.id)fail('invalid_run_id',409);
+ r=await next();if(r)return r.steps; // a concurrent first step created the run
+ fail('run_step_limit',429);
+}
+const safe = n => Number.isSafeInteger(n)&&n>=0;
+// Micro-dollars: uncached input $0.10/M, cached input $0.01/M, output (incl. reasoning) $0.50/M.
+export function cost(u) {
+ if(!safe(u?.input_tokens)||!safe(u?.output_tokens))return null;
+ const cached=Math.min(safe(u.input_tokens_details?.cached_tokens)?u.input_tokens_details.cached_tokens:0,u.input_tokens);
+ return Math.ceil(((u.input_tokens-cached)*10+cached+u.output_tokens*50)/100);
+}
+async function settle(db,id,usage,status) {
+ const charged=cost(usage);
+ if(charged===null){await db.prepare("UPDATE calls SET status='unknown' WHERE id=?").bind(id).run();return;}
+ await db.batch([db.prepare("UPDATE calls SET charged=?,status=? WHERE id=?").bind(charged,typeof status==='string'?status:'unknown',id),db.prepare("UPDATE budget SET used=used-?+? WHERE id=1").bind(RESERVE,charged)]);
+}
+const TERMINAL = new Set(['response.completed','response.incomplete','response.failed']);
+// Reads the whole upstream SSE stream even after the client leaves, then settles the ledger.
+// Client writes are not awaited, so a stalled client cannot hold the reservation open.
+async function pump(body,writer,db,id) {
+ const reader=body.getReader(), decoder=new TextDecoder();
+ let buffer='', final=null, gone=false, size=0;
+ writer.closed.catch(()=>{gone=true;});
+ try {
+  while(true){
+   const {value,done}=await reader.read();if(done)break;
+   size+=value.length;if(size>MAX_AGENT_UPSTREAM)throw new Error('upstream_too_large');
+   if(!gone)writer.write(value).catch(()=>{gone=true;});
+   buffer+=decoder.decode(value,{stream:true}).replace(/\r/g,'');
+   let i;
+   while((i=buffer.indexOf('\n\n'))>=0){
+    const data=buffer.slice(0,i).split('\n').filter(l=>l.startsWith('data:')).map(l=>l.slice(5).trimStart()).join('\n');buffer=buffer.slice(i+2);
+    if(!data||data==='[DONE]')continue;
+    try{const event=JSON.parse(data);if(TERMINAL.has(event.type))final=event.response;}catch{}
+   }
+  }
+  if(!gone)writer.close().catch(()=>{});
+ } catch(error) {
+  reader.cancel().catch(()=>{});writer.abort(error).catch(()=>{});
+ }
+ await settle(db,id,final?.usage,final?.status);
+}
+const sse = {"content-type":"text/event-stream","cache-control":"no-store","x-content-type-options":"nosniff"};
+export default {async fetch(request,env,ctx) {
  const now=Math.floor(Date.now()/1000), path=new URL(request.url).pathname,db=env.DB;
  try {
-  if(path==="/health"&&request.method==="GET")return json({ok:true,model:"gpt-6-luna",effort:"medium"});
+  if(path==="/health"&&request.method==="GET")return json({ok:true,model:"gpt-6-luna",effort:"medium",agent:{tools_versions:Object.keys(AGENT),effort:"low",max_steps:MAX_STEPS,daily_runs:DAILY_RUNS}});
   if(!db)fail("service_unavailable",503);
   const ip=await hash((request.headers.get("CF-Connecting-IP")||"unknown")+":"+Math.floor(now/86400));
   if(["/auth/register","/auth/login"].includes(path)&&request.method==="POST") {
@@ -95,38 +183,62 @@ export default {async fetch(request,env) {
   const user=await identity(request,db,now);
   if(path==="/auth/session"&&request.method==="GET") {
    const usage=await db.prepare("SELECT count FROM buckets WHERE key=?").bind("daily:"+user.id+":"+Math.floor(now/86400)).first();
-   return json({username:user.username,model:"gpt-6-luna",effort:"medium",dailyLimit:40,used:usage?.count||0});
+   const runs=await db.prepare("SELECT COUNT(*) AS n FROM runs WHERE user_id=? AND started>=?").bind(user.id,Math.floor(now/86400)*86400).first();
+   return json({username:user.username,model:"gpt-6-luna",effort:"medium",dailyLimit:40,used:usage?.count||0,dailyRunLimit:DAILY_RUNS,runsUsed:runs?.n||0});
   }
   if(path==="/auth/logout"&&request.method==="POST") {await db.prepare("DELETE FROM sessions WHERE token_hash=?").bind(user.tokenHash).run();return json({ok:true});}
-  if(path==="/auth/account"&&request.method==="DELETE") {await db.batch([db.prepare("DELETE FROM sessions WHERE user_id=?").bind(user.id),db.prepare("DELETE FROM calls WHERE user_id=?").bind(user.id),db.prepare("DELETE FROM users WHERE id=?").bind(user.id)]);return json({ok:true});}
+  if(path==="/auth/account"&&request.method==="DELETE") {await db.batch([db.prepare("DELETE FROM sessions WHERE user_id=?").bind(user.id),db.prepare("DELETE FROM calls WHERE user_id=?").bind(user.id),db.prepare("DELETE FROM runs WHERE user_id=?").bind(user.id),db.prepare("DELETE FROM users WHERE id=?").bind(user.id)]);return json({ok:true});}
   if(!["/v1/responses","/v1/decisions"].includes(path)||request.method!=="POST")fail("not_found",404);
   if(!env.OPENAI_API_KEY)fail("service_unavailable",503);
   const decision=path==='/v1/decisions';
-  const payload=JSON.stringify((decision?prepareDecision:prepare)(await boundedJSON(request)));
+  let body, agent=false, runId;
+  if(decision)body=prepareDecision(await boundedJSON(request));
+  else {
+   const raw=await boundedText(request,MAX_AGENT_BODY), parsed=parse(raw.text);
+   agent=!!parsed&&typeof parsed==='object'&&'tools_version' in parsed;
+   if(!agent&&raw.length>MAX_BODY)fail("request_too_large",413);
+   body=agent?prepareAgent(parsed):prepare(parsed);
+   if(agent)runId=parsed.run_id;
+  }
+  const payload=JSON.stringify(body);
   // Each counter is atomic; denied attempts may consume quota, never call OpenAI.
   // A decision consumes one unit of the existing per-user minute and daily quotas.
-  await bucket(db,"minute:"+user.id+":"+Math.floor(now/60),6);
-  await bucket(db,"daily:"+user.id+":"+Math.floor(now/86400),40);
-  const reserve=10000, id=crypto.randomUUID();
-  const allowance=await db.prepare("UPDATE budget SET used=used+? WHERE id=1 AND used+?<=ceiling RETURNING used").bind(reserve,reserve).first();
+  // An agent step consumes one step of its run (6 max); new runs count against 40 runs/day.
+  if(agent){
+   await bucket(db,"agent-minute:"+user.id+":"+Math.floor(now/60),AGENT_MINUTE);
+   await runStep(db,user,runId,now);
+  } else {
+   await bucket(db,"minute:"+user.id+":"+Math.floor(now/60),6);
+   await bucket(db,"daily:"+user.id+":"+Math.floor(now/86400),40);
+  }
+  const id=crypto.randomUUID();
+  const allowance=await db.prepare("UPDATE budget SET used=used+? WHERE id=1 AND used+?<=ceiling RETURNING used").bind(RESERVE,RESERVE).first();
   if(!allowance)fail("service_budget_exhausted",429);
-  await db.prepare("INSERT INTO calls VALUES (?,?,?,?,NULL,'pending')").bind(id,user.id,now,reserve).run();
+  await db.prepare("INSERT INTO calls VALUES (?,?,?,?,NULL,'pending')").bind(id,user.id,now,RESERVE).run();
   let upstream;
   try {
-   upstream=await fetch("https://api.openai.com"+path,{method:"POST",headers:{"authorization":"Bearer "+env.OPENAI_API_KEY,"content-type":"application/json"},body:payload,redirect:"manual",signal:AbortSignal.timeout(20000)});
+   upstream=await fetch("https://api.openai.com"+path,{method:"POST",headers:{"authorization":"Bearer "+env.OPENAI_API_KEY,"content-type":"application/json"},body:payload,redirect:"manual",signal:AbortSignal.timeout(agent?30000:20000)});
    if(!upstream.ok){
     if(decision&&[403,404].includes(upstream.status)){
      await db.prepare("UPDATE calls SET status='unknown' WHERE id=?").bind(id).run();
      return json({error:'upstream_unavailable',upstream_status:upstream.status,request_id:id},upstream.status);
     }
+    if(agent&&upstream.status===400){
+     // OpenAI rejects invalid requests (e.g. a bad replayed item) before generating; nothing is billed.
+     const detail=await boundedJSON(upstream,65536).catch(()=>({}));
+     await db.batch([db.prepare("UPDATE calls SET charged=0,status='rejected' WHERE id=?").bind(id),db.prepare("UPDATE budget SET used=used-? WHERE id=1").bind(RESERVE)]);
+     const e=detail?.error||{};
+     return json({error:'upstream_rejected',upstream_status:400,code:typeof e.code==='string'?e.code:null,param:typeof e.param==='string'?e.param:null,message:typeof e.message==='string'?e.message.slice(0,500):null,request_id:id},400);
+    }
     throw new Error("upstream");
    }
-   const result=await boundedJSON(upstream);const u=result.usage;
-   if(Number.isSafeInteger(u?.input_tokens)&&u.input_tokens>=0&&Number.isSafeInteger(u?.output_tokens)&&u.output_tokens>=0){
-    // Conservatively retain the Responses rate for output and cache writes.
-    const charged=Math.ceil(u.input_tokens*.1+u.output_tokens*.5);
-    await db.batch([db.prepare("UPDATE calls SET charged=?,status=? WHERE id=?").bind(charged,result.status||"unknown",id),db.prepare("UPDATE budget SET used=used-?+? WHERE id=1").bind(reserve,charged)]);
+   if(body.stream){
+    const {readable,writable}=new TransformStream();
+    ctx.waitUntil(pump(upstream.body,writable.getWriter(),db,id));
+    return new Response(readable,{headers:{...sse,"x-request-id":id}});
    }
+   const result=await boundedJSON(upstream,agent?MAX_AGENT_UPSTREAM:MAX_BODY);
+   await settle(db,id,result.usage,result.status);
    return json(result);
   } catch {
    await db.prepare("UPDATE calls SET status='unknown' WHERE id=?").bind(id).run();
