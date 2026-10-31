@@ -12,7 +12,8 @@
         "StoreUpgradeTests/baselineStorePreservesAllFieldsAcrossReopenAndMutation",
         "PlannerSessionTests",
         "AskInteractionTests",
-        "AskWriteSnapshotTests"
+        "AskWriteSnapshotTests",
+        "ToolRegistryTests"
       ]
     },
     "ui": {

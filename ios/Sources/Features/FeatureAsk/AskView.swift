@@ -2057,6 +2057,31 @@
 
     package static func == (a: PendingChange, b: PendingChange) -> Bool { a.id == b.id }
 
+    /// The write this card stands for; nil for subjects Ask applies elsewhere (alarms, Apple Calendar).
+    @MainActor
+    package var proposal: ChangeProposal? {
+      let target: ChangeProposal.Target
+      switch subject {
+      case .task(let task): target = .task(task)
+      case .event(let event): target = .event(event)
+      case .alarm, .systemEvent: return nil
+      }
+      let edit: ChangeProposal.Edit?
+      if delete {
+        edit = .delete
+      } else if case .task = subject, let rule = newRepeatRule, let due = newStart {
+        edit = .setRepeat(rule: rule, due: due)
+      } else if let newStart {
+        edit = .move(newStart)
+      } else {
+        edit = nil
+      }
+      var expected: ProposalSnapshot?
+      if case .task = subject { expected = expectedTask.map(ProposalSnapshot.init(task:)) }
+      return ChangeProposal(
+        target: target, edit: edit, oldText: oldText, attendees: attendees, expected: expected)
+    }
+
     package var isEvent: Bool {
       switch subject {
       case .event, .systemEvent: true
@@ -2204,179 +2229,15 @@
       _ c: PendingChange, context: ModelContext, calendar: any CalendarService,
       actions: PlannerActions, ledger: Ledger, runtime: PlannerRuntime
     ) -> AskActionFeedback {
-      func reply(_ text: String) -> ChatMessage {
-        ChatMessage(role: .ai, text: text, timestamp: runtime.now())
-      }
-      var feedback = AskActionFeedback()
-      switch c.subject {
-      case .task(let task):
-        guard !task.isDeleted, task.modelContext != nil else {
-          feedback.applied = false
-          return feedback
-        }
-        if c.delete {
-          // Use the real action, including reminder deletion tracking and its retained Undo.
-          let toast = UndoToast()
-          let undoManager = UndoManager()
-          toast.undoManager = undoManager
-          actions.delete(task, context: context, toast: toast, actor: .todayAI, channel: .ask)
-          if let label = toast.message {
-            feedback.undo = UndoRow(
-              label: label,
-              action: {
-                // UndoManager does not retain its target. Keep it alive beyond the toast's timeout.
-                withExtendedLifetime(toast) {
-                  if undoManager.canUndo { undoManager.undo() }
-                }
-              })
-          }
-        } else if let rule = c.newRepeatRule, let due = c.newStart {
-          let before = Ledger.snapshot(of: task)
-          guard c.expectedTask == before else {
-            feedback.applied = false
-            feedback.messages.append(
-              reply(
-                "This reminder changed since the preview. Ask again to prepare a current preview."))
-            return feedback
-          }
-          do {
-            let entry = try actions.setRepeat(task, rule: rule, due: due, context: context)
-            let after = Ledger.snapshot(of: task)
-            feedback.messages.append(reply("Updated “\(task.title)” to repeat every day."))
-            feedback.undo = UndoRow(
-              label: "Changed “\(task.title)”.",
-              action: {
-                guard !task.isDeleted, task.modelContext != nil,
-                  Ledger.snapshot(of: task) == after
-                else { return }
-                do {
-                  _ = try actions.setRepeat(
-                    task, rule: before.repeatRule, due: before.due, context: context)
-                  ledger.recordUndo(of: entry, task: task, channel: .ask, context: context)
-                } catch { return }
-              })
-          } catch {
-            feedback.applied = false
-            feedback.messages.append(
-              reply("Couldn't save the repeat change: \(error.localizedDescription)"))
-          }
-        } else if let new = c.newStart {
-          if let entry = actions.setDue(
-            task, to: new, context: context, actor: .todayAI, channel: .ask, approval: .asked)
-          {
-            feedback.messages.append(reply("Moved “\(task.title)” to \(ledger.timeLabel(new))."))
-            feedback.undo = UndoRow(
-              label: "Moved “\(task.title)”.",
-              action: {
-                guard !task.isDeleted, task.modelContext != nil,
-                  !task.isDone, task.due == new
-                else { return }
-                var recorded = entry
-                recorded.itemRef = Ledger.ref(task.persistentModelID)
-                _ = actions.undo(recorded, context: context)
-              }
-            )
-          }
-        }
-      case .alarm, .systemEvent:
+      guard let proposal = c.proposal else {
+        var feedback = AskActionFeedback()
         feedback.applied = false
         return feedback
-      case .event(let event):
-        guard !event.isDeleted, event.modelContext != nil, event.repeatRule == nil,
-          event.externalID == nil || calendar.canDelete(externalID: event.externalID)
-        else {
-          feedback.applied = false
-          feedback.messages.append(reply("This event can't be changed here. Open it in Calendar."))
-          return feedback
-        }
-        let linked = event.externalID != nil
-        if c.delete {
-          let backup = event.copy()
-          guard calendar.delete(event, span: .thisEvent) else {
-            feedback.applied = false
-            feedback.messages.append(
-              reply("Couldn't delete the calendar event. The preview is still here."))
-            return feedback
-          }
-          context.delete(event)
-          do { try context.save() } catch {
-            if !linked {
-              context.insert(event)
-              feedback.applied = false
-              feedback.messages.append(
-                reply("Couldn't save the deletion. The preview is still here."))
-              return feedback
-            }
-            feedback.messages.append(
-              reply(
-                "Calendar accepted the deletion, but Today couldn't save its copy. Reopen Today to retry saving."
-              ))
-          }
-          let entry = ledger.record(
-            .deleted, kind: "event", title: backup.title, before: c.oldText,
-            actor: .todayAI, channel: .ask, approval: .asked, context: context)
-          feedback.messages.append(reply("Deleted “\(backup.title)”."))
-          feedback.undo = UndoRow(
-            label: "Deleted “\(backup.title)”." + recallNote(c),
-            action: {
-              // Recreating a remote event is compensation, never an atomic recall of invitations.
-              if linked {
-                guard let id = calendar.save(backup, span: .thisEvent) else { return }
-                backup.externalID = id
-              }
-              context.insert(backup)
-              do { try context.save() } catch {
-                if !linked { context.delete(backup) }
-                return
-              }
-              ledger.recordUndo(of: entry, channel: .ask, context: context)
-            })
-        } else if let new = c.newStart {
-          let old = event.start
-          event.start = new
-          if linked, calendar.save(event, span: .thisEvent) == nil {
-            event.start = old
-            feedback.applied = false
-            feedback.messages.append(
-              reply("Couldn't update the calendar event. The preview is still here."))
-            return feedback
-          }
-          do { try context.save() } catch {
-            if !linked {
-              event.start = old
-              feedback.applied = false
-              feedback.messages.append(
-                reply("Couldn't save the change. The preview is still here."))
-              return feedback
-            }
-            feedback.messages.append(
-              reply(
-                "Calendar accepted the change, but Today couldn't save its copy. Reopen Today to retry saving."
-              ))
-          }
-          let entry = ledger.record(
-            .moved, kind: "event", title: event.title, before: ledger.timeLabel(old),
-            after: ledger.timeLabel(new),
-            actor: .todayAI, channel: .ask, approval: .asked, context: context)
-          feedback.messages.append(reply("Moved “\(event.title)” to \(ledger.timeLabel(new))."))
-          feedback.undo = UndoRow(
-            label: "Moved “\(event.title)”." + recallNote(c),
-            action: {
-              guard !event.isDeleted, event.modelContext != nil, event.start == new else { return }
-              event.start = old
-              if linked, calendar.save(event, span: .thisEvent) == nil {
-                event.start = new
-                return
-              }
-              do { try context.save() } catch {
-                if !linked { event.start = new }
-                return
-              }
-              ledger.recordUndo(of: entry, channel: .ask, context: context)
-            })
-        }
       }
-      return feedback
+      return feedback(
+        ToolRegistry.apply(
+          proposal, context: context, calendar: calendar, actions: actions, ledger: ledger),
+        runtime: runtime)
     }
 
     /// A user-approved move of one Apple Calendar occurrence. `report` posts replies that arrive later (Undo).
@@ -2386,116 +2247,37 @@
       calendar: any CalendarService, ledger: Ledger, runtime: PlannerRuntime,
       report: @escaping (ChatMessage) -> Void
     ) -> (feedback: AskActionFeedback, moved: CalendarMoveSnapshot?) {
-      func reply(_ text: String) -> ChatMessage {
-        ChatMessage(role: .ai, text: text, timestamp: runtime.now())
-      }
-      var feedback = AskActionFeedback()
-      do {
-        let outcome = try calendar.moveEvent(
-          expected: snapshot, to: start, acknowledgingAudience: true)
-        switch outcome {
-        case .verified(let receipt):
-          let entry = ledger.record(
-            .moved, kind: "event", title: snapshot.title,
-            before: ledger.timeLabel(snapshot.start), after: ledger.timeLabel(start),
-            beforeDate: snapshot.start, afterDate: start, actor: .todayAI, channel: .ask,
-            approval: .asked, snapshot: receipt, context: context)
-          feedback.messages.append(reply("The calendar event was moved."))
-          feedback.undo = UndoRow(
-            label: "Moved the event. Calendar may notify attendees again.",
-            action: {
-              do {
-                switch try calendar.undoMove(receipt, acknowledgingAudience: true) {
-                case .verified:
-                  ledger.recordUndo(of: entry, channel: .ask, context: context)
-                  report(reply("The event was restored."))
-                case .committedUnverified:
-                  ledger.record(
-                    .edited, kind: "event", title: snapshot.title,
-                    after: "Undo committed; result not verified", actor: .you, channel: .ask,
-                    approval: .userMade, snapshot: receipt, context: context)
-                  report(
-                    reply(
-                      "Calendar accepted Undo, but the result couldn't be verified. Open Calendar to check it."
-                    ))
-                }
-              } catch {
-                report(reply("Couldn't undo the event change. Open Calendar to check it."))
-              }
-            })
-          return (feedback, receipt.after)
-        case .committedUnverified(let pending):
-          ledger.record(
-            .moved, kind: "event", title: snapshot.title,
-            before: ledger.timeLabel(snapshot.start),
-            after: "Calendar accepted; result unverified",
-            beforeDate: snapshot.start, afterDate: start, actor: .todayAI, channel: .ask,
-            approval: .asked, snapshot: pending, context: context)
-          feedback.messages.append(
-            reply(
-              "Calendar accepted the change, but the result couldn't be verified. Open Calendar to check it before trying again."
-            ))
-          return (feedback, nil)
-        }
-      } catch {
-        feedback.applied = false
-        feedback.messages.append(
-          reply("The event could not be changed. Open Calendar to check it."))
-        return (feedback, nil)
-      }
-    }
-
-    private static func recallNote(_ c: PendingChange) -> String {
-      c.attendees > 0 ? " Attendee updates already sent can't be recalled." : ""
+      let outcome = ToolRegistry.apply(
+        SystemMoveProposal(expected: snapshot, start: start), context: context,
+        calendar: calendar, ledger: ledger,
+        report: { report(ChatMessage(role: .ai, text: $0, timestamp: runtime.now())) })
+      return (feedback(outcome.result, runtime: runtime), outcome.moved)
     }
 
     package static func applyTidy(
       rows: inout [TidyRow], context: ModelContext, actions: PlannerActions, ledger: Ledger,
       runtime: PlannerRuntime
     ) -> AskActionFeedback {
-      func reply(_ text: String) -> ChatMessage {
-        ChatMessage(role: .ai, text: text, timestamp: runtime.now())
-      }
-      var feedback = AskActionFeedback()
+      let proposal = TidyProposal(
+        rows: rows.map {
+          TidyProposal.Row(task: $0.task, expectedDue: $0.oldDue, choice: $0.choice)
+        }
+      )
+      let result = ToolRegistry.apply(
+        proposal, context: context, actions: actions, ledger: ledger, runtime: runtime)
+      if result.applied { rows = [] }
+      return feedback(result, runtime: runtime)
+    }
 
-      let changes = rows.filter {
-        $0.choice != .keep && !$0.task.isDeleted && $0.task.due == $0.oldDue
+    private static func feedback(_ result: WriteResult, runtime: PlannerRuntime)
+      -> AskActionFeedback
+    {
+      var feedback = AskActionFeedback()
+      feedback.applied = result.applied
+      feedback.messages = result.replies.map {
+        ChatMessage(role: .ai, text: $0, timestamp: runtime.now())
       }
-      let anchor = runtime.now()
-      for r in changes {
-        r.task.due = OverdueTidy.newDue(r.oldDue, r.choice, now: anchor, calendar: runtime.calendar)
-      }
-      do { try context.save() } catch {
-        for r in changes { r.task.due = r.oldDue }
-        feedback.applied = false
-        feedback.messages.append(reply("Couldn't save the new dates. The preview is still here."))
-        return feedback
-      }
-      var entries: [(task: OneTask, entry: LedgerItem)] = []
-      for r in changes {
-        let new = r.task.due
-        let entry = ledger.record(
-          .redated, task: r.task, title: r.task.title,
-          before: ledger.timeLabel(r.oldDue, none: "No date"),
-          after: ledger.timeLabel(new, none: "No date"), beforeDate: r.oldDue, afterDate: new,
-          actor: .todayAI, channel: .ask, approval: .asked, context: context)
-        entries.append((r.task, entry))
-      }
-      rows = []
-      let label = "Moved \(changes.count) reminder\(changes.count == 1 ? "" : "s")."
-      feedback.messages.append(reply(label))
-      feedback.undo = UndoRow(
-        label: label,
-        action: {
-          for row in entries {
-            guard !row.task.isDeleted, row.task.modelContext != nil,
-              !row.task.isDone, row.task.due == row.entry.afterDate
-            else { continue }
-            var entry = row.entry
-            entry.itemRef = Ledger.ref(row.task.persistentModelID)
-            _ = actions.undo(entry, context: context)
-          }
-        })
+      feedback.undo = result.undo.map { UndoRow(label: $0.label, action: $0.run) }
       return feedback
     }
   }
