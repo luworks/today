@@ -1,6 +1,6 @@
 # Today AI：Agent 架构（定稿 v3）
 
-日期 2026-10-31 · 状态：**设计定稿，尚未实现** · 迁移完成后取代 `docs/engineering/ai-architecture.md` 描述的"规则路由 + 多个零散 prompt"架构。那份文档在迁移期间保留，作为现状审计。
+日期 2026-10-31 · 状态：**设计定稿；P0（Worker agent 模式）已实现并部署（2026-10-31），P1 起尚未实现** · 迁移完成后取代 `docs/engineering/ai-architecture.md` 描述的"规则路由 + 多个零散 prompt"架构。那份文档在迁移期间保留，作为现状审计。
 
 本文按四步写：§1 新框架（v1）→ §2 和竞品对比 → §3 根据对比优化（v2）→ §4 最终版本（v3），以及为什么选它。§5 记录独立审查发现的问题和修正位置。
 
@@ -17,7 +17,7 @@
 3. **模型永远不直接写。** 写类工具只能生成"提议卡"（`Proposal`）。是直接执行、显示预览，还是要用户确认后果，由 `ActionPolicy`（代码）决定；用户点 Apply 时还会再检查一次。产品原则 1–6 写在 `ActionPolicy` 里。
 4. **快车道只用规则，离线也能用。** 规则有把握的输入（提醒、事件、闹钟）都在本地直接出预览卡；只有"清楚的一次性提醒"可以直接建（现行例外，范围不变）。Decisions API 只作为**可选**的额外检查，要在盲测集上做到零误判才启用。
 5. **我们领先的地方要保住：精确的 Undo 收据和 Activity 账本。** 调研中没有任何竞品公开写明"每一次 AI 改动都能精确撤销"。
-6. **三项决定已定（§4.7）**：预算提到 $5 并修正记账，effort 用 `low`，离线由快车道出预览卡。
+6. **三项决定已定（§4.7）**：预算提到 $5 并修正记账，effort 用 `low`，离线由快车道出预览卡。预算和记账已在 P0 生效（2026-10-31，提高时已用 $0.312805）。
 
 ---
 
@@ -55,7 +55,7 @@
 | `FastLane` | 规则判定加 `CaptureParser`，有把握就生成 Proposal | 从现有 `OneOffReminderRequest` 及其依赖的判定函数收拢而来（见 §4.5 P1） |
 | `AgentRunner` | 循环：发请求 → 收流 → 执行工具 → 回填结果 → 直到模型给出最终回复，或碰到步数、时间上限。纯 Swift，没有 UI | 新写 |
 | `ModelClient`（协议） | `respond(_:) -> AsyncThrowingStream<AgentEvent>`。实现有 `HostedLunaClient`（线上）和 `ScriptedModelClient`（测试时回放录好的响应） | 新写，替换 `HostedGPT.generate` |
-| Worker `/v1/responses`（扩展现有接口，不新增） | 鉴权、按轮计额度并记录步数、固定模型和工具清单、SSE 透传、`store:false` | 改写 `backend/luna/worker.mjs` |
+| Worker `/v1/responses`（扩展现有接口，不新增；请求带 `tools_version` 即 agent 模式） | 鉴权、按轮计额度并记录步数、固定模型和工具清单、SSE 透传、`store:false` | `backend/luna/worker.mjs` + `agent-v1.mjs`（P0 已实现） |
 | `ToolRegistry` | 每个工具一条：strict JSON schema、风险元数据、Swift 执行函数。App 内 agent 和 Siri App Intents 共用 | 新写外壳，内部调用现有 `PlannerActions` 等 |
 | `ActionPolicy` | 输入 Proposal 和动态事实，输出 `direct / preview / confirmConsequence / refuse`。原则 1–6 在这里实现 | 新写，纯逻辑，有单元测试 |
 | Skills | 每类事情一小段说明：提醒、事件、闹钟、修改、整理逾期、日程问答。Markdown 文件，带版本号，打包进 App | 新写，替代 `AskQuickKind.skill` 和散落在各处的 prompt |
@@ -185,7 +185,9 @@ AgentRunner ─ModelClient─ Worker ─ Luna  │
 
 成本估算：每轮约 3 步。每步固定前缀约 6K token，命中缓存按 $0.01/M；新输入约 2K token，按 $0.10/M；输出加推理约 800 token，按 $0.50/M。合计每轮约 $0.002。如果不修记账（缓存 token 按 $0.10/M 记），账面上约 $0.0036 一轮。
 
-### 4.4 Worker 合同（扩展现有的 `/v1/responses`，不新增接口）
+### 4.4 Worker 合同（扩展现有的 `/v1/responses`，不新增接口；P0 已实现）
+
+请求体带 `tools_version` 就是 agent 模式，否则走原来的 strict JSON 模式（行为不变，现在的 App 继续用）。实现细节以 `backend/luna/README.md` 为准。
 
 整个 agent 都建在 **OpenAI Responses API**（`POST https://api.openai.com/v1/responses`）上。手机只和我们自己 Worker 上的 `/v1/responses` 通信，由 Worker 补上固定的模型、系统提示和工具清单，再转发给 OpenAI。迁移期间，这个接口同时支持两种请求：旧管线的"strict JSON、不带工具"和新 agent 的"items 加工具"。到 P4 删掉旧管线时，旧模式也一起删掉。
 
@@ -203,7 +205,7 @@ AgentRunner ─ModelClient─ Worker ─ Luna  │
 
 新旧对比：
 
-| 项目 | 现在（`/v1/responses`） | v3 |
+| 项目 | strict JSON 模式（不变） | agent 模式（v3，已实现） |
 |---|---|---|
 | 输入 | 只接受字符串 `input` 和 `instructions` | items 数组（message、`function_call`、`function_call_output`、reasoning）；**拒绝客户端传来的 system / developer 角色**，系统提示由服务端按版本注入 |
 | 工具 | 禁止 | **服务端白名单**，按 `tools_version` 选择；客户端不能自带工具 |
@@ -211,15 +213,15 @@ AgentRunner ─ModelClient─ Worker ─ Luna  │
 | 体积上限 | 24 KB | 约 256 KB，客户端负责压缩历史（§1.5） |
 | 上游超时 | 20 s | 每步 30 s |
 | 流式 | 不支持 | SSE 透传。客户端中途断开时，用 `ctx.waitUntil` 把上游读完再结账，避免预留的额度一直挂着 |
-| 额度 | 每次调用算一次，6 次/分钟、40 次/天 | **按轮计**：D1 新增 `runs` 表（`run_id, user, steps, started`），由服务端计数，每轮最多 6 步；每人每天 40 轮；每分钟的调用限额保留，作为兜底 |
-| 记账 | `input*0.1 + output*0.5`，缓存 token 按全价算 | 用 `input_tokens_details.cached_tokens` 分档计价 |
-| 模型 / effort / store | 固定 | 固定：`gpt-6-luna`，effort 从 `low` 起，`store:false` |
+| 额度 | 每次调用算一次，6 次/分钟、40 次/天 | **按轮计**：D1 新增 `runs` 表（`run_id, user, steps, started`），由服务端计数，每轮最多 6 步；每人每天 40 轮（没跑完的轮可以继续）；每分钟兜底单独计：agent 每人每分钟 20 步（6 次/分钟会被一轮用光），不占 strict 模式 40 次/天的额度 |
+| 记账 | 原来 `input*0.1 + output*0.5`，缓存按全价；现在两种模式都改为分档 | 未缓存输入 $0.10/M、缓存输入（`input_tokens_details.cached_tokens`）$0.01/M、输出（含推理）$0.50/M；上游 400（OpenAI 未生成、不计费）释放预留 |
+| 模型 / effort / store | 固定 | 固定：`gpt-6-luna`，effort `low`，`store:false`，`include:[reasoning.encrypted_content]`，`parallel_tool_calls:true`；工具清单 `agent-v1.mjs`（§1.3 的 12 个工具，写类工具多一个可为 null 的 `why`，对应 O4） |
 
 ### 4.5 迁移步骤（每步一个 PR，就绪就合并）
 
 | 阶段 | 内容 | 删除什么 |
 |---|---|---|
-| **P0** | 扩展 Worker `/v1/responses` 支持 agent 模式：runs 表、缓存计价、SSE、白名单，加测试；用一次真实请求验证 §4.8 的未知项 | — |
+| **P0** ✅ | 扩展 Worker `/v1/responses` 支持 agent 模式：runs 表、缓存计价、SSE、白名单，加测试；用真实请求验证 §4.8 的未知项（`docs/qa/agent-p0-20261031.md`） | — |
 | **P1** | 抽出 `ToolRegistry`、`ActionPolicy`、`FastLane`，**行为不变**。① 先用内存 `ModelContainer` 加假的 `CalendarService`，给 `AskNativeActions.applyChange` 和 `applyTidy`（`AskView.swift` 约 2232–2470 行）以及系统事件改期的编排写**行为快照测试**，然后再抽取。② 把快车道要用的判定函数收进 `FastLane`：`ChatRouting.intent / requestsEvent / hasMultipleActions / hasMaterialCorrection`、`CaptureConversation.parse / referencesReminder / resolve / isOneOffAnswer`、`Editing.looksLikeEdit` | — |
 | **P2** | `AgentRunner`、`ModelClient`、`HostedLunaClient`、`ScriptedModelClient`、skills 文件，放在开关 `today.ai.agent` 后面（默认关） | — |
 | **P3** | 评测：开发集加**新写的盲测集**，新旧两套架构跑同一套题，量 §4.3 的全部指标。可选：在同一套题上测 Decisions 能否作为快车道的额外检查 | — |
@@ -242,21 +244,31 @@ AgentRunner ─ModelClient─ Worker ─ Luna  │
 | OpenAI Agents SDK | 没有 Swift 版本，用它就得把循环放到服务器上（同上） |
 | `previous_response_id` / Conversations API | 都要求 OpenAI 保存数据，Conversations 还不支持零数据保留；我们在手机上自己回放历史 |
 
-**一句话**：这是同时满足"数据留在本机、写入由代码决定、离线能用、成本可控"这四个条件的最简单结构。大部分零件（写入、Undo、卡片、日期解析、快车道的规则）都已经有了，新写的只有 `AgentRunner`、`ToolRegistry` 外壳、`ActionPolicy` 和 Worker 的一个新接口。
+**一句话**：这是同时满足"数据留在本机、写入由代码决定、离线能用、成本可控"这四个条件的最简单结构。大部分零件（写入、Undo、卡片、日期解析、快车道的规则）都已经有了，新写的只有 `AgentRunner`、`ToolRegistry` 外壳、`ActionPolicy` 和 Worker 的 agent 模式。
 
 ### 4.7 已定（2026-10-31，按推荐执行）
 
-1. **预算上限**：已定。从 $0.50 提到 **$5**，同时修正记账。修正后大约能跑 2,500 轮，不修正约 1,400 轮，足够 P3 跑几轮评测，再加上日常自用。
+1. **预算上限**：已定。从 $0.50 提到 **$5**，同时修正记账（P0 已生效）。修正后大约能跑 2,500 轮，不修正约 1,400 轮，足够 P3 跑几轮评测，再加上日常自用。实测一轮 3 步约 $0.0002（§4.8），远低于 §4.3 的估算。
 2. **effort**：已定。先用 **`low`**。P3 评测时同时跑一遍 `medium`；如果完成率高出 5 个百分点以上，再升级。
 3. **离线和没开云端的用户**：已定。**由快车道在本地出预览卡**（规则有把握的提醒、事件、闹钟都能出），整理逾期继续用 `TidySheet`，其他功能提示"AI 离线"。不再维护第二套引擎。这比现在少一些离线能力：离线时不能再按名字匹配改期，也不能做日程问答，不过 Today tab 本身就能看到日程。
 
-### 4.8 P0 要用一次真实请求验证的未知项（这些都不作为设计前提）
+### 4.8 P0 实测结果（2026-10-31，`docs/qa/agent-p0-20261031.md`）
 
-- 同一个请求能否同时带 `tools` 和 `text.format`。v3 不依赖这一点，最终回复本来就是纯文本。
-- `gpt-6-luna` 的 `reasoning.context` 默认值；在 `store:false` 下回放加密 reasoning 是否正常；模型别名更新以后，旧的加密 reasoning 还能不能回放。回放不了就按 §1.5 压缩。
-- `async: true` 工具的实际行为。v3 不依赖它。
-- 缓存的 TTL 是 30 分钟还是 12 小时。按 30 分钟设计。
-- `service_tier: fast` 在 Luna 上实际能快多少。
+这些原来是未知项，现在都用真实请求回答了（只用合成数据）。v3 的设计不依赖其中任何一项的"好"结果。
+
+| 问题 | 答案 |
+|---|---|
+| 同一个请求能否同时带 `tools` 和 `text.format` | **可以**。两次直连请求都是 200：需要查的句子照常调用 `find_items`，能直接答的句子回了符合 schema 的 JSON。v3 仍然不用 `text.format`，最终回复是纯文本 |
+| `reasoning.context` 默认值 | **`all_turns`**（响应里回显 `reasoning: {context: all_turns, effort: low, mode: standard}`） |
+| `store:false` 下回放加密 reasoning | **正常**。带 `include:[reasoning.encrypted_content]` 时，reasoning item 带加密内容返回；原样回放是 200（回放的 reasoning 计入输入 token）；改动加密内容是 400 "could not be verified"（Worker 会转成 `upstream_rejected` 并退回预留）；去掉 reasoning 再回放也是 200。注意：`low` effort 下大多数步骤**没有** reasoning item（推理 token 为 0） |
+| 模型别名更新后旧的加密 reasoning 还能不能回放 | 今天测不了（没有别名更新）。按 §1.5：回放失败（400）就压缩历史后重试 |
+| `async: true` 工具 | 没测，v3 不依赖 |
+| 缓存命中率 | 固定前缀（系统提示 + 12 个工具）约 **1.8K token**，不是原来估的 5–7K（skills 还没加）。相同前缀的第二次请求起命中 1757/1828 = **96%**；多步时历史也会命中（第 3 步 1953/2163） |
+| 缓存 TTL | 响应回显 `prompt_cache_retention: 24h`。但空闲 35 分钟和 60 分钟后各发一次，缓存都**没有命中**（0/1822，各一次样本），所以实际空闲 TTL 不到 35 分钟。继续按 30 分钟设计；空闲之后的第一步按全价计，也只多约 $0.0002 |
+| `service_tier: fast` | **不值得**。16 对交替请求（输出约 55 token）：中位数 1.20 s 对 1.35 s（快 11%），但均值 1.40 s 对 1.36 s，p90 1.74 s 对 1.51 s（偶尔更慢），价格却是 2 倍。我们的输出很短，延迟主要在首 token 之前 |
+
+成本：真实的一轮 3 步（查找 → 两张卡并行 → 一句回复）在 Worker 账本上是 45 + 92 + 62 = 199 微美元，约 **$0.0002**，是 §4.3 估算的十分之一。
+流式：`response.created` 在 0.56 s 到达，第一个完整的 function call 在 1.42 s 到达。参数是一次性给出的，不是逐字流式，所以"参数一完整就出卡"约等于"这一步结束就出卡"。
 
 ---
 
