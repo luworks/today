@@ -33,8 +33,9 @@
 
     /// JSON of `AgentHistory`: the agent's replayable items with their `{model, tools_version, created}`
     /// metadata and short ids (docs/engineering/ai-agent-architecture.md §1.5). Additive field: older
-    /// conversations have none, and the agent starts their history from the chat text.
-    @Attribute(.externalStorage) package var agentItemsData: Data = Data()
+    /// conversations have none, and the agent starts their history from the chat text. Plain
+    /// data like its siblings: `.externalStorage` would block the in-place store migration.
+    package var agentItemsData: Data = Data()
 
     package var subject: AskSubject? {
       get { try? JSONDecoder().decode(AskSubject.self, from: subjectData) }

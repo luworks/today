@@ -99,7 +99,7 @@
 - **不可信内容**：所有从 EventKit 读出来的文字（标题、备注、参会人名字），以及建议 chip 里拼进去的标题，都当作数据处理。它们以 JSON 字符串转义后放进工具结果，不用标签包裹，因为标签可以被伪造的闭合标签打断。
 - **历史**：每一步返回的 `output` items 原样保存在本机，包括加密的 reasoning 和 `phase`，下一轮原样回放。OpenAI 端设 `store:false`，不使用 `previous_response_id`，也不使用 Conversations API：前者要求 OpenAI 保存数据，后者不支持零数据保留。
 - **快车道写进历史**：快车道直接建完一条提醒后，往历史里写一条合成收据（带条目 id）。这样用户接着说"其实是4点"时，agent 知道改的是哪一条。
-- **存储**：`ChatThread` 新增 `agentItemsData: Data = Data()`（和现有字段写法一致），使用 `@Attribute(.externalStorage)`，并单独存一份元数据 `{model, tools_version, created}`。版本对不上、内容太旧或体积超限时，把旧历史压缩成"纯文本消息 + 卡片收据"再继续。这是增量迁移，老数据照常可读。
+- **存储**：`ChatThread` 新增 `agentItemsData: Data = Data()`（和现有字段写法一致），（P2 实现没有用 `@Attribute(.externalStorage)`：它会让已有的库无法原地迁移，`StoreUpgradeTests` 会失败），并单独存一份元数据 `{model, tools_version, created}`。版本对不上、内容太旧或体积超限时，把旧历史压缩成"纯文本消息 + 卡片收据"再继续。这是增量迁移，老数据照常可读。
 
 ---
 
