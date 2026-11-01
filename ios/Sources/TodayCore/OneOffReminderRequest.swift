@@ -10,6 +10,10 @@ public enum OneOffReminderRequest {
       !ChatRouting.hasMultipleActions(text), !ChatRouting.hasMaterialCorrection(text),
       CaptureParser.leadingMonth(text) == nil,
       !CaptureConversation.referencesReminder(text),
+      // Someone else's plans, a question about what Today can do, an event with a length, or two
+      // reminders in one message are never a clear one-off reminder (agent P3 holdout findings).
+      !FastLane.isReportedSpeech(text), !isQuestion(text), !hasDuration(text),
+      reminderVerbs(text) < 2,
       text.range(
         of:
           #"[;；\n]|然后|另外还|\band then\b|\bevery\b|\brecurr|重复|每|还是|或者|\bor\b|\b(?:alarm|timer)\b|wake me|闹钟|计时器|叫醒|叫我起床"#,
@@ -17,6 +21,31 @@ public enum OneOffReminderRequest {
     else { return nil }
     let capture = CaptureConversation.parse(text, now: now, calendar: calendar)
     return eligible(capture) ? capture : nil
+  }
+
+  /// "Can you …?", "你能…吗？": a question is not permission to write (it may be answered or previewed).
+  static func isQuestion(_ text: String) -> Bool {
+    let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
+    let asks =
+      t.range(
+        of:
+          #"^(?:can|could|would|will|do|does|is|are)\s+you\b|^(?:你|您)(?:能|可以|会)|^(?:能不能|可不可以|能否)|吗[?？]?$"#,
+        options: [.regularExpression, .caseInsensitive]) != nil
+    return asks || (t.hasSuffix("?") || t.hasSuffix("？"))
+  }
+
+  /// A length ("for 30 minutes", "开一小时") makes it an event, not a reminder; "in an hour"/"1小时后" is a time.
+  static func hasDuration(_ text: String) -> Bool {
+    text.range(
+      of:
+        #"\bfor\s+(?:\d+|an?|one|two|three|half an?)\s*(?:min(?:ute)?s?|hours?|hrs?)\b|^\s*schedule\b|(?:\d+|半|一|两|三|四)\s*(?:个)?(?:分钟|小时|钟头)(?!\s*(?:后|以后|之后|前|以前|之前|内))"#,
+      options: [.regularExpression, .caseInsensitive]) != nil
+  }
+
+  /// How many reminder instructions the message holds ("提醒我…，…提醒我…" is two items).
+  static func reminderVerbs(_ text: String) -> Int {
+    let pattern = try? NSRegularExpression(pattern: #"提醒我|remind me"#, options: [.caseInsensitive])
+    return pattern?.numberOfMatches(in: text, range: NSRange(text.startIndex..., in: text)) ?? 0
   }
 
   /// Recovery can use the original subject, but never erase ambiguity or recurrence words

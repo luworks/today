@@ -84,6 +84,44 @@ final class FastLaneTests: XCTestCase {
     XCTAssertEqual(decide("one off", turns: ["每天11点提醒我买奶"]), .notFastLane)
   }
 
+  func testOnlyASingleOwnStatedReminderIsDirect() {
+    // Questions, events with a length, two reminders at once and someone else's plans are not a clear
+    // one-off reminder; the agent (or a preview) handles them.
+    for text in [
+      "Can you share my calendar with Jo?", "Could you remind me to stretch at 4pm?",
+      "你能帮我明天早上提醒一下开会吗？", "明天提醒我交作业可以吗",
+      "Book a meeting with Lee tomorrow at 10am for an hour",
+      "Schedule lunch with Ana Friday at 1pm",
+      "明天下午两点和小王开会一个小时，提醒我",
+      "今晚7点提醒我倒垃圾，9点提醒我关窗", "Remind me at 8 to stretch and remind me at 9 to read",
+      "我妈说她明天要提醒自己吃药",
+    ] {
+      let decision = decide(text)
+      if case .directReminder = decision { XCTFail(text) }
+    }
+    // Still direct: plain requests, including relative times that mention minutes or hours.
+    for text in [
+      "Remind me to call Alex tomorrow at 11am", "明天下午3点提醒我交房租",
+      "提醒我1小时后喝水", "Remind me in 30 minutes to check the oven",
+      "Remind me to schedule a haircut tomorrow at 10am", "明天下午3点提醒我去开会",
+    ] {
+      guard case .directReminder = decide(text) else { return XCTFail("expected direct: \(text)") }
+    }
+  }
+
+  func testAFollowUpToASavedReminderNeverRecreatesIt() {
+    let turns = ["提醒我后天交房租"]
+    // While its card is still open, an answer completes the draft (unchanged behaviour)…
+    if case .notFastLane = decide("下午五点", turns: turns) { XCTFail("open draft continues") }
+    // …but once that reminder is saved, the follow-up is a correction for the agent, not a new write.
+    let context = ConversationContext(
+      turns: turns.map { .init(isUser: true, text: $0, timestamp: now) })
+    let saved = FastLane.decide(
+      "下午五点", intent: FastLane.intent("下午五点"), context: context, pending: nil,
+      savedDraft: true, editItems: { [] }, now: now, calendar: calendar)
+    XCTAssertEqual(saved, .notFastLane)
+  }
+
   func testReportedSpeechIsNotARequestButTheUsersOwnAskIs() {
     for text in [
       "我朋友说他明天要提醒自己买茶", "我同事说他明天下午要去开会", "老婆说她周五要提醒自己去体检",
