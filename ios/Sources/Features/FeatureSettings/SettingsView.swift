@@ -310,8 +310,11 @@
           caption:
             "A chat moves to Archived a week after its last message, or an hour after everything it added is done. Archived chats stay in the sidebar under Archived."
         )
+        AIAgentSettingRow()
       } header: {
         Text("AI")
+      } footer: {
+        Text("New AI agent (beta) uses the new agent architecture and needs Luna AI sign-in.")
       }
     }
 
