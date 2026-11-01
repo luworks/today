@@ -2,14 +2,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { Miniflare, Response } from 'miniflare';
-import { prepare } from './worker.mjs';
-const payload={instructions:'Extract title',input:'[QA] buy milk',text:{format:{type:'json_schema',name:'title',strict:true,schema:{type:'object',properties:{title:{type:'string'}},required:['title'],additionalProperties:false}}}};
-
-test('fixed model, reasoning, storage and tools cannot be overridden',()=>{
- const body=prepare({...payload,model:'other',reasoning:{effort:'max'},store:true,tools:[{type:'web_search'}]});
- assert.equal(body.model,'gpt-6-luna');assert.equal(body.reasoning.effort,'medium');assert.equal(body.store,false);assert.equal(body.max_output_tokens,4096);assert.equal(body.tools,undefined);
- assert.throws(()=>prepare({...payload,input:'x'.repeat(12001)}));
-});
+// The shared session, quota and budget machinery is exercised through /v1/decisions; /v1/responses serves agent mode only.
+const payload={model:'gpt-6-luna',input:'[QA] buy milk',questions:[{type:'predicate',name:'missing',instructions:'Is information missing?'}]};
+const strictPayload={instructions:'Extract title',input:'[QA] buy milk',text:{format:{type:'json_schema',name:'title',strict:true,schema:{type:'object',properties:{title:{type:'string'}},required:['title'],additionalProperties:false}}}};
 
 test('decisions route validates requests, authenticates and reserves budget',async()=>{
  let calls=0, sent, denied=false;
@@ -53,23 +48,26 @@ test('D1-backed sessions, isolation, revocation, limits and unknown-charge reser
   const schema=(await readFile(new URL('./schema.sql',import.meta.url),'utf8')).replace(/--[^\n]*/g,'');
   await db.exec(schema.replace(/\n/g,' '));
   const req=async(path,body,token,method='POST')=>mf.dispatchFetch('https://api.test'+path,{method,headers:{'content-type':'application/json',...(token?{authorization:'Bearer '+token}:{})},...(body?{body:JSON.stringify(body)}:{})});
-  assert.equal((await req('/v1/responses',payload)).status,401);
+  assert.equal((await req('/v1/decisions',payload)).status,401);
   const reg=await req('/auth/register',{username:'testuser',password:'synthetic-password-123'});assert.equal(reg.status,200);const account=await reg.json();assert.match(account.token,/^[a-f0-9]{64}$/);
   const stored=await db.prepare('SELECT password_hash FROM users').first();assert.notEqual(stored.password_hash,'synthetic-password-123');
   assert.equal((await req('/auth/login',{username:'testuser',password:'incorrect-password'})).status,401);
-  assert.equal((await req('/v1/responses',payload,account.token)).status,200);assert.equal(calls,1);assert.equal(lastBody.model,'gpt-6-luna');
+  // The old strict-JSON mode is gone: no tools_version, no upstream call and no charge.
+  const refused=await req('/v1/responses',strictPayload,account.token);assert.equal(refused.status,400);
+  assert.equal((await refused.json()).error,'tools_version_required');assert.equal(calls,0);
+  assert.equal((await req('/v1/decisions',payload,account.token)).status,200);assert.equal(calls,1);assert.equal(lastBody.model,'gpt-6-luna');
   const charged=await db.prepare('SELECT used FROM budget').first();assert.equal(charged.used,24011);
-  failure=true;assert.equal((await req('/v1/responses',payload,account.token)).status,502);
+  failure=true;assert.equal((await req('/v1/decisions',payload,account.token)).status,502);
   assert.equal((await db.prepare('SELECT used FROM budget').first()).used,34011);
   // Global exhaustion is atomic: no paid request escapes when several clients race.
   failure=false;await db.prepare('UPDATE budget SET ceiling=used+10000').run();
-  const race=await Promise.all(Array.from({length:4},()=>req('/v1/responses',payload,account.token)));assert.equal(race.filter(r=>r.status===200).length,1);assert.equal(calls,3);
+  const race=await Promise.all(Array.from({length:4},()=>req('/v1/decisions',payload,account.token)));assert.equal(race.filter(r=>r.status===200).length,1);assert.equal(calls,3);
   // A second user's allowance is independent, while a saturated daily bucket blocks payment.
   const secondAccount=await (await req('/auth/register',{username:'seconduser',password:'synthetic-password-456'})).json();
   const secondUsage=await (await req('/auth/session',null,secondAccount.token,'GET')).json();assert.equal(secondUsage.used,0);
   await db.prepare("DELETE FROM buckets WHERE key LIKE 'minute:%'").run();
   await db.prepare("UPDATE buckets SET count=40 WHERE key LIKE 'daily:'||(SELECT id FROM users WHERE username='testuser')||':%'").run();
-  assert.equal((await req('/v1/responses',payload,account.token)).status,429);assert.equal(calls,3);
+  assert.equal((await req('/v1/decisions',payload,account.token)).status,429);assert.equal(calls,3);
   assert.equal((await (await req('/auth/session',null,secondAccount.token,'GET')).json()).used,0);
   await req('/auth/logout',null,account.token);assert.equal((await req('/auth/session',null,account.token,'GET')).status,401);
   const login=await (await req('/auth/login',{username:'testuser',password:'synthetic-password-123'})).json();
@@ -146,9 +144,9 @@ test('agent steps: accept, step cap, daily run quota, ownership and cached accou
  try{
   const token=await register('agentuser'), other=await register('otheruser');
   for(const bad of [agentBody({input:[{role:'developer',content:'x'}]}),agentBody({tools:[]}),agentBody({model:'other'})])assert.equal((await req('/v1/responses',bad,token)).status,400);
-  // Bodies above the 24 KB strict-mode cap are accepted in agent mode, up to about 256 KB.
+  // Agent bodies are accepted up to about 256 KB; a large body without tools_version is still refused.
   const big=agentBody({input:[user('[QA] '+'x'.repeat(200000))]});
-  assert.equal((await req('/v1/responses',{...payload,input:'x'.repeat(30000)},token)).status,413);
+  assert.equal((await req('/v1/responses',{...strictPayload,input:'x'.repeat(30000)},token)).status,400);
   assert.equal((await req('/v1/responses',agentBody({input:[user('x'.repeat(270000))]}),token)).status,413);
   assert.equal(calls,0);
   const before=await used(db);
