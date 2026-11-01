@@ -88,6 +88,10 @@
     @Query(sort: \OneList.order) private var lists: [OneList]
     @AppStorage private var showsSuggestions: Bool
     @State private var thinking = false
+    /// The agent side of this conversation (flag `today.ai.agent`); created on its first use.
+    @State private var agent: AskAgentSession?
+    /// The Tidy card the agent prepared, so Apply/Cancel are recorded against its proposal.
+    @State private var agentTidyID: String?
     @State private var captureTask: Task<Void, Never>?
     /// Diagnostic-only identity: production cancellation behavior stays unchanged when tracing is off.
     @State private var generationToken = UUID()
@@ -328,6 +332,7 @@
                     responseProbe(.reply(message.id))
                   }
                 cards(under: message.id)
+                agentChanges(under: message.id)
               }
               if thinking {
                 HStack(spacing: 8) {
@@ -459,6 +464,8 @@
             rows: $tidy, onApply: applyTidy,
             onCancel: {
               recordCard(resolved: "tidy", "cancelled", items: tidy.count)
+              if let id = agentTidyID { agent?.tools.mark(id, .dropped) }
+              agentTidyID = nil
               tidy = []
             }
           )
@@ -742,10 +749,17 @@
       }
       let intent = FastLane.intent(text)
       // Rule gates first, in this order; only `.directReminder` writes without a card.
-      switch FastLane.decide(
+      let decision = FastLane.decide(
         text, intent: intent, context: turnContext, pending: pending,
         editItems: { editCandidates().items }, now: sentAt, calendar: runtime.calendar)
+      // With the agent on, everything FastLane doesn't take goes to the agent (§4.1).
+      if agentEnabled,
+        AgentRouting.useAgent(decision, agentHasOpenCards: agent?.hasOpenCards ?? false)
       {
+        runAgent(typed: typed, text: text, anchor: messages.last?.id ?? UUID())
+        return
+      }
+      switch decision {
       case .clarifyCorrection:
         recordTurn("clarify", text)
         messages.append(
@@ -759,6 +773,7 @@
         recordTurn("capture", text)
         clearPreviews()
         createSubmittedReminder(capture)
+        if agentEnabled { recordFastLaneReceipt(typed: typed) }
         return
       case .continuation(let resolved, let direct):
         recordTurn("answer", text)
@@ -1047,6 +1062,9 @@
     private func clearPreviews() {
       closeOpenCards("ignored")
       dropOpenCards()
+      agent?.dropOpenChanges()
+      if let id = agentTidyID, !tidy.isEmpty { agent?.tools.mark(id, .dropped) }
+      agentTidyID = nil
       change = nil
       tidy = []
       undoRow = nil
@@ -1057,9 +1075,8 @@
 
     /// The routing of one message: where it went, and how long and in what language it was. The text itself is not copied
     /// unless the user switched that on (Settings → Activity data).
-    private func recordTurn(_ intent: String, _ text: String) {
+    private func recordTurn(_ intent: String, _ text: String, route: String = "rules") {
       // This describes the initial routing decision, before any model response or extraction.
-      let route = "rules"
       activity.record(
         ActivityEvents.aiTurn(
           intent: intent, route: route, text: text,
@@ -1094,14 +1111,18 @@
 
     private func dropOpenCards() {
       for i in proposals.indices where !proposals[i].retainsDraft {
-        if let next = proposals[i].status.after(.drop) { proposals[i].status = next }
+        if let next = proposals[i].status.after(.drop) {
+          proposals[i].status = next
+          if let id = proposals[i].agentID { agent?.tools.mark(id, .dropped) }
+        }
       }
     }
 
     /// The first item still waiting for Add: what a follow-up like "make it 5pm" edits. Setting nil drops them all.
     private var pending: Capture? {
       get {
-        guard let batch = proposals.last?.batch else { return nil }
+        // Continuations only ever complete FastLane's own drafts, never an agent card (§4.2).
+        guard let batch = proposals.last(where: { $0.agentID == nil })?.batch else { return nil }
         return proposals.first { $0.batch == batch && $0.status == .open }?.capture
       }
       nonmutating set {
@@ -1109,7 +1130,7 @@
           dropOpenCards()
           return
         }
-        if let batch = proposals.last?.batch,
+        if let batch = proposals.last(where: { $0.agentID == nil })?.batch,
           let i = proposals.firstIndex(where: { $0.batch == batch && $0.status == .open })
         {
           guard proposals[i].pendingExternalID == nil else { return }
@@ -1609,6 +1630,162 @@
       return c
     }
 
+    // MARK: Agent (flag today.ai.agent, docs/engineering/ai-agent-architecture.md P2)
+
+    private var agentEnabled: Bool { Preferences.aiAgentEnabled(presentation.defaults) }
+
+    private func agentSession() -> AskAgentSession {
+      if let agent { return agent }
+      let history = AgentHistory.restore(thread?.agentItemsData ?? Data(), now: now())
+      let tools = AgentPlannerTools(
+        history: history, context: context, calendar: calendarSync, actions: actions,
+        ledger: ledger, runtime: runtime)
+      let session = AskAgentSession(tools: tools)
+      session.onCreate = { card, anchor in
+        guard case .create(let capture) = card.body else { return }
+        let batch =
+          proposals.last(where: { $0.agentID != nil && $0.anchor == anchor })?.batch ?? UUID()
+        var proposal = CaptureProposal(capture: filed(capture), batch: batch, anchor: anchor)
+        proposal.agentID = card.id
+        proposals.append(proposal)
+        let n = proposals.filter { $0.batch == batch }.count
+        for i in proposals.indices where proposals[i].batch == batch { proposals[i].batchSize = n }
+      }
+      session.onReviseCreate = { card in
+        guard case .create(let capture) = card.body,
+          let i = proposals.firstIndex(where: { $0.agentID == card.id }),
+          proposals[i].status == .open, proposals[i].pendingExternalID == nil
+        else { return }
+        proposals[i].capture = filed(capture)
+      }
+      session.onTidy = { card in
+        guard case .tidy(let rows) = card.body else { return }
+        tidy = rows.map { TidyRow(task: $0.task, oldDue: $0.expectedDue, choice: $0.choice) }
+        agentTidyID = card.id
+      }
+      agent = session
+      return session
+    }
+
+    /// Runs the agent on one message. Cards appear as their tool calls complete; the reply comes last.
+    /// If the AI can't be reached before any card, the message goes back into the composer.
+    private func runAgent(typed: String, text: String, anchor: UUID) {
+      let session = agentSession()
+      let chinese = AgentReply.isChinese(typed)
+      let runID = AskAgentSession.runID()
+      session.anchor = anchor
+      session.tools.turn = AgentTurn(text: text, chinese: chinese, runID: runID)
+      if session.tools.history.needsCompaction { compactAgentHistory(session) }
+      var attached: String?
+      if let subject {
+        var line = subject.contextLine(calendar: runtime.calendar)
+        if let ref = subject.itemRef, subject.isSystemEvent != true {
+          let prefix = subject.kind == .event ? "e" : (subject.kind == .alarm ? "a" : "t")
+          line +=
+            " (id \(session.tools.history.shortID(for: Ledger.comparisonKey(ref), prefix: prefix)))"
+        }
+        attached = line
+      }
+      let message =
+        text + "\n\n"
+        + AskAgentSession.context(
+          now: now(), calendar: runtime.calendar, locale: runtime.locale, chinese: chinese,
+          attached: attached)
+      recordTurn("agent", text, route: "agent")
+      thinking = true
+      let history = session.tools.history.items
+      captureTask = Task { @MainActor in
+        let client = HostedLunaClient()
+        var result = await AgentRunner(client: client, toolbox: session.tools).run(
+          history: history, message: message, runID: runID, chinese: chinese)
+        // A replay OpenAI can't verify (e.g. after a model update): compact to text and retry once.
+        if result.failed == .replayRejected, !history.isEmpty, !Task.isCancelled {
+          compactAgentHistory(session)
+          let remaining = AgentContract.maxSteps - result.steps
+          if remaining > 0 {
+            result = await AgentRunner(client: client, toolbox: session.tools, maxSteps: remaining)
+              .run(
+                history: session.tools.history.items, message: message, runID: runID,
+                chinese: chinese)
+          }
+        }
+        AskAgentSession.logRun(result, runID: runID)
+        guard !Task.isCancelled else { return }
+        thinking = false
+        session.tools.history.items += result.items
+        saveAgentHistory()
+        messages.append(reply(result.reply))
+        if result.failed != nil, result.cards == 0, draft.isEmpty { draft = typed }
+        if result.cards > 0 { recordCard(shown: "agent", items: result.cards) }
+      }
+    }
+
+    /// Text plus card receipts in place of replayable items (§1.5): version change, size, or a rejected replay.
+    private func compactAgentHistory(_ session: AskAgentSession) {
+      let transcript = messages.dropLast().map { (isUser: $0.role == .user, text: $0.text) }
+      let captures = proposals.filter { $0.agentID == nil && $0.status != .open }.map {
+        "card “\($0.capture.title)” \($0.status.rawValue)"
+      }
+      session.tools.history.compact(
+        transcript: Array(transcript), receipts: session.tools.receipts + captures, now: now())
+      saveAgentHistory()
+    }
+
+    private func saveAgentHistory() {
+      guard let agent else { return }
+      if thread == nil { persist() }
+      guard let thread else { return }
+      let data = agent.tools.history.encoded
+      guard thread.agentItemsData != data else { return }
+      thread.agentItemsData = data
+      try? context.save()
+    }
+
+    /// FastLane's direct reminder goes into the agent's history as a receipt with its item id (§1.5),
+    /// so a follow-up like "其实是4点" can find it.
+    private func recordFastLaneReceipt(typed: String) {
+      guard let p = proposals.last, p.status == .added, let ref = p.itemRef else { return }
+      let session = agentSession()
+      let id = session.tools.history.shortID(for: Ledger.comparisonKey(ref), prefix: "t")
+      let due = p.capture.taskTiming(calendar: runtime.calendar).due
+      let when = due.map { plannerDayLabel($0, runtime: runtime) } ?? "no date"
+      session.tools.history.appendReceipt(
+        user: typed,
+        receipt:
+          "Receipt from the app (rules, no model): added reminder \(id) “\(p.capture.title)”, due \(when), "
+          + "from the user's own words. The user can Undo it on its card.")
+      saveAgentHistory()
+    }
+
+    @ViewBuilder
+    private func agentChanges(under anchor: UUID) -> some View {
+      if let agent {
+        ForEach(agent.changes.filter { $0.anchor == anchor }) { change in
+          AgentChangeCardView(
+            change: change,
+            onApply: {
+              Task { @MainActor in
+                await agent.apply(change.id)
+                if agent.changes.first(where: { $0.id == change.id })?.status == .applied {
+                  recordCard(resolved: "agent-change", "applied")
+                }
+                saveAgentHistory()
+              }
+            },
+            onCancel: {
+              agent.cancel(change.id)
+              recordCard(resolved: "agent-change", "cancelled")
+            },
+            onUndo: {
+              Task { @MainActor in
+                await agent.undo(change.id)
+                activity.record(ActivityEvents.aiUndo(card: "agent-change", thread: threadID))
+              }
+            })
+        }
+      }
+    }
+
     // MARK: Cards: Add, Cancel, Undo, Open
 
     /// The cards under one AI message, grouped by line (a line's items are one card or one list).
@@ -1708,6 +1885,10 @@
       proposals[i].entryID = written.entry.id
       proposals[i].status = next
       proposals[i].pendingExternalID = nil
+      if let aid = proposals[i].agentID {
+        agent?.tools.mark(aid, .added, created: proposals[i].itemRef)
+        saveAgentHistory()
+      }
       return capture
     }
 
@@ -1738,6 +1919,7 @@
       }
       if proposals[i].status == .open { recordCard(resolved: "capture", "skipped") }
       proposals[i].status = next
+      if let aid = proposals[i].agentID { agent?.tools.mark(aid, .dropped) }
     }
 
     /// Takes back exactly what Add wrote (the reminder, alarm or event), recorded in Activity. The card shows Undone.
@@ -1765,6 +1947,7 @@
       proposals[i].itemRef = nil
       proposals[i].entryID = nil
       proposals[i].status = next
+      if let aid = proposals[i].agentID { agent?.tools.mark(aid, .undone) }
     }
 
     /// Opens what Add wrote: the reminder or alarm in its editor, an event as its day in Today.
@@ -1858,7 +2041,11 @@
       let count = tidy.filter { $0.choice != .keep }.count
       let feedback = AskNativeActions.applyTidy(
         rows: &tidy, context: context, actions: actions, ledger: ledger, runtime: runtime)
-      if feedback.applied { recordCard(resolved: "tidy", "applied", items: count) }
+      if feedback.applied {
+        recordCard(resolved: "tidy", "applied", items: count)
+        if let id = agentTidyID { agent?.tools.mark(id, .applied) }
+        agentTidyID = nil
+      }
       show(feedback, card: "tidy")
     }
 

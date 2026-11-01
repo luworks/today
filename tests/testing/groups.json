@@ -13,7 +13,8 @@
         "PlannerSessionTests",
         "AskInteractionTests",
         "AskWriteSnapshotTests",
-        "ToolRegistryTests"
+        "ToolRegistryTests",
+        "AgentPlannerToolsTests"
       ]
     },
     "ui": {

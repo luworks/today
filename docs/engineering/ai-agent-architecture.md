@@ -1,6 +1,6 @@
 # Today AI：Agent 架构（定稿 v3）
 
-日期 2026-10-31 · 状态：**设计定稿；P0（Worker agent 模式）已实现并部署（2026-10-31），P1 起尚未实现** · 迁移完成后取代 `docs/engineering/ai-architecture.md` 描述的"规则路由 + 多个零散 prompt"架构。那份文档在迁移期间保留，作为现状审计。
+日期 2026-10-31 · 状态：**设计定稿；P0（Worker agent 模式）已部署（2026-10-31）；P1 已合并；P2（手机上的 agent 循环，开关 `today.ai.agent` 默认关）已实现，模拟器实测见 `docs/qa/agent-p2-20261101.md`；P3 起尚未实现** · 迁移完成后取代 `docs/engineering/ai-architecture.md` 描述的"规则路由 + 多个零散 prompt"架构。那份文档在迁移期间保留，作为现状审计。
 
 本文按四步写：§1 新框架（v1）→ §2 和竞品对比 → §3 根据对比优化（v2）→ §4 最终版本（v3），以及为什么选它。§5 记录独立审查发现的问题和修正位置。
 
@@ -99,7 +99,7 @@
 - **不可信内容**：所有从 EventKit 读出来的文字（标题、备注、参会人名字），以及建议 chip 里拼进去的标题，都当作数据处理。它们以 JSON 字符串转义后放进工具结果，不用标签包裹，因为标签可以被伪造的闭合标签打断。
 - **历史**：每一步返回的 `output` items 原样保存在本机，包括加密的 reasoning 和 `phase`，下一轮原样回放。OpenAI 端设 `store:false`，不使用 `previous_response_id`，也不使用 Conversations API：前者要求 OpenAI 保存数据，后者不支持零数据保留。
 - **快车道写进历史**：快车道直接建完一条提醒后，往历史里写一条合成收据（带条目 id）。这样用户接着说"其实是4点"时，agent 知道改的是哪一条。
-- **存储**：`ChatThread` 新增 `agentItemsData: Data = Data()`（和现有字段写法一致），使用 `@Attribute(.externalStorage)`，并单独存一份元数据 `{model, tools_version, created}`。版本对不上、内容太旧或体积超限时，把旧历史压缩成"纯文本消息 + 卡片收据"再继续。这是增量迁移，老数据照常可读。
+- **存储**：`ChatThread` 新增 `agentItemsData: Data = Data()`（和现有字段写法一致；P2 实现没有用 `@Attribute(.externalStorage)`，因为它会让已有的库无法原地迁移，`StoreUpgradeTests` 会失败），并单独存一份元数据 `{model, tools_version, created}`。版本对不上、内容太旧或体积超限时，把旧历史压缩成"纯文本消息 + 卡片收据"再继续。这是增量迁移，老数据照常可读。
 
 ---
 
@@ -223,7 +223,7 @@ AgentRunner ─ModelClient─ Worker ─ Luna  │
 |---|---|---|
 | **P0** ✅ | 扩展 Worker `/v1/responses` 支持 agent 模式：runs 表、缓存计价、SSE、白名单，加测试；用真实请求验证 §4.8 的未知项（`docs/qa/agent-p0-20261031.md`） | — |
 | **P1** | 抽出 `ToolRegistry`、`ActionPolicy`、`FastLane`，**行为不变**。① 先用内存 `ModelContainer` 加假的 `CalendarService`，给 `AskNativeActions.applyChange` 和 `applyTidy`（`AskView.swift` 约 2232–2470 行）以及系统事件改期的编排写**行为快照测试**，然后再抽取。② 把快车道要用的判定函数收进 `FastLane`：`ChatRouting.intent / requestsEvent / hasMultipleActions / hasMaterialCorrection`、`CaptureConversation.parse / referencesReminder / resolve / isOneOffAnswer`、`Editing.looksLikeEdit` | — |
-| **P2** | `AgentRunner`、`ModelClient`、`HostedLunaClient`、`ScriptedModelClient`、skills 文件，放在开关 `today.ai.agent` 后面（默认关） | — |
+| **P2** ✅ | `AgentRunner`、`ModelClient`、`HostedLunaClient`、`ScriptedModelClient`、skills 文件，放在开关 `today.ai.agent` 后面（默认关） | — |
 | **P3** | 评测：开发集加**新写的盲测集**，新旧两套架构跑同一套题，量 §4.3 的全部指标。可选：在同一套题上测 Decisions 能否作为快车道的额外检查 | — |
 | **P4** | 默认打开 agent，删除旧管线 | `ChatRouting` 和 `Dialogue` 里没被收进 `FastLane` 的部分、`Understanding`、`AICapture`、`ChatResponse`、`Editing`（`looksLikeEdit` 已移走）、`AskSuggestionRanker`、`SentenceRoute` 等路由规则、`EditingLogic` 的判断部分、`AskView` 的路由部分（目标是从 2492 行降到 1000 行以下）、约 20 个只测旧路由的测试文件、`ios/Eval/Understanding`、旧的 AI 文档 |
 | **P5** | Siri 接入 ToolRegistry，iOS 27 采用 app schemas；修改类 intent 加 `requestConfirmation` | `IntentLogic` 里和 ToolRegistry 重复的部分 |

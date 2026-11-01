@@ -65,7 +65,7 @@ public enum AgentReply {
         : "Today's AI limit has been reached. Your draft is still in the box."
     }
     return chinese
-      ? "AI 暂时不可用。你的草稿还在输入框里；提醒、事件和闹钟仍可直接说时间添加。"
+      ? "AI 暂时不可用。你的草稿还在输入框里；说清时间的提醒仍可直接添加。"
       : "AI is unavailable right now. Your draft is still in the box; clear reminders still work offline."
   }
 }

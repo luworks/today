@@ -106,6 +106,19 @@ struct OneApp: App {
           try TestDataset.load(
             path: path, into: context, now: composition.session.runtime.now(),
             calendar: composition.session.runtime.calendar)
+          if let fake = composition.session.calendar as? TestCalendarService {
+            for (id, n) in TestDataset.audiences {
+              fake.audiences[id] = (n, true)
+              fake.writableExternalIDs.insert(id)
+            }
+            // Linked dataset events can be saved back (an Undo of a delete re-creates them).
+            if !TestDataset.audiences.isEmpty {
+              // Like EventKit, saving an unlinked copy creates a new linked event.
+              fake.saveResult = { event in
+                event.externalID ?? "dataset-restored-\(UUID().uuidString)"
+              }
+            }
+          }
         } catch {
           print("DATASET failed code: \((error as NSError).code)")
         }

@@ -16,6 +16,8 @@ import One
   /// starts from the same chats, reminders, events and alarms. Launch with `-uiTesting -dataset <path>`; without `-uiTesting`
   /// the file is ignored, so it can never be synced into Apple Calendar or Apple Reminders.
   enum TestDataset {
+    /// Linked ids of dataset events with synthetic attendees, and their counts (`TestCalendarService.audiences`).
+    nonisolated(unsafe) static var audiences: [String: Int] = [:]
     struct When: Decodable {
       let day: Int
       let time: String?
@@ -48,6 +50,8 @@ import One
       let minutes: Int
       let allDay: Bool?
       let `repeat`: String?
+      /// Synthetic attendee count: the event gets a linked id the test calendar reports attendees for.
+      let attendees: Int?
     }
     struct Alarm: Decodable {
       let time: String
@@ -122,6 +126,11 @@ import One
         let event = OneEvent(title: e.title, start: start.date, durationMinutes: e.minutes)
         event.isAllDay = e.allDay ?? false
         event.repeatRule = e.repeat.flatMap { RepeatRule(rawValue: $0)?.rawValue }
+        if let n = e.attendees, n > 0 {
+          let id = "dataset-attendees-\(audiences.count + 1)"
+          event.externalID = id
+          audiences[id] = n
+        }
         context.insert(event)
       }
       for a in file.alarms {
