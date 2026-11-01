@@ -84,6 +84,24 @@ final class FastLaneTests: XCTestCase {
     XCTAssertEqual(decide("one off", turns: ["每天11点提醒我买奶"]), .notFastLane)
   }
 
+  func testReportedSpeechIsNotARequestButTheUsersOwnAskIs() {
+    for text in [
+      "我朋友说他明天要提醒自己买茶", "我同事说他明天下午要去开会", "老婆说她周五要提醒自己去体检",
+      "My brother said he set an alarm for 6am",
+      "Sam told me he has a meeting with the bank on Friday",
+      "She says she'll remind herself tomorrow",
+    ] {
+      XCTAssertTrue(FastLane.isReportedSpeech(text), text)
+    }
+    for text in [
+      "明天下午3点提醒我给妈妈打电话", "老婆说她明天要用车，提醒我加油", "提醒我跟妈妈说一声",
+      "Sam said he needs the report, remind me Friday at 9", "Remind me to call Sam at 5pm",
+      "他说明天的会改到下午了",
+    ] {
+      XCTAssertFalse(FastLane.isReportedSpeech(text), text)
+    }
+  }
+
   func testOrdinaryConversationIsNotForTheFastLane() {
     XCTAssertEqual(decide("What happens if I set a reminder?"), .notFastLane)
   }

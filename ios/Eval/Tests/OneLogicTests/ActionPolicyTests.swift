@@ -83,6 +83,21 @@ final class ActionPolicyTests: XCTestCase {
     }
   }
 
+  func testReportedSpeechNeverBecomesAnItem() {
+    for kind in [ActionPolicy.Kind.reminder, .event, .alarm] {
+      XCTAssertEqual(
+        ActionPolicy.tier(
+          R(tool: .proposeCreate, source: .agent, kind: kind, reportedSpeech: true)),
+        .refuse(.reportedSpeech))
+    }
+    // Editing the user's own existing item is still possible in the same message.
+    XCTAssertEqual(
+      ActionPolicy.tier(
+        R(tool: .proposeEdit, source: .agent, kind: .reminder, fields: [.due], reportedSpeech: true)
+      ),
+      .preview)
+  }
+
   // MARK: Principle 2: meetings stay fixed by default
 
   func testEventsMoveOnlyWhenTheUserAskedAndNameWhoIsAffected() {

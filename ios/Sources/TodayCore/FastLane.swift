@@ -91,6 +91,24 @@ public enum FastLane {
     OneOffReminderRequest.matches(lhs, rhs)
   }
 
+  /// Someone else's words or plans reported by the user ("我朋友说他明天要提醒自己买茶", "Sam told me he
+  /// has a meeting"): a third person follows the reporting verb and the user asks nothing for themselves.
+  /// Not a request, so nothing is created from it (principle 1).
+  public static func isReportedSpeech(_ text: String) -> Bool {
+    let reported =
+      text.range(
+        of:
+          #"说(?:他|她|他们|她们|自己)|告诉我(?:他|她|他们|她们)|\b(?:said|says|told me|mentioned)\s+(?:that\s+)?(?:he|she|they)\b"#,
+        options: [.regularExpression, .caseInsensitive]) != nil
+    guard reported else { return false }
+    let forMe =
+      text.range(
+        of:
+          #"提醒我|帮我|给我设|叫我|remind me|wake me|set (?:me|an alarm for me)|for me\b|can you|could you|please"#,
+        options: [.regularExpression, .caseInsensitive]) != nil
+    return !forMe
+  }
+
   // MARK: Continuation answers to FastLane's own draft
 
   public static func refine(
