@@ -6,9 +6,38 @@
   import TodayPlatform
   import os
 
-  /// The agent side of one Ask conversation (docs/engineering/ai-agent-architecture.md P2), behind
-  /// `Preferences.aiAgentKey`. It owns the on-phone tools and receives their cards: creates go into
-  /// Ask's capture stack, changes are shown here, Tidy uses the Tidy card. Nothing writes until a tap.
+  /// The model Ask's agent talks to (docs/engineering/ai-agent-architecture.md §1.2). The app uses the
+  /// Luna Worker; TodayMock and tests use `ScriptedModelClient` fixtures, or none (not signed in), so
+  /// the offline path (FastLane previews, §4.7 #3) is what they see by default.
+  package struct AgentModel: Sendable {
+    package let client: any ModelClient
+    /// False when a request can't even be made (no Luna sign-in): Ask goes straight to the rules.
+    package let isAvailable: @Sendable () -> Bool
+
+    package init(client: any ModelClient, isAvailable: @escaping @Sendable () -> Bool) {
+      self.client = client
+      self.isAvailable = isAvailable
+    }
+
+    package static var live: AgentModel {
+      let client = HostedLunaClient()
+      return AgentModel(client: client, isAvailable: { client.isAvailable })
+    }
+
+    /// Not signed in: every message FastLane doesn't write directly is handled by the rules.
+    package static var unavailable: AgentModel {
+      AgentModel(client: ScriptedModelClient([.fail(.unavailable)]), isAvailable: { false })
+    }
+
+    /// A scripted model (TodayMock, tests): the steps play in order across the app's runs.
+    package static func scripted(_ steps: [ScriptedModelClient.Step]) -> AgentModel {
+      AgentModel(client: ScriptedModelClient(steps), isAvailable: { true })
+    }
+  }
+
+  /// The agent side of one Ask conversation (docs/engineering/ai-agent-architecture.md P2, P4). It owns
+  /// the on-phone tools and receives their cards: creates go into Ask's capture stack, changes are
+  /// shown here, Tidy uses the Tidy card. Nothing writes until a tap.
   @MainActor @Observable
   final class AskAgentSession: AgentCardSink {
     struct Change: Identifiable {

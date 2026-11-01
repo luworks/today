@@ -144,6 +144,7 @@
         unavailableReason: { _ in "Unavailable on Simulator" })
       shell = ShellComposition(
         session: session, world: world, stopwatch: stopwatch, intelligence: intelligence,
+        agentModel: AgentScripts.model(Self.value("-uiTestingAgentScript", arguments)),
         voice: VoiceInput(driver: MockSpeechDriver()), arguments: arguments, openSettings: {})
     }
 

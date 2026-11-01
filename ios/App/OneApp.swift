@@ -51,7 +51,7 @@ struct OneApp: App {
         let stopwatch = StopwatchModel(defaults: liveSession.defaults, now: liveSession.runtime.now)
         composition = ShellComposition(
           session: liveSession, world: world, stopwatch: stopwatch,
-          intelligence: .live(locale: liveSession.runtime.locale),
+          intelligence: .live(locale: liveSession.runtime.locale), agentModel: .live,
           voice: VoiceInput(driver: LiveSpeechInputDriver(locale: liveSession.runtime.locale)),
           arguments: [],
           openSettings: {

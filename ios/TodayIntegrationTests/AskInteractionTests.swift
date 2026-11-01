@@ -170,7 +170,7 @@
       let view = AskView(
         thread: thread, calendar: services.calendar, now: runtime.now,
         actions: services.actions, ledger: services.ledger, activity: services.activity,
-        intelligence: intelligence,
+        intelligence: intelligence, agentModel: .unavailable,
         voice: VoiceInput(driver: LiveSpeechInputDriver(locale: runtime.locale)),
         presentation: presentation, travel: services.travel, suggestionMemory: memory,
         onBack: { _ in }, onAdded: { _ in }, onOpenDay: { _ in },
