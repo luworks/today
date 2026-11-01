@@ -42,13 +42,6 @@ async function session(db,user,now) {
  await db.prepare("INSERT INTO sessions VALUES (?,?,?)").bind(await hash(token),user.id,expires).run();
  return json({token,expires,username:user.username,model:"gpt-6-luna",effort:"medium"});
 }
-export function prepare(body) {
- if(typeof body.instructions!=="string"||typeof body.input!=="string"||!body.input.trim())fail("invalid_request");
- if(bytes(body.instructions).length>8000||bytes(body.input).length>12000)fail("context_too_large",413);
- const format=body.text?.format;
- if(format?.type!=="json_schema"||format.strict!==true||!format.schema||typeof format.schema!=="object"||!/^[a-zA-Z0-9_-]{1,64}$/.test(format.name))fail("strict_schema_required");
- return {model:"gpt-6-luna",reasoning:{effort:"medium"},store:false,max_output_tokens:OUTPUT,instructions:body.instructions,input:body.input,text:{format}};
-}
 const only = (value, keys) => value && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).every(k => keys.includes(k));
 const nonempty = value => typeof value === 'string' && value.trim().length > 0;
 export function prepareDecision(body) {
@@ -194,11 +187,12 @@ export default {async fetch(request,env,ctx) {
   let body, agent=false, runId;
   if(decision)body=prepareDecision(await boundedJSON(request));
   else {
+   // Agent mode only: the app's strict-JSON mode was removed with the old pipeline (P4).
    const raw=await boundedText(request,MAX_AGENT_BODY), parsed=parse(raw.text);
-   agent=!!parsed&&typeof parsed==='object'&&'tools_version' in parsed;
-   if(!agent&&raw.length>MAX_BODY)fail("request_too_large",413);
-   body=agent?prepareAgent(parsed):prepare(parsed);
-   if(agent)runId=parsed.run_id;
+   if(!parsed||typeof parsed!=='object'||!('tools_version' in parsed))fail('tools_version_required');
+   agent=true;
+   body=prepareAgent(parsed);
+   runId=parsed.run_id;
   }
   const payload=JSON.stringify(body);
   // Each counter is atomic; denied attempts may consume quota, never call OpenAI.

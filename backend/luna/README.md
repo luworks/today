@@ -22,7 +22,7 @@ Wrangler stdin; it is neither a plain-text binding nor a source/config/bundle va
 | `/auth/session` | GET | Bearer; username and daily call usage/limit |
 | `/auth/logout` | POST | Revokes this bearer |
 | `/auth/account` | DELETE | Deletes this AI user and all their sessions; local planner data remains |
-| `/v1/responses` | POST | Bearer; bounded strict-schema Responses request, or agent mode (below) |
+| `/v1/responses` | POST | Bearer; agent mode only (below). A body without `tools_version` is refused with `tools_version_required` |
 | `/v1/decisions` | POST | Bearer; bounded Decisions request |
 
 Passwords use per-user random salt + PBKDF2-SHA256 (100,000 iterations). Random
@@ -32,18 +32,16 @@ prevents model authorization but still permits session management. Revoked/expir
 sessions return the UI to sign-in; stale usage responses cannot republish an old login.
 Offline sign-out clears local credentials and states that remote revocation is unconfirmed.
 
-Requests are limited to24KB total,8KB instructions and12KB input, enforced by both
-mobile transport and server. The existing feature-specific prompts and bounded context
-remain authoritative; do not upload whole local data stores. The server fixes
-`gpt-6-luna`, medium reasoning, store=false and4096 total output tokens; no tools
-(agent mode below has server-owned tools only), model substitution, redirects,
-automatic retries or Apple fallback. D1 stores account
-credentials/session hashes, counters and accounting metadata, not chat or planner text.
+The strict-JSON mode of `/v1/responses` (client `instructions` + `text.format`, 24 KB)
+was removed in P4 (2026-11-01) together with the app's old AI pipeline; the app sends only
+agent steps. No model substitution, redirects, automatic retries or Apple fallback.
+`/v1/decisions` (kept for P3) uses the per-user 6/minute and 40/day call quotas. D1 stores
+account credentials/session hashes, counters and accounting metadata, not chat or planner text.
 
 ## Agent mode (`/v1/responses` with `tools_version`)
 
 Phase P0 of `docs/engineering/ai-agent-architecture.md`. A body containing
-`tools_version` is an agent step; any other body is the strict-JSON mode above, unchanged.
+`tools_version` is an agent step; any other body is refused (P4).
 
 - Body: exactly `{input, tools_version, run_id, stream?}`, at most 256 KB. `input` is 1–256
   replayed items: `message` (roles `user`/`assistant`, text parts only), `function_call`
@@ -62,7 +60,7 @@ Phase P0 of `docs/engineering/ai-agent-architecture.md`. A body containing
   table: at most 6 steps per run (`run_step_limit`), 40 new runs per user per UTC day
   (`run_quota`; an unfinished run may still finish), a run belongs to its creator (409).
   Agent steps use their own 20/minute backstop and do not consume the 40 calls/day bucket of
-  strict mode. `/auth/session` reports `runsUsed`/`dailyRunLimit`.
+  `/v1/decisions`. `/auth/session` reports `runsUsed`/`dailyRunLimit`.
 - Upstream timeout is 30 s per step; the abort signal is meant to cover a streamed body too (fetch spec behavior, not exercised offline). Responses up to 4 MB.
 - `stream: true` passes the upstream SSE through unchanged. The Worker reads the upstream
   stream to its end inside `ctx.waitUntil` even if the phone disconnects or stalls, then
