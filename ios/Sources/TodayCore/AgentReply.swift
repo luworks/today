@@ -57,15 +57,32 @@ public enum AgentReply {
     return head + " " + cardsReady(cards, chinese: chinese)
   }
 
-  /// The model could not be reached (offline, signed out, quota): the draft goes back to the composer.
+  /// The model could not be reached (offline, signed out, quota) and the rules weren't sure either:
+  /// the draft goes back to the composer (§4.7 #3).
   public static func unavailable(_ error: ModelClientError?, chinese: Bool) -> String {
-    if case .quota(let code)? = error, code == "run_quota" || code == "service_budget_exhausted" {
-      return chinese
-        ? "今天的 AI 用量已用完。你的草稿还在输入框里。"
-        : "Today's AI limit has been reached. Your draft is still in the box."
+    let rest =
+      chinese
+      ? "你的草稿还在输入框里；说清楚的提醒、事件和闹钟仍可在本地预览，整理逾期也能用。"
+      : "Your draft is still in the box; clear reminders, events and alarms still get a local preview, and Tidy overdue still works."
+    switch error {
+    case .unavailable?:
+      return (chinese ? "需要登录 Luna AI 才能用 AI。" : "Sign in to Luna AI to use AI. ") + rest
+    case .quota(let code)? where code == "run_quota" || code == "service_budget_exhausted":
+      return (chinese ? "今天的 AI 用量已用完。" : "Today's AI limit has been reached. ") + rest
+    default:
+      return (chinese ? "AI 暂时不可用。" : "AI is unavailable right now. ") + rest
+    }
+  }
+
+  /// The heading of a rules-only preview made while the AI can't run (§4.7 #3).
+  public static func localPreview(_ error: ModelClientError?, chinese: Bool) -> String {
+    let why: String
+    switch error {
+    case .unavailable?: why = chinese ? "未登录 Luna AI" : "Not signed in to Luna AI"
+    default: why = chinese ? "AI 暂时不可用" : "AI is unavailable"
     }
     return chinese
-      ? "AI 暂时不可用。你的草稿还在输入框里；说清时间的提醒仍可直接添加。"
-      : "AI is unavailable right now. Your draft is still in the box; clear reminders still work offline."
+      ? "\(why)，这是按规则读出的预览。点 Add 才会添加。"
+      : "\(why), so this preview comes from the rules. Nothing is added until you tap Add."
   }
 }

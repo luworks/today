@@ -105,4 +105,69 @@ final class FastLaneTests: XCTestCase {
   func testOrdinaryConversationIsNotForTheFastLane() {
     XCTAssertEqual(decide("What happens if I set a reminder?"), .notFastLane)
   }
+
+  // MARK: Local previews (offline / not signed in, §4.7 #3)
+
+  private func preview(_ text: String, items: [EditItem] = []) -> Capture? {
+    FastLane.localPreview(text, items: items, now: now, calendar: calendar)
+  }
+
+  func testConfidentEventsAlarmsAndRemindersGetALocalPreview() throws {
+    let event = try XCTUnwrap(preview("Add an event tomorrow at 3pm called [QA] Review"))
+    XCTAssertEqual(event.kind, .event)
+    XCTAssertEqual(event.hour, 15)
+    let lunch = try XCTUnwrap(preview("Lunch with [QA] Alex tomorrow at 12pm"))
+    XCTAssertEqual(lunch.hour, 12)
+    XCTAssertTrue(lunch.hasDay)
+
+    let alarm = try XCTUnwrap(preview("Set an alarm for 7am tomorrow"))
+    XCTAssertTrue(alarm.ringsAsAlarm)
+    XCTAssertEqual(alarm.hour, 7)
+    let wake = try XCTUnwrap(preview("明天早上7点叫醒我"))
+    XCTAssertTrue(wake.ringsAsAlarm)
+    XCTAssertEqual(wake.hour, 7)
+
+    // A recurring reminder is never direct, but it is a confident preview.
+    let weekly = try XCTUnwrap(preview("Remind me to water the plants every Monday at 9am"))
+    XCTAssertEqual(weekly.kind, .task)
+    XCTAssertFalse(weekly.ringsAsAlarm)
+    XCTAssertNotNil(weekly.repeatRule)
+    XCTAssertNil(
+      FastLane.oneOffReminder(
+        "Remind me to water the plants every Monday at 9am", now: now, calendar: calendar))
+  }
+
+  func testUnsureOrNonRequestTextHasNoLocalPreview() {
+    let dentist = EditItem(
+      id: "t1", type: "task", title: "Dentist", start: now.addingTimeInterval(3600), minutes: 30,
+      attendees: 0)
+    for text in [
+      "What's on tomorrow?", "How are you?", "thanks",
+      "Tidy overdue",
+      "Remind me to buy [QA] milk at 9am and call [QA] Alex at 3pm",
+      "提醒我周四，不对，周五下午两点买[QA]面包",
+      "Sam told me he has a meeting with the bank on Friday",
+      "Remind me tomorrow",
+    ] {
+      XCTAssertNil(preview(text), text)
+    }
+    XCTAssertNil(preview("Move the dentist to 4pm", items: [dentist]))
+  }
+
+  func testAnAlarmNeedsItsWordsAndATime() throws {
+    XCTAssertEqual(
+      FastLane.ruleKind(
+        "Wake me at 6:30",
+        parsed: FastLane.parse(
+          "Wake me at 6:30", now: now, calendar: calendar)), .alarm)
+    // A meeting word alone leaves the kind to the parser (reminder or event, the user picks on the card).
+    XCTAssertNil(
+      FastLane.ruleKind(
+        "Dentist tomorrow at 3pm",
+        parsed: FastLane.parse(
+          "Dentist tomorrow at 3pm", now: now, calendar: calendar)))
+    let plain = try XCTUnwrap(preview("Call the bank tomorrow at 10am"))
+    XCTAssertFalse(plain.ringsAsAlarm)
+    XCTAssertEqual(plain.kind, .task)
+  }
 }

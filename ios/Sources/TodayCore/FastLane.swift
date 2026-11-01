@@ -109,6 +109,81 @@ public enum FastLane {
     return !forMe
   }
 
+  // MARK: Local previews when the agent can't run (§4.7 #3)
+
+  /// A reminder, event or alarm the rules read with confidence from one request: the offline and
+  /// not-signed-in path. Always a preview, never a write (only `oneOffReminder` may be direct). nil
+  /// when the rules aren't sure; the caller then says the AI is unavailable and keeps the draft.
+  ///
+  /// Confident means: a request to add something (not a question, chat, edit of an existing item,
+  /// list of several actions, mid-sentence correction or someone else's words), with a real title,
+  /// and either words that settle the kind or a day or time.
+  public static func localPreview(
+    _ text: String, items: [EditItem], now: Date, calendar: Calendar
+  ) -> Capture? {
+    let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard intent(trimmed) == .capture, !hasMultipleActions(trimmed),
+      !hasMaterialCorrection(trimmed), !isReportedSpeech(trimmed),
+      !OverdueTidy.isRequest(trimmed),
+      !looksLikeEdit(trimmed, items: items, now: now, calendar: calendar)
+    else { return nil }
+    let parsed = parse(trimmed, now: now, calendar: calendar)
+    let kind = ruleKind(trimmed, parsed: parsed)
+    guard kind != nil || parsed.hasDay || parsed.hour != nil else { return nil }
+    let capture = kind.map { combine(parsed, kind: $0, text: trimmed) } ?? parsed
+    // An alarm may be just "Alarm"; anything else needs a real title.
+    let title = capture.title.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard capture.ringsAsAlarm || (!title.isEmpty && !isGenericTitle(title)) else { return nil }
+    return capture
+  }
+
+  /// What a new item is, when the words settle it without a model.
+  public enum Kind: Equatable, Sendable { case task, event, alarm }
+
+  /// The kind the words settle, or nil (e.g. "dentist tomorrow at 3" could be a reminder or an event).
+  public static func ruleKind(_ text: String, parsed: Capture) -> Kind? {
+    if requestsEvent(text) { return .event }
+    if parsed.ringsAsAlarm { return .alarm }
+    if asksForAlarm(text), parsed.hour != nil { return .alarm }
+    if matches(text, #"提醒我|\bremind me\b"#) { return .task }
+    if CaptureParser.isBookingAction(text) { return .task }
+    if matches(text, eventCue) { return nil }
+    let title = parsed.title.lowercased().trimmingCharacters(in: .whitespaces)
+    if matches(title, taskLead) { return .task }
+    return nil
+  }
+
+  /// The parser's fields with the settled kind. An alarm needs a time, and the alarm words, to ring.
+  public static func combine(_ parsed: Capture, kind: Kind, text: String) -> Capture {
+    var c = parsed
+    c.kind = kind == .event ? .event : .task
+    if kind == .alarm, parsed.hour != nil, asksForAlarm(text) || parsed.ringsAsAlarm {
+      c.ringsAsAlarm = true
+    }
+    return c
+  }
+
+  /// Words that mean "ring me". With a time they make an alarm.
+  public static func asksForAlarm(_ text: String) -> Bool {
+    matches(text, #"wake\s+me|\balarm\b|\btimer\b|计时|闹钟|叫醒|叫我起床|起床"#)
+  }
+
+  static func isGenericTitle(_ title: String) -> Bool {
+    matches(
+      title,
+      #"^(?:something|anything|a reminder|reminder|remind me|new task|task|event|an event|alarm|an alarm|timer|提醒|提醒我|一个提醒|任务|事件|闹钟|计时器|某事)[.!。]*$"#
+    )
+  }
+
+  private static func matches(_ text: String, _ pattern: String) -> Bool {
+    text.range(of: pattern, options: [.regularExpression, .caseInsensitive]) != nil
+  }
+
+  private static let eventCue =
+    #"\b(?:meeting|mtg|appointment|appt|interview|class|lecture|session|lunch|dinner|brunch|breakfast|party|wedding|flight|train|concert|show|movie|conference|standup|stand-up|sync|1:1|call with|catch up|date|exam|checkup|check-up|dentist|doctor|workshop|webinar|trip)\b|会议|开会|面试|上课|课程|聚餐|吃饭|午饭|晚饭|早饭|聚会|婚礼|航班|火车|高铁|演出|电影|音乐会|约会|见面|体检|复诊|门诊|看病|考试|周会|例会|站会|视频会|喝咖啡|看牙|培训"#
+  private static let taskLead =
+    #"^(?:buy|pay|send|email|text|submit|sign|print|book|order|pack|clean|wash|write|finish|fix|water|take out|pick up|drop off|return|renew|file|read|study|prepare|update|reply|follow up|check|call|get|grab|cook|make|plan|gym|workout|run|jog|swim|yoga|walk|hike|hiking)\b|^(?:买|付|交|发|寄|回复|写|整理|订|预订|预约|打电话|取|拿|洗|收|倒垃圾|遛狗|充电|还|退|续|缴|健身|跑步|游泳|瑜伽)"#
+
   // MARK: Continuation answers to FastLane's own draft
 
   public static func refine(
