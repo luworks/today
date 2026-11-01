@@ -751,6 +751,7 @@
       // Rule gates first, in this order; only `.directReminder` writes without a card.
       let decision = FastLane.decide(
         text, intent: intent, context: turnContext, pending: pending,
+        savedDraft: proposals.last.map { $0.status != .open } ?? false,
         editItems: { editCandidates().items }, now: sentAt, calendar: runtime.calendar)
       // With the agent on, everything FastLane doesn't take goes to the agent (§4.1).
       if agentEnabled,

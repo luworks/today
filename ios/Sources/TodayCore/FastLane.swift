@@ -19,9 +19,11 @@ public enum FastLane {
   }
 
   /// `editItems` is evaluated only when the correction gate passes; reading items may be costly.
+  /// `savedDraft`: the chat's last card is already decided (e.g. added directly) and no draft is open,
+  /// so a follow-up like "改成下午4点" corrects a saved item; it is never re-created (P3 holdout finding).
   public static func decide(
     _ text: String, intent: ChatRouting.Intent, context: ConversationContext, pending: Capture?,
-    editItems: () -> [EditItem], now: Date, calendar: Calendar
+    savedDraft: Bool = false, editItems: () -> [EditItem], now: Date, calendar: Calendar
   ) -> Decision {
     if intent != .conversation, hasMaterialCorrection(text) { return .clarifyCorrection }
     if !looksLikeEdit(text, items: editItems(), now: now, calendar: calendar),
@@ -29,8 +31,9 @@ public enum FastLane {
     {
       return .directReminder(capture)
     }
-    if let resolved = resolve(
-      text, context: context, pending: pending, now: now, calendar: calendar)
+    if !(savedDraft && pending == nil),
+      let resolved = resolve(
+        text, context: context, pending: pending, now: now, calendar: calendar)
     {
       return .continuation(
         resolved, direct: isEligibleOneOff(resolved) && contextAllowsOneOff(context))
