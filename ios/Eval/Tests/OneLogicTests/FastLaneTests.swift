@@ -109,6 +109,17 @@ final class FastLaneTests: XCTestCase {
     }
   }
 
+  func testAnAlarmFollowUpNeverBecomesADirectReminder() {
+    for (answer, turn) in [
+      ("make it 7:20", "Set an alarm for 6:50 tomorrow"), ("改成7点20", "明天早上6点50的闹钟"),
+      ("change it to 8", "Wake me up at 7 on Saturday"),
+    ] {
+      let decision = decide(answer, turns: [turn])
+      if case .directReminder = decision { XCTFail(answer) }
+      if case .continuation(_, direct: true) = decision { XCTFail(answer) }
+    }
+  }
+
   func testAFollowUpToASavedReminderNeverRecreatesIt() {
     let turns = ["提醒我后天交房租"]
     // While its card is still open, an answer completes the draft (unchanged behaviour)…

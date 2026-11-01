@@ -63,8 +63,9 @@ public enum OneOffReminderRequest {
       guard CaptureParser.leadingMonth(turn.text) == nil,
         !ChatRouting.hasMultipleActions(turn.text), !ChatRouting.hasMaterialCorrection(turn.text)
       else { return false }
+      // An alarm conversation never continues into a direct reminder ("make it 6:45").
       return turn.text.range(
-        of: #"还是|或者|\bor\b|\bevery\b|\brecurr|重复|每"#,
+        of: #"还是|或者|\bor\b|\bevery\b|\brecurr|重复|每|\b(?:alarm|timer)\b|wake me|闹钟|计时器|叫醒|叫我起床"#,
         options: [.regularExpression, .caseInsensitive]) == nil
     }
     return false
@@ -75,7 +76,7 @@ public enum OneOffReminderRequest {
       !capture.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
       capture.title.range(
         of:
-          #"^(?:something|anything|a reminder|reminder|remind me|new task|task|alarm|timer|提醒|提醒我|一个提醒|任务|闹钟|计时器|某事)[.!。]*$"#,
+          #"^(?:something|anything|a reminder|reminder|remind me|new task|task|alarm|timer|it|that|this|them|提醒|提醒我|一个提醒|任务|闹钟|计时器|某事|它|这个|那个)[.!。]*$"#,
         options: [.regularExpression, .caseInsensitive]) == nil
     else { return false }
     return true
