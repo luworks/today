@@ -29,23 +29,6 @@ public enum Preferences {
     askSuggestionsKey, showSettleKey, weatherSummaryKey,
   ]
 
-  /// The on-phone AI agent (docs/engineering/ai-agent-architecture.md P2). Off by default: Ask keeps the
-  /// existing pipeline. Not a `today.setting.` key: it is a development flag until P4 turns the agent on;
-  /// Settings → AI shows it as the "New AI agent (beta)" switch.
-  public static let aiAgentKey = "today.ai.agent"
-  public static let aiAgent = false
-  /// Launch argument that turns the agent on for one run (testing).
-  public static let aiAgentArgument = "-aiAgent"
-
-  /// Whether Ask routes messages that FastLane doesn't take to the agent.
-  public static func aiAgentEnabled(
-    _ defaults: UserDefaults = .standard,
-    arguments: [String] = ProcessInfo.processInfo.arguments
-  ) -> Bool {
-    arguments.contains(aiAgentArgument)
-      || (defaults.object(forKey: aiAgentKey) as? Bool ?? aiAgent)
-  }
-
   // MARK: Defaults (the behaviour before these choices existed)
 
   public static let compressEmptyHours = true

@@ -206,29 +206,3 @@ final class PreferencesTests: XCTestCase {
       "the relaunch check keeps what the first launch saved")
   }
 }
-
-final class AgentFlagTests: XCTestCase {
-  func testTheAgentIsOffByDefaultAndTurnsOnByKeyOrLaunchArgument() {
-    let defaults = UserDefaults(suiteName: "agent-flag-\(UUID().uuidString)")!
-    XCTAssertEqual(Preferences.aiAgentKey, "today.ai.agent")
-    XCTAssertFalse(Preferences.aiAgentEnabled(defaults, arguments: []))
-    XCTAssertTrue(Preferences.aiAgentEnabled(defaults, arguments: ["-aiAgent"]))
-    defaults.set(true, forKey: Preferences.aiAgentKey)
-    XCTAssertTrue(Preferences.aiAgentEnabled(defaults, arguments: []))
-    defaults.set(false, forKey: Preferences.aiAgentKey)
-    XCTAssertFalse(Preferences.aiAgentEnabled(defaults, arguments: []))
-  }
-
-  func testUITestsStartWithTheAgentSwitchOff() {
-    let defaults = UserDefaults(suiteName: "agent-flag-\(UUID().uuidString)")!
-    defaults.set(true, forKey: Preferences.aiAgentKey)
-    LaunchTestConfiguration.applyPreferenceOverrides(
-      arguments: ["-uiTesting", "-uiTestingKeepPreferences"], defaults: defaults)
-    XCTAssertTrue(
-      Preferences.aiAgentEnabled(defaults, arguments: []), "a relaunch keeps the switch")
-    LaunchTestConfiguration.applyPreferenceOverrides(arguments: ["-uiTesting"], defaults: defaults)
-    XCTAssertFalse(
-      Preferences.aiAgentEnabled(defaults, arguments: []),
-      "-uiTesting clears the switch, so a test that flips it does not leak")
-  }
-}

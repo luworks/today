@@ -27,6 +27,7 @@
     private let ledger: Ledger
     private let activity: ActivityCenter
     private let intelligence: AskIntelligence
+    private let agentModel: AgentModel
     private let presentation: PlannerPresentation
     private let travel: any TravelTimeProviding
     private let suggestionMemory: AskSuggestionMemory
@@ -88,7 +89,7 @@
     @Query(sort: \OneList.order) private var lists: [OneList]
     @AppStorage private var showsSuggestions: Bool
     @State private var thinking = false
-    /// The agent side of this conversation (flag `today.ai.agent`); created on its first use.
+    /// The agent side of this conversation; created on its first use.
     @State private var agent: AskAgentSession?
     /// The Tidy card the agent prepared, so Apply/Cancel are recorded against its proposal.
     @State private var agentTidyID: String?
@@ -200,7 +201,8 @@
       onClose: (() -> Void)? = nil,
       onMenu: (() -> Void)? = nil, calendar: any CalendarService, now: @escaping () -> Date,
       actions: PlannerActions, ledger: Ledger, activity: ActivityCenter,
-      intelligence: AskIntelligence, voice: VoiceInput, presentation: PlannerPresentation,
+      intelligence: AskIntelligence, agentModel: AgentModel, voice: VoiceInput,
+      presentation: PlannerPresentation,
       travel: any TravelTimeProviding, suggestionMemory: AskSuggestionMemory,
       onBack: @escaping (Bool) -> Void, onAdded: @escaping (Capture) -> Void,
       onOpenDay: @escaping (Date) -> Void,
@@ -220,6 +222,7 @@
       self.ledger = ledger
       self.activity = activity
       self.intelligence = intelligence
+      self.agentModel = agentModel
       self.presentation = presentation
       self.travel = travel
       self.suggestionMemory = suggestionMemory
@@ -752,12 +755,10 @@
       let decision = FastLane.decide(
         text, intent: intent, context: turnContext, pending: pending,
         editItems: { editCandidates().items }, now: sentAt, calendar: runtime.calendar)
-      // With the agent on, everything FastLane doesn't take goes to the agent (§4.1).
-      if agentEnabled,
-        AgentRouting.useAgent(decision, agentHasOpenCards: agent?.hasOpenCards ?? false)
-      {
+      // Everything FastLane doesn't take goes to the agent (§4.1).
+      if AgentRouting.useAgent(decision, agentHasOpenCards: agent?.hasOpenCards ?? false) {
         // Not signed in to Luna AI: rules only, no request (§4.7 #3).
-        guard HostedLunaClient().isAvailable else {
+        guard agentModel.isAvailable() else {
           runLocally(text, typed: typed, error: .unavailable)
           return
         }
@@ -778,7 +779,7 @@
         recordTurn("capture", text)
         clearPreviews()
         createSubmittedReminder(capture)
-        if agentEnabled { recordFastLaneReceipt(typed: typed) }
+        recordFastLaneReceipt(typed: typed)
         return
       case .continuation(let resolved, let direct):
         recordTurn("answer", text)
@@ -1636,9 +1637,7 @@
       return c
     }
 
-    // MARK: Agent (flag today.ai.agent, docs/engineering/ai-agent-architecture.md P2)
-
-    private var agentEnabled: Bool { Preferences.aiAgentEnabled(presentation.defaults) }
+    // MARK: Agent (docs/engineering/ai-agent-architecture.md)
 
     private func agentSession() -> AskAgentSession {
       if let agent { return agent }
@@ -1701,7 +1700,7 @@
       thinking = true
       let history = session.tools.history.items
       captureTask = Task { @MainActor in
-        let client = HostedLunaClient()
+        let client = agentModel.client
         var result = await AgentRunner(client: client, toolbox: session.tools).run(
           history: history, message: message, runID: runID, chinese: chinese)
         // A replay OpenAI can't verify (e.g. after a model update): compact to text and retry once.

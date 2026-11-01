@@ -15,6 +15,7 @@
     package let world: WorldClockStore
     package let stopwatch: StopwatchModel
     package let intelligence: AskIntelligence
+    package let agentModel: AgentModel
     package let voice: VoiceInput
     package let suggestionMemory: AskSuggestionMemory
     package let arguments: [String]
@@ -22,13 +23,15 @@
 
     package init(
       session: PlannerSession, world: WorldClockStore, stopwatch: StopwatchModel,
-      intelligence: AskIntelligence, voice: VoiceInput, arguments: [String],
+      intelligence: AskIntelligence, agentModel: AgentModel, voice: VoiceInput,
+      arguments: [String],
       openSettings: @escaping @MainActor () -> Void
     ) {
       self.session = session
       self.world = world
       self.stopwatch = stopwatch
       self.intelligence = intelligence
+      self.agentModel = agentModel
       self.voice = voice
       self.arguments = arguments
       self.openSettings = openSettings

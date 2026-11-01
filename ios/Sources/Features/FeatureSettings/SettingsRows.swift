@@ -153,15 +153,4 @@
     }
   }
 
-  /// Settings > AI: the on-phone agent (`Preferences.aiAgentKey`, off by default; docs/engineering/ai-agent-architecture.md).
-  package struct AIAgentSettingRow: View {
-    package init() {}
-    @AppStorage(Preferences.aiAgentKey) private var isOn = Preferences.aiAgent
-
-    package var body: some View {
-      Toggle("New AI agent (beta)", isOn: $isOn)
-        .accessibilityIdentifier("settings.aiAgent")
-    }
-  }
-
 #endif
