@@ -117,6 +117,24 @@
     }
 
     @Test
+    func reportedSpeechCreatesNoCard() async throws {
+      let a = try AgentFixture()
+      defer { a.dispose() }
+      a.tools.turn = AgentTurn(text: "我朋友说他明天要提醒自己买茶", chinese: true, runID: "r1")
+      let out = await a.call(
+        "propose_create",
+        ["items": [["kind": "reminder", "title": "买茶", "when_text": "明天"]]])
+      let result = try #require(out["results"]?.array?.first)
+      #expect(result["reason"] == "reportedSpeech")
+      #expect(a.sink.shown.isEmpty)
+      a.tools.turn = AgentTurn(text: "提醒我明天买茶", chinese: true, runID: "r2")
+      let shown = await a.call(
+        "propose_create",
+        ["items": [["kind": "reminder", "title": "买茶", "when_text": "明天"]]])
+      #expect(shown["results"]?.array?.first?["status"] == "shown_to_user")
+    }
+
+    @Test
     func reviseWorksOnlyOnUndecidedCards() async throws {
       let a = try AgentFixture()
       defer { a.dispose() }

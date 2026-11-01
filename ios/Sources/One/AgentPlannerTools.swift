@@ -12,12 +12,15 @@
     package var chinese: Bool
     package var runID: String
     package var words: ActionPolicy.Words
+    /// The message reports someone else's words or plans (rules, not the model).
+    package var reportedSpeech: Bool
 
     package init(text: String, chinese: Bool, runID: String, words: ActionPolicy.Words = .user) {
       self.text = text
       self.chinese = chinese
       self.runID = runID
       self.words = words
+      self.reportedSpeech = FastLane.isReportedSpeech(text)
     }
   }
 
@@ -739,9 +742,17 @@
           if c.ringsAsAlarm { fields.insert(.ringsAsAlarm) }
           let tier = ActionPolicy.tier(
             .init(
-              tool: .proposeCreate, source: .agent, words: turn.words, kind: kind, fields: fields))
+              tool: .proposeCreate, source: .agent, words: turn.words, kind: kind, fields: fields,
+              reportedSpeech: turn.reportedSpeech))
           if case .refuse(let reason) = tier {
-            results.append(["error": "refused", "reason": .string(reason.rawValue)])
+            var refused: [String: JSONValue] = [
+              "error": "refused", "reason": .string(reason.rawValue),
+            ]
+            if reason == .reportedSpeech {
+              refused["message"] =
+                "The user is reporting what someone else said or plans; that is not a request. Create nothing. Reply briefly and offer to add it only if the user wants it for themselves."
+            }
+            results.append(.object(refused))
             continue
           }
           let key = [

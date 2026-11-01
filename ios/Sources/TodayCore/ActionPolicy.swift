@@ -97,13 +97,15 @@ public enum ActionPolicy {
     public var fromAlarmStop: Bool
     /// The item differs from the snapshot the card was prepared from (§4.2).
     public var changedSincePreview: Bool
+    /// The user reported someone else's words or plans (`FastLane.isReportedSpeech`): not a request.
+    public var reportedSpeech: Bool
 
     public init(
       tool: AgentTool, source: Source, words: Words = .user, kind: Kind,
       fields: Set<Field> = [], clearOneOffReminder: Bool = false,
       userAskedToMoveEvent: Bool = false, attendees: Int = 0, affectsSeries: Bool = false,
       fromNote: Bool = false, viaMakeTask: Bool = false, fromAlarmStop: Bool = false,
-      changedSincePreview: Bool = false
+      changedSincePreview: Bool = false, reportedSpeech: Bool = false
     ) {
       self.tool = tool
       self.source = source
@@ -118,6 +120,7 @@ public enum ActionPolicy {
       self.viaMakeTask = viaMakeTask
       self.fromAlarmStop = fromAlarmStop
       self.changedSincePreview = changedSincePreview
+      self.reportedSpeech = reportedSpeech
     }
   }
 
@@ -136,6 +139,7 @@ public enum ActionPolicy {
     case stoppingAlarmIsNotCompletion
     case noteIsNotATask
     case changedSincePreview
+    case reportedSpeech
   }
 
   public enum Tier: Equatable, Sendable {
@@ -172,6 +176,8 @@ public enum ActionPolicy {
     guard r.source != .background else { return .refuse(.backgroundWrite) }
     // §4.2: a card prepared from a different state is void; prepare a current one.
     guard !r.changedSincePreview else { return .refuse(.changedSincePreview) }
+    // Principle 1: what someone else said or plans is not the user's request.
+    guard !(r.reportedSpeech && effect == .create) else { return .refuse(.reportedSpeech) }
     // Principle 3: one date per reminder.
     guard !r.fields.contains(.plannedStart) else { return .refuse(.plannedTimeRetired) }
     // Principle 4: stopping an alarm never finishes a task.
