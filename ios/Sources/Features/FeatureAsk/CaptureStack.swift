@@ -22,6 +22,8 @@
     package var entryID: UUID?
     package var retainsDraft = false
     package var pendingExternalID: String?
+    /// The agent proposal id ("p1") when the agent prepared this card; nil for FastLane and the old pipeline.
+    package var agentID: String?
 
     package init(capture: Capture, batchSize: Int = 1, batch: UUID = UUID(), anchor: UUID? = nil) {
       self.capture = capture

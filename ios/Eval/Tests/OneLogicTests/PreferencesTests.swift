@@ -206,3 +206,16 @@ final class PreferencesTests: XCTestCase {
       "the relaunch check keeps what the first launch saved")
   }
 }
+
+final class AgentFlagTests: XCTestCase {
+  func testTheAgentIsOffByDefaultAndTurnsOnByKeyOrLaunchArgument() {
+    let defaults = UserDefaults(suiteName: "agent-flag-\(UUID().uuidString)")!
+    XCTAssertEqual(Preferences.aiAgentKey, "today.ai.agent")
+    XCTAssertFalse(Preferences.aiAgentEnabled(defaults, arguments: []))
+    XCTAssertTrue(Preferences.aiAgentEnabled(defaults, arguments: ["-aiAgent"]))
+    defaults.set(true, forKey: Preferences.aiAgentKey)
+    XCTAssertTrue(Preferences.aiAgentEnabled(defaults, arguments: []))
+    defaults.set(false, forKey: Preferences.aiAgentKey)
+    XCTAssertFalse(Preferences.aiAgentEnabled(defaults, arguments: []))
+  }
+}

@@ -18,7 +18,7 @@ public struct AgentToolCall: Equatable, Sendable {
 }
 
 /// What a tool returns to the model, and how many cards it put on screen.
-public struct AgentToolOutcome: Equatable, Sendable {
+public struct AgentToolOutcome: Equatable, Sendable, Error {
   public var output: String
   public var cards: Int
 

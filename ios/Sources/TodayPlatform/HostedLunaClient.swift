@@ -25,6 +25,13 @@
 
     /// The signed-in account with cloud upload consent; nil means the agent is unavailable.
     @Sendable public static func live() -> Configuration? {
+      #if DEBUG && targetEnvironment(simulator)
+        // QA only: an unreachable endpoint stands in for airplane mode (the Simulator has none).
+        if ProcessInfo.processInfo.arguments.contains("-agentOffline") {
+          return Configuration(
+            endpoint: URL(string: "https://127.0.0.1:9/v1/responses")!, bearer: "offline")
+        }
+      #endif
       guard let endpoint = AIService.endpoint, let bearer = AIService.bearer else { return nil }
       return Configuration(endpoint: endpoint, bearer: bearer)
     }

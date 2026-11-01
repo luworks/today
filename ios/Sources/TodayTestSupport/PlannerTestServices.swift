@@ -158,7 +158,11 @@
       return hiddenCalendarIDs.contains(e.calendarID)
     }
     package func isRepeating(externalID: String?) -> Bool { event(externalID)?.repeats ?? false }
-    package func audience(externalID: String?) -> (attendees: Int, isOrganizer: Bool)? { nil }
+    /// Synthetic attendee fixtures by linked id; empty by default (no event has attendees).
+    package var audiences: [String: (attendees: Int, isOrganizer: Bool)] = [:]
+    package func audience(externalID: String?) -> (attendees: Int, isOrganizer: Bool)? {
+      externalID.flatMap { audiences[$0] }
+    }
     package func canDelete(externalID: String?) -> Bool {
       guard !isDisposed else { return false }
       guard let externalID else { return true }
