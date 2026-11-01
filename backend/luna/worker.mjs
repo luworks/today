@@ -121,28 +121,36 @@ async function settle(db,id,usage,status) {
  await db.batch([db.prepare("UPDATE calls SET charged=?,status=? WHERE id=?").bind(charged,typeof status==='string'?status:'unknown',id),db.prepare("UPDATE budget SET used=used-?+? WHERE id=1").bind(RESERVE,charged)]);
 }
 const TERMINAL = new Set(['response.completed','response.incomplete','response.failed']);
-// Reads the whole upstream SSE stream even after the client leaves, then settles the ledger.
-// Client writes are not awaited, so a stalled client cannot hold the reservation open.
-async function pump(body,writer,db,id) {
- const reader=body.getReader(), decoder=new TextDecoder();
- let buffer='', final=null, gone=false, size=0;
- writer.closed.catch(()=>{gone=true;});
+const TAIL = 1048576;
+// The last terminal event in the kept stream tail (the usage receipt), parsed once.
+function lastTerminal(chunks) {
+ const all=new Uint8Array(chunks.reduce((n,c)=>n+c.length,0));let offset=0;
+ for(const c of chunks){all.set(c,offset);offset+=c.length;}
+ const blocks=new TextDecoder().decode(all).replace(/\r/g,'').split('\n\n');
+ for(let i=blocks.length-1;i>=0;i--){
+  const data=blocks[i].split('\n').filter(l=>l.startsWith('data:')).map(l=>l.slice(5).trimStart()).join('\n');
+  if(!data||!data.includes('"response.'))continue;
+  try{const event=JSON.parse(data);if(TERMINAL.has(event.type))return event.response;}catch{}
+ }
+ return null;
+}
+// Reads the ledger half of the upstream SSE stream to its end, even after the client leaves, then
+// settles. The client half is piped by the runtime; this half only keeps chunks and parses the final
+// event once: decoding and parsing every event in JS cost ~20 ms CPU per step and Workers killed
+// streams mid-response at the 10 ms limit (docs/qa/agent-p3-eval-20261101.md).
+async function pump(body,db,id) {
+ const reader=body.getReader(), tail=[];
+ let size=0, kept=0, final=null;
  try {
   while(true){
    const {value,done}=await reader.read();if(done)break;
    size+=value.length;if(size>MAX_AGENT_UPSTREAM)throw new Error('upstream_too_large');
-   if(!gone)writer.write(value).catch(()=>{gone=true;});
-   buffer+=decoder.decode(value,{stream:true}).replace(/\r/g,'');
-   let i;
-   while((i=buffer.indexOf('\n\n'))>=0){
-    const data=buffer.slice(0,i).split('\n').filter(l=>l.startsWith('data:')).map(l=>l.slice(5).trimStart()).join('\n');buffer=buffer.slice(i+2);
-    if(!data||data==='[DONE]')continue;
-    try{const event=JSON.parse(data);if(TERMINAL.has(event.type))final=event.response;}catch{}
-   }
+   tail.push(value);kept+=value.length;
+   while(tail.length>1&&kept-tail[0].length>=TAIL)kept-=tail.shift().length;
   }
-  if(!gone)writer.close().catch(()=>{});
- } catch(error) {
-  reader.cancel().catch(()=>{});writer.abort(error).catch(()=>{});
+  final=lastTerminal(tail);
+ } catch {
+  reader.cancel().catch(()=>{});
  }
  await settle(db,id,final?.usage,final?.status);
 }
@@ -227,9 +235,9 @@ export default {async fetch(request,env,ctx) {
     throw new Error("upstream");
    }
    if(body.stream){
-    const {readable,writable}=new TransformStream();
-    ctx.waitUntil(pump(upstream.body,writable.getWriter(),db,id));
-    return new Response(readable,{headers:{...sse,"x-request-id":id}});
+    const [client,ledger]=upstream.body.tee();
+    ctx.waitUntil(pump(ledger,db,id));
+    return new Response(client,{headers:{...sse,"x-request-id":id}});
    }
    const result=await boundedJSON(upstream,agent?MAX_AGENT_UPSTREAM:MAX_BODY);
    await settle(db,id,result.usage,result.status);
