@@ -16,14 +16,13 @@ Wrangler stdin; it is neither a plain-text binding nor a source/config/bundle va
 
 | Route | Method | Authorization / result |
 | --- | --- | --- |
-| `/health` | GET | Non-secret readiness/model/effort |
+| `/health` | GET | Non-secret readiness, model and agent settings |
 | `/auth/register` | POST | Username + password ≥12 characters; issues a unique random session |
 | `/auth/login` | POST | Valid password; issues a new unique session |
-| `/auth/session` | GET | Bearer; username and daily call usage/limit |
+| `/auth/session` | GET | Bearer; username and today's agent runs (`runsUsed`/`dailyRunLimit`) |
 | `/auth/logout` | POST | Revokes this bearer |
 | `/auth/account` | DELETE | Deletes this AI user and all their sessions; local planner data remains |
 | `/v1/responses` | POST | Bearer; agent mode only (below). A body without `tools_version` is refused with `tools_version_required` |
-| `/v1/decisions` | POST | Bearer; bounded Decisions request |
 
 Passwords use per-user random salt + PBKDF2-SHA256 (100,000 iterations). Random
 256-bit sessions expire after 30 days; only their SHA-256 hashes are stored server-side.
@@ -35,7 +34,7 @@ Offline sign-out clears local credentials and states that remote revocation is u
 The strict-JSON mode of `/v1/responses` (client `instructions` + `text.format`, 24 KB)
 was removed in P4 (2026-11-01) together with the app's old AI pipeline; the app sends only
 agent steps. No model substitution, redirects, automatic retries or Apple fallback.
-`/v1/decisions` (kept for P3) uses the per-user 6/minute and 40/day call quotas. D1 stores
+The Decisions route (`/v1/decisions`, a 2026-10-31 spike) was removed too. D1 stores
 account credentials/session hashes, counters and accounting metadata, not chat or planner text.
 
 ## Agent mode (`/v1/responses` with `tools_version`)
@@ -59,8 +58,7 @@ Phase P0 of `docs/engineering/ai-agent-architecture.md`. A body containing
 - `run_id` (8–64 of `[A-Za-z0-9_-]`, one per user message) is counted in the D1 `runs`
   table: at most 6 steps per run (`run_step_limit`), 40 new runs per user per UTC day
   (`run_quota`; an unfinished run may still finish), a run belongs to its creator (409).
-  Agent steps use their own 20/minute backstop and do not consume the 40 calls/day bucket of
-  `/v1/decisions`. `/auth/session` reports `runsUsed`/`dailyRunLimit`.
+  Agent steps have a 20/minute backstop per user. `/auth/session` reports `runsUsed`/`dailyRunLimit`.
 - Upstream timeout is 30 s per step; the abort signal is meant to cover a streamed body too (fetch spec behavior, not exercised offline). Responses up to 4 MB.
 - `stream: true` passes the upstream SSE through unchanged. The Worker reads the upstream
   stream to its end inside `ctx.waitUntil` even if the phone disconnects or stalls, then
@@ -71,10 +69,9 @@ Phase P0 of `docs/engineering/ai-agent-architecture.md`. A body containing
 
 ## Quotas and evaluation budget
 
-Atomic D1 counters enforce6 calls/minute and40 calls/UTC day per user. Signup is
-limited to100 active accounts and3 registrations/day/IP; login is rate limited per
-IP and username. Account deletion does not refund global model spending. A message
-can use multiple calls, including optional suggestion/title requests.
+Atomic D1 counters enforce 40 agent runs/UTC day, 6 steps/run and 20 steps/minute per
+user. Signup is limited to 100 active accounts and 3 registrations/day/IP; login is rate
+limited per IP and username. Account deletion does not refund global model spending.
 
 The global table started with the exact prior conservative evaluation spend
 USD0.023951 and a USD0.50 cumulative ceiling. On 2026-10-31 the owner approved raising

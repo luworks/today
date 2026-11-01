@@ -40,32 +40,10 @@ async function identity(request,db,now) {
 async function session(db,user,now) {
  const token=random();const expires=now+30*86400;
  await db.prepare("INSERT INTO sessions VALUES (?,?,?)").bind(await hash(token),user.id,expires).run();
- return json({token,expires,username:user.username,model:"gpt-6-luna",effort:"medium"});
+ return json({token,expires,username:user.username,model:"gpt-6-luna"});
 }
 const only = (value, keys) => value && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).every(k => keys.includes(k));
 const nonempty = value => typeof value === 'string' && value.trim().length > 0;
-export function prepareDecision(body) {
- if(!only(body,['model','input','questions'])||body.model!=='gpt-6-luna')fail('invalid_request');
- const input=body.input;
- if(!(nonempty(input)||(Array.isArray(input)&&input.length>0&&input.length<=32&&input.every(m=>only(m,['role','content'])&&['user','assistant'].includes(m.role)&&nonempty(m.content)))))fail('invalid_request');
- if(bytes(JSON.stringify(input)).length>12000)fail('context_too_large',413);
- if(!Array.isArray(body.questions)||body.questions.length<1||body.questions.length>8)fail('invalid_request');
- const names=new Set();
- for(const q of body.questions){
-  if(!only(q,['type','name','instructions',...(q?.type==='choice'?['choices']:q?.type==='score'?['levels']:[])])||!['predicate','choice','score'].includes(q.type)||!nonempty(q.name)||!/^[a-zA-Z0-9_-]{1,64}$/.test(q.name)||names.has(q.name)||!nonempty(q.instructions))fail('invalid_request');
-  names.add(q.name);
-  if(q.type!=='predicate'){
-   const key=q.type==='choice'?'choices':'levels', field=q.type==='choice'?'value':'label', options=q[key];
-   if(!Array.isArray(options)||options.length<2||options.length>(q.type==='score'?10:255))fail('invalid_request');
-   const seen=new Set();
-   for(const option of options){
-    if(!only(option,[field,'description'])||!(nonempty(option[field])||(field==='value'&&typeof option[field]==='boolean'))||(option.description!==undefined&&typeof option.description!=='string')||seen.has(JSON.stringify(option[field])))fail('invalid_request');
-    seen.add(JSON.stringify(option[field]));
-   }
-  }
- }
- return {model:'gpt-6-luna',input,questions:body.questions};
-}
 const ROLES = new Set(['user','assistant']), PARTS = new Set(['input_text','output_text','refusal']);
 function checkItem(item,version) {
  if(!item||typeof item!=='object'||Array.isArray(item))fail('invalid_item');
@@ -150,7 +128,7 @@ const sse = {"content-type":"text/event-stream","cache-control":"no-store","x-co
 export default {async fetch(request,env,ctx) {
  const now=Math.floor(Date.now()/1000), path=new URL(request.url).pathname,db=env.DB;
  try {
-  if(path==="/health"&&request.method==="GET")return json({ok:true,model:"gpt-6-luna",effort:"medium",agent:{tools_versions:Object.keys(AGENT),effort:"low",max_steps:MAX_STEPS,daily_runs:DAILY_RUNS}});
+  if(path==="/health"&&request.method==="GET")return json({ok:true,model:"gpt-6-luna",agent:{tools_versions:Object.keys(AGENT),effort:"low",max_steps:MAX_STEPS,daily_runs:DAILY_RUNS}});
   if(!db)fail("service_unavailable",503);
   const ip=await hash((request.headers.get("CF-Connecting-IP")||"unknown")+":"+Math.floor(now/86400));
   if(["/auth/register","/auth/login"].includes(path)&&request.method==="POST") {
@@ -175,49 +153,31 @@ export default {async fetch(request,env,ctx) {
   }
   const user=await identity(request,db,now);
   if(path==="/auth/session"&&request.method==="GET") {
-   const usage=await db.prepare("SELECT count FROM buckets WHERE key=?").bind("daily:"+user.id+":"+Math.floor(now/86400)).first();
    const runs=await db.prepare("SELECT COUNT(*) AS n FROM runs WHERE user_id=? AND started>=?").bind(user.id,Math.floor(now/86400)*86400).first();
-   return json({username:user.username,model:"gpt-6-luna",effort:"medium",dailyLimit:40,used:usage?.count||0,dailyRunLimit:DAILY_RUNS,runsUsed:runs?.n||0});
+   return json({username:user.username,model:"gpt-6-luna",dailyRunLimit:DAILY_RUNS,runsUsed:runs?.n||0});
   }
   if(path==="/auth/logout"&&request.method==="POST") {await db.prepare("DELETE FROM sessions WHERE token_hash=?").bind(user.tokenHash).run();return json({ok:true});}
   if(path==="/auth/account"&&request.method==="DELETE") {await db.batch([db.prepare("DELETE FROM sessions WHERE user_id=?").bind(user.id),db.prepare("DELETE FROM calls WHERE user_id=?").bind(user.id),db.prepare("DELETE FROM runs WHERE user_id=?").bind(user.id),db.prepare("DELETE FROM users WHERE id=?").bind(user.id)]);return json({ok:true});}
-  if(!["/v1/responses","/v1/decisions"].includes(path)||request.method!=="POST")fail("not_found",404);
+  if(path!=="/v1/responses"||request.method!=="POST")fail("not_found",404);
   if(!env.OPENAI_API_KEY)fail("service_unavailable",503);
-  const decision=path==='/v1/decisions';
-  let body, agent=false, runId;
-  if(decision)body=prepareDecision(await boundedJSON(request));
-  else {
-   // Agent mode only: the app's strict-JSON mode was removed with the old pipeline (P4).
-   const raw=await boundedText(request,MAX_AGENT_BODY), parsed=parse(raw.text);
-   if(!parsed||typeof parsed!=='object'||!('tools_version' in parsed))fail('tools_version_required');
-   agent=true;
-   body=prepareAgent(parsed);
-   runId=parsed.run_id;
-  }
+  // Agent steps only (P4 removed the strict-JSON mode and the Decisions route).
+  const raw=await boundedText(request,MAX_AGENT_BODY), parsed=parse(raw.text);
+  if(!parsed||typeof parsed!=='object'||!('tools_version' in parsed))fail('tools_version_required');
+  const body=prepareAgent(parsed), runId=parsed.run_id;
   const payload=JSON.stringify(body);
   // Each counter is atomic; denied attempts may consume quota, never call OpenAI.
-  // A decision consumes one unit of the existing per-user minute and daily quotas.
   // An agent step consumes one step of its run (6 max); new runs count against 40 runs/day.
-  if(agent){
-   await bucket(db,"agent-minute:"+user.id+":"+Math.floor(now/60),AGENT_MINUTE);
-   await runStep(db,user,runId,now);
-  } else {
-   await bucket(db,"minute:"+user.id+":"+Math.floor(now/60),6);
-   await bucket(db,"daily:"+user.id+":"+Math.floor(now/86400),40);
-  }
+  await bucket(db,"agent-minute:"+user.id+":"+Math.floor(now/60),AGENT_MINUTE);
+  await runStep(db,user,runId,now);
   const id=crypto.randomUUID();
   const allowance=await db.prepare("UPDATE budget SET used=used+? WHERE id=1 AND used+?<=ceiling RETURNING used").bind(RESERVE,RESERVE).first();
   if(!allowance)fail("service_budget_exhausted",429);
   await db.prepare("INSERT INTO calls VALUES (?,?,?,?,NULL,'pending')").bind(id,user.id,now,RESERVE).run();
   let upstream;
   try {
-   upstream=await fetch("https://api.openai.com"+path,{method:"POST",headers:{"authorization":"Bearer "+env.OPENAI_API_KEY,"content-type":"application/json"},body:payload,redirect:"manual",signal:AbortSignal.timeout(agent?30000:20000)});
+   upstream=await fetch("https://api.openai.com"+path,{method:"POST",headers:{"authorization":"Bearer "+env.OPENAI_API_KEY,"content-type":"application/json"},body:payload,redirect:"manual",signal:AbortSignal.timeout(30000)});
    if(!upstream.ok){
-    if(decision&&[403,404].includes(upstream.status)){
-     await db.prepare("UPDATE calls SET status='unknown' WHERE id=?").bind(id).run();
-     return json({error:'upstream_unavailable',upstream_status:upstream.status,request_id:id},upstream.status);
-    }
-    if(agent&&upstream.status===400){
+    if(upstream.status===400){
      // OpenAI rejects invalid requests (e.g. a bad replayed item) before generating; nothing is billed.
      const detail=await boundedJSON(upstream,65536).catch(()=>({}));
      await db.batch([db.prepare("UPDATE calls SET charged=0,status='rejected' WHERE id=?").bind(id),db.prepare("UPDATE budget SET used=used-? WHERE id=1").bind(RESERVE)]);
@@ -231,7 +191,7 @@ export default {async fetch(request,env,ctx) {
     ctx.waitUntil(pump(upstream.body,writable.getWriter(),db,id));
     return new Response(readable,{headers:{...sse,"x-request-id":id}});
    }
-   const result=await boundedJSON(upstream,agent?MAX_AGENT_UPSTREAM:MAX_BODY);
+   const result=await boundedJSON(upstream,MAX_AGENT_UPSTREAM);
    await settle(db,id,result.usage,result.status);
    return json(result);
   } catch {
