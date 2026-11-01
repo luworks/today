@@ -57,10 +57,8 @@ public enum SentenceRoute: Equatable {
     text.range(of: pattern, options: [.regularExpression, .caseInsensitive]) != nil
   }
 
-  /// Same words `Understanding.asksForAlarmStrict` looks for (that file needs the model framework, this one does not).
-  public static func asksForAlarm(_ text: String) -> Bool {
-    has(text, #"wake\s+me|\balarm\b|\btimer\b|计时|闹钟|叫醒|叫我起床|起床"#)
-  }
+  /// The words that make an alarm (`FastLane.asksForAlarm`).
+  public static func asksForAlarm(_ text: String) -> Bool { FastLane.asksForAlarm(text) }
 
   public static func route(
     _ raw: String, items: [EditItem], now: Date, calendar: Calendar = .current,

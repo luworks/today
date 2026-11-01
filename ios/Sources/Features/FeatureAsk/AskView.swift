@@ -756,6 +756,11 @@
       if agentEnabled,
         AgentRouting.useAgent(decision, agentHasOpenCards: agent?.hasOpenCards ?? false)
       {
+        // Not signed in to Luna AI: rules only, no request (§4.7 #3).
+        guard HostedLunaClient().isAvailable else {
+          runLocally(text, typed: typed, error: .unavailable)
+          return
+        }
         runAgent(typed: typed, text: text, anchor: messages.last?.id ?? UUID())
         return
       }
@@ -1589,16 +1594,17 @@
       persistCards()
     }
 
-    private func show(_ captures: [Capture]) {
+    private func show(_ captures: [Capture], note: String? = nil) {
       guard !captures.isEmpty else {
         messages.append(
           reply("I couldn't prepare an item from that. Tell me what you'd like to add."))
         return
       }
       let message = reply(
-        captures.count == 1
-          ? "Here's what I understood. Nothing is added until you confirm."
-          : "I found \(captures.count) items. Add them one by one or all at once; nothing is added until you confirm."
+        note
+          ?? (captures.count == 1
+            ? "Here's what I understood. Nothing is added until you confirm."
+            : "I found \(captures.count) items. Add them one by one or all at once; nothing is added until you confirm.")
       )
       let batch = UUID()
       // Earlier cards stay where they are; the new ones sit under the message that proposes them.
@@ -1714,10 +1720,46 @@
         thinking = false
         session.tools.history.items += result.items
         saveAgentHistory()
+        // The AI couldn't be reached before any card: the rules take over (§4.7 #3).
+        if let error = result.failed, result.cards == 0 {
+          runLocally(text, typed: typed, error: error)
+          return
+        }
         messages.append(reply(result.reply))
-        if result.failed != nil, result.cards == 0, draft.isEmpty { draft = typed }
         if result.cards > 0 { recordCard(shown: "agent", items: result.cards) }
       }
+    }
+
+    /// Offline, signed out, over quota or a failed request (§4.7 #3): FastLane alone. Tidy keeps working,
+    /// a reminder, event or alarm the rules are sure of becomes a preview card (nothing is written until
+    /// Add), and anything else says the AI is unavailable and puts the draft back in the composer.
+    private func runLocally(_ text: String, typed: String, error: ModelClientError) {
+      if OverdueTidy.isRequest(text) {
+        recordTurn("tidy", text, route: "offline")
+        clearPreviews()
+        proposeTidy()
+        return
+      }
+      let chinese = AgentReply.isChinese(typed)
+      if let capture = FastLane.localPreview(
+        text, items: editCandidates().items, now: now(), calendar: runtime.calendar)
+      {
+        recordTurn("capture", text, route: "offline")
+        clearPreviews()
+        show([capture], note: AgentReply.localPreview(error, chinese: chinese))
+        if capture.ringsAsAlarm, capture.hour == nil {
+          followup = .alarmTime
+          messages.append(
+            reply(
+              chinese
+                ? "闹钟要设在几点？确认添加后才会生效。"
+                : "What time should the alarm ring? Nothing is added until you confirm."))
+        }
+        return
+      }
+      recordTurn("unavailable", text, route: "offline")
+      messages.append(reply(AgentReply.unavailable(error, chinese: chinese)))
+      if draft.isEmpty { draft = typed }
     }
 
     /// Text plus card receipts in place of replayable items (§1.5): version change, size, or a rejected replay.
