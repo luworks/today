@@ -13,7 +13,7 @@
     var body: some View {
       Form {
         Section {
-          Text("GPT-6 Luna · Medium")
+          Text("GPT-6 Luna")
           Text(
             "AI requests send your message and limited relevant chat or planner context to Today AI and OpenAI. Your full calendar, reminders and Health databases stay on your iPhone."
           )

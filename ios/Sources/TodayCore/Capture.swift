@@ -1091,6 +1091,13 @@ public enum CaptureParser {
     }
     t = t.replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
       .trimmingCharacters(in: CharacterSet(charactersIn: " ,，.。:：-"))
+    // Only the request's own words are left ("设一个明天早上6点的闹钟" → "设一个 的"): no label.
+    if t.range(
+      of: #"^(?:帮我)?(?:设(?:置)?|定|订|加)?\s*(?:一?个)?\s*的?$"#, options: .regularExpression)
+      != nil
+    {
+      return "Alarm"
+    }
     guard let first = t.first else { return "Alarm" }
     return first.uppercased() + t.dropFirst()
   }
