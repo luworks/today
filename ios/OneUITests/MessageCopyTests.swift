@@ -1,7 +1,7 @@
 import XCTest
 
-/// Your messages have a copy button (it confirms with a check mark); the app's own status sentences (a preview's
-/// heading, "Added.") do not.
+/// Your messages have a copy button (it confirms with a check mark); the app's own status sentences (the rules'
+/// lead-in, the "Added …" receipt) do not.
 @MainActor
 final class MessageCopyTests: XCTestCase {
   func testEachMessageHasACopyButtonThatConfirms() {
@@ -35,14 +35,19 @@ final class MessageCopyTests: XCTestCase {
     let field = f.exists ? f : app.textViews.firstMatch
     XCTAssertTrue(field.waitForExistence(timeout: 10))
     field.tap()
-    // Explicit recurrence keeps the Add preview (not signed in: the rules' local preview).
+    // Not signed in: the rules read it and add it at once, with a receipt.
     field.typeText("Order printer paper tomorrow at 3pm every week\n")
 
-    XCTAssertTrue(app.buttons["Add"].waitForExistence(timeout: 10), "the preview card is up")
     XCTAssertTrue(
-      app.staticTexts[
-        "Not signed in to Luna AI, so this preview comes from the rules. Nothing is added until you tap Add."
-      ].exists)
+      app.descendants(matching: .any)["capture-added"].waitForExistence(timeout: 10),
+      "the card is up, Added")
+    XCTAssertTrue(
+      app.staticTexts.containing(
+        NSPredicate(
+          format: "label BEGINSWITH %@ AND label CONTAINS %@",
+          "Not signed in to Luna AI, so the rules read this.",
+          "Added the reminder “Order printer paper”. Tap Undo if you don't want it.")
+      ).firstMatch.waitForExistence(timeout: 5), "the status sentence is the rules' receipt")
     XCTAssertEqual(
       app.buttons.matching(identifier: "message.copy").count, 1, "only your own message has Copy")
   }

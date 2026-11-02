@@ -1,8 +1,8 @@
 import XCTest
 
-/// "Tidy overdue" on the AI page: a new date per overdue reminder, changeable per row, written only on Apply, with Undo.
-/// The dataset has two overdue reminders: "Pay studio invoice" (yesterday 17:00) and "Renew parking permit" (3 days ago,
-/// planned for today).
+/// "Tidy overdue" on the AI page: a new date per overdue reminder, applied right after the reply with Undo (owner
+/// decision 2026-11-02). The dataset has two overdue reminders: "Pay studio invoice" (yesterday 17:00) and "Renew
+/// parking permit" (3 days ago, planned for today); both go on today (up to three a day).
 @MainActor
 final class TidyOverdueTests: XCTestCase {
   func testTidyOverdueMovesTheDateOnlyOnApplyAndUndoBringsItBack() {
@@ -15,46 +15,27 @@ final class TidyOverdueTests: XCTestCase {
     XCTAssertTrue(
       overdueRow.waitForExistence(timeout: 10), "Today starts with two overdue reminders")
 
+    // Tidy applies at once, then Undo on the same page: the old dates are back.
     app.buttons["Ask AI or add anything"].tap()
     sendTidy(app)
-
-    let choice = app.buttons["tidy.choice.Pay studio invoice"]
-    XCTAssertTrue(choice.waitForExistence(timeout: 5), "the card lists the overdue reminder")
-    XCTAssertEqual(
-      choice.value as? String, "Today", "the most recent overdue one is suggested for today")
-    let older = app.buttons["tidy.choice.Renew parking permit"]
-    XCTAssertTrue(older.exists, "the card lists the other overdue reminder")
-    XCTAssertEqual(older.value as? String, "Today", "up to three a day go on today")
-    choice.tap()
-    app.buttons["Tomorrow"].firstMatch.tap()
-    XCTAssertEqual(choice.value as? String, "Tomorrow", "the row takes the user's choice")
-
-    // Nothing has changed yet: the card is only a preview.
-    app.buttons["Close"].firstMatch.tap()
-    XCTAssertTrue(overdueRow.waitForExistence(timeout: 5), "still overdue before Apply")
-
-    // Apply, then Undo on the same page: the old date is back.
-    openTidy(app)
-    app.buttons["tidy.apply"].tap()
     XCTAssertTrue(app.staticTexts["Moved 2 reminders."].firstMatch.waitForExistence(timeout: 5))
-    app.buttons["ask-undo"].tap()
+    XCTAssertFalse(app.buttons["tidy.apply"].exists, "nothing waits for Apply")
+    let undo = app.buttons["ask-undo"]
+    XCTAssertTrue(undo.waitForExistence(timeout: 5), "with Undo")
+    undo.tap()
+    XCTAssertTrue(undo.waitForNonExistence(timeout: 5))
     app.buttons["Close"].firstMatch.tap()
-    XCTAssertTrue(overdueRow.waitForExistence(timeout: 5), "Undo puts the old date back")
+    XCTAssertTrue(overdueRow.waitForExistence(timeout: 5), "Undo puts the old dates back")
 
-    // Apply and keep it.
-    openTidy(app)
-    app.buttons["tidy.apply"].tap()
+    // Tidy and keep it.
+    app.buttons["Ask AI or add anything"].tap()
+    sendTidy(app)
     XCTAssertTrue(app.staticTexts["Moved 2 reminders."].firstMatch.waitForExistence(timeout: 5))
     app.buttons["Close"].firstMatch.tap()
-    XCTAssertTrue(overdueRow.waitForNonExistence(timeout: 5), "no longer overdue after Apply")
-    openTidy(app, expectCard: false)
+    XCTAssertTrue(overdueRow.waitForNonExistence(timeout: 5), "no longer overdue after Tidy")
+    app.buttons["Ask AI or add anything"].tap()
+    sendTidy(app)
     XCTAssertTrue(app.staticTexts["Nothing is overdue."].firstMatch.waitForExistence(timeout: 5))
-  }
-
-  private func openTidy(_ app: XCUIApplication, expectCard: Bool = true) {
-    app.buttons["Ask AI or add anything"].tap()
-    sendTidy(app)
-    if expectCard { XCTAssertTrue(app.buttons["tidy.apply"].waitForExistence(timeout: 5)) }
   }
 
   /// The suggestion chips change with the data (no chip once nothing is overdue), so the sentence is typed.

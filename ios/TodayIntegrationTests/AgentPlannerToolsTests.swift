@@ -92,7 +92,9 @@
       a.tools.turn = AgentTurn(text: "move lunch to 3pm", chinese: false, runID: "r2")
       let shown = await a.call("propose_edit", ["id": .string(id), "when_text": "3pm"])
       #expect(shown["proposal_id"] != nil)
-      #expect(a.sink.shown.last?.tier == .preview)
+      // An attendee-free move the user asked for is applied right after the reply, with Undo.
+      #expect(a.sink.shown.last?.tier == .direct)
+      #expect(shown["applied_after_reply"] == .bool(true))
     }
 
     @Test

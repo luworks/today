@@ -1,8 +1,9 @@
 import XCTest
 
-/// AI page flows on the sample data: capture sentences become preview cards (or a clear one-off reminder is added),
-/// a saved reminder's repeat follow-up becomes a ChangeCard, and an edit of an existing item by name goes to the agent
-/// (scripted, `-uiTestingAgentScript`) and comes back as an agent change card with Apply / Undo.
+/// AI page flows on the sample data: a clear request is applied right after the reply, with Undo (owner decision
+/// 2026-11-02). A capture sentence is added, a saved reminder's repeat follow-up is applied with an Undo row, and an
+/// edit of an existing item by name goes to the agent (scripted, `-uiTestingAgentScript`) and comes back as an
+/// applied agent change card with Undo.
 /// Screenshots are attached to the result bundle.
 @MainActor
 final class AskEditTests: XCTestCase {
@@ -79,30 +80,33 @@ final class AskEditTests: XCTestCase {
 
   // MARK: Edit
 
+  /// The repeat follow-up on a saved reminder is applied at once (no attendees), with an Undo row.
   func testSavedReminderDailyFollowupRequiresApplyAndSupportsUndo() {
     launch()
     send("Remind me to buy milk tomorrow at 3pm")
-    XCTAssertTrue(label(containing: "Added").waitForExistence(timeout: 20))
-    send("Actually make it every day.")
-    let card = app.descendants(matching: .any).matching(identifier: "change-card").firstMatch
-    XCTAssertTrue(card.waitForExistence(timeout: 10))
-    XCTAssertTrue(card.staticTexts["buy milk"].exists)
-    XCTAssertTrue(card.staticTexts["Repeat every day. Nothing changes until you tap Apply."].exists)
-    XCTAssertTrue(app.buttons["Apply"].exists)
-    shot("saved-reminder-daily-preview")
-    app.buttons["Apply"].tap()
     XCTAssertTrue(
-      label(containing: "Updated “buy milk” to repeat every day.").waitForExistence(timeout: 10))
-    app.buttons["ask-undo"].tap()
-    XCTAssertFalse(app.buttons["ask-undo"].exists)
+      app.descendants(matching: .any)["capture-added"].waitForExistence(timeout: 20))
+    send("Actually make it every day.")
+    let updated = app.staticTexts.matching(
+      NSPredicate(format: "label CONTAINS %@", "Updated “buy milk” to repeat every day."))
+    XCTAssertTrue(updated.firstMatch.waitForExistence(timeout: 10), "applied without a tap")
+    let undo = app.buttons["ask-undo"]
+    XCTAssertTrue(undo.waitForExistence(timeout: 5), "with Undo")
+    XCTAssertFalse(app.buttons["Apply"].exists, "nothing waits for Apply")
+    shot("saved-reminder-daily-applied")
+    undo.tap()
+    XCTAssertTrue(undo.waitForNonExistence(timeout: 5))
     send("Make that reminder repeat every day at 3pm.")
-    XCTAssertTrue(card.waitForExistence(timeout: 10))
-    XCTAssertTrue(card.staticTexts["buy milk"].exists)
-    XCTAssertTrue(label(containing: "Tomorrow 15:00 → Tomorrow 15:00").exists)
-    app.buttons["Cancel"].tap()
+    expectation(for: NSPredicate(format: "count >= 2"), evaluatedWith: updated)
+    waitForExpectations(timeout: 10)
+    XCTAssertTrue(undo.waitForExistence(timeout: 5), "the second request is applied too, with Undo")
+    XCTAssertFalse(app.buttons["Apply"].exists)
+    undo.tap()
+    XCTAssertTrue(undo.waitForNonExistence(timeout: 5))
   }
 
   func testEdit_moveEventApplyUndo() {
+    // The agent's move is applied after the run; the scripted "Moving Dentist to 5pm." is replaced by a receipt.
     launch(["-uiTestingAgentScript", "move-dentist"])
     send("Move Dentist to 5pm")
     let card = app.descendants(matching: .any)["agent-change-card"].firstMatch
@@ -111,12 +115,12 @@ final class AskEditTests: XCTestCase {
     XCTAssertTrue(
       app.staticTexts["agent-change-times"].label.contains("Today 15:00 → Today 17:00"),
       "old → new time on the card")
-    XCTAssertTrue(
-      label(containing: "Nothing changes until you apply it.").waitForExistence(timeout: 10))
-    shot("edit-1-event-card")
-    app.buttons["agent-change-apply"].tap()
     let undo = app.buttons["agent-change-undo"]
-    XCTAssertTrue(undo.waitForExistence(timeout: 10), "Applied, with Undo")
+    XCTAssertTrue(undo.waitForExistence(timeout: 10), "Applied right after the reply, with Undo")
+    XCTAssertFalse(app.buttons["agent-change-apply"].exists, "nothing waits for Apply")
+    XCTAssertTrue(
+      label(containing: "Changed the event “Dentist”. Tap Undo if you don't want it.")
+        .waitForExistence(timeout: 10), "the reply is a receipt")
     shot("edit-1-applied")
     undo.tap()
     XCTAssertTrue(

@@ -1,19 +1,18 @@
 import Foundation
 
 /// The rules-only lane (docs/engineering/ai-agent-architecture.md §1.2, §4.2, §4.5 P1, §5 H1): local,
-/// offline, deterministic. It gathers every gate the scoped one-off reminder exception depends on, so the
-/// agent migration cannot remove one by accident. Only `Decision.directReminder` may write without a
-/// card (`ActionPolicy` tier `direct`); continuation answers only complete FastLane's own drafts.
+/// offline, deterministic. A clear one-off reminder is added here without the model; everything it
+/// reads with confidence is added right after the reply with Undo (owner decision 2026-11-02), and
+/// continuation answers only complete FastLane's own drafts.
 public enum FastLane {
   /// What the rule gates decide for one submitted message, in the order Ask applies them.
   public enum Decision: Equatable {
     /// The message corrects a date or time mid-sentence: ask for a restatement; nothing is added.
     case clarifyCorrection
-    /// A clear one-off reminder in the user's own words: create it directly, with Undo.
+    /// A clear one-off reminder in the user's own words: added by the rules, no model, with Undo.
     case directReminder(Capture)
-    /// An answer that completes the conversation's own draft. `direct` is true when that draft is a
-    /// clear one-off reminder whose context allows the exception; otherwise it stays a preview.
-    case continuation(Capture, direct: Bool)
+    /// An answer that completes the conversation's own draft; the draft is then added, with Undo.
+    case continuation(Capture)
     /// Not for the fast lane; the remaining routes (time answers, edits, Tidy, chat) handle it.
     case notFastLane
   }
@@ -35,8 +34,7 @@ public enum FastLane {
       let resolved = resolve(
         text, context: context, pending: pending, now: now, calendar: calendar)
     {
-      return .continuation(
-        resolved, direct: isEligibleOneOff(resolved) && contextAllowsOneOff(context))
+      return .continuation(resolved)
     }
     return .notFastLane
   }
@@ -81,9 +79,6 @@ public enum FastLane {
   public static func isEligibleOneOff(_ capture: Capture) -> Bool {
     OneOffReminderRequest.eligible(capture)
   }
-  public static func contextAllowsOneOff(_ context: ConversationContext) -> Bool {
-    OneOffReminderRequest.contextAllows(context)
-  }
   public static func sameOneOff(_ lhs: Capture, _ rhs: Capture) -> Bool {
     OneOffReminderRequest.matches(lhs, rhs)
   }
@@ -106,11 +101,11 @@ public enum FastLane {
     return !forMe
   }
 
-  // MARK: Local previews when the agent can't run (§4.7 #3)
+  // MARK: Local items when the agent can't run (§4.7 #3)
 
   /// A reminder, event or alarm the rules read with confidence from one request: the offline and
-  /// not-signed-in path. Always a preview, never a write (only `oneOffReminder` may be direct). nil
-  /// when the rules aren't sure; the caller then says the AI is unavailable and keeps the draft.
+  /// not-signed-in path, added right after the reply with Undo. nil when the rules aren't sure; the
+  /// caller then says the AI is unavailable and keeps the draft.
   ///
   /// Confident means: a request to add something (not a question, chat, edit of an existing item,
   /// list of several actions, mid-sentence correction or someone else's words), with a real title,

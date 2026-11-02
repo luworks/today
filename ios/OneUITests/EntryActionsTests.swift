@@ -63,11 +63,14 @@ final class EntryActionsTests: XCTestCase {
     XCTAssertTrue(send.waitForExistence(timeout: 5))
     send.tap()
 
-    let card = app.descendants(matching: .any).matching(identifier: "change-card").firstMatch
-    XCTAssertTrue(card.waitForExistence(timeout: 90), "The selected reminder gets a move preview")
-    XCTAssertTrue(card.staticTexts["Write up design review notes"].exists)
-    XCTAssertTrue(card.staticTexts["Change item"].exists)
-    XCTAssertTrue(card.buttons["Apply"].exists, "The move still requires confirmation")
+    // The clear request is applied right after the reply, with an Undo row (owner decision 2026-11-02).
+    XCTAssertTrue(
+      app.staticTexts["The reminder was updated."].waitForExistence(timeout: 90),
+      "The selected reminder is moved")
+    let undo = app.buttons["ask-undo"]
+    XCTAssertTrue(undo.waitForExistence(timeout: 5), "with Undo")
+    XCTAssertFalse(
+      app.descendants(matching: .any)["change-card"].exists, "nothing waits for Apply")
     XCTAssertFalse(
       app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "Which item do you mean"))
         .firstMatch.exists,

@@ -32,7 +32,7 @@ final class AskConversationTests: XCTestCase {
     XCTAssertTrue(app.buttons["ask-send"].exists, "the draft is back in the composer")
     XCTAssertFalse(app.buttons["Add"].exists)
     XCTAssertFalse(app.buttons["capture-add-all"].exists)
-    XCTAssertFalse(reply("Here's what I understood").exists)
+    XCTAssertFalse(reply("Added").exists, "nothing was added")
     let shot = XCTAttachment(screenshot: app.screenshot())
     shot.name = "Activity conversation without capture"
     shot.lifetime = .keepAlways
@@ -43,23 +43,26 @@ final class AskConversationTests: XCTestCase {
     XCTAssertTrue(app.staticTexts["No activity yet"].waitForExistence(timeout: 5))
   }
 
+  /// The reminder is added right after the reply (owner decision 2026-11-02); a later question about an alarm
+  /// neither turns it into an alarm nor adds anything else.
   func testExistingAlarmQuestionPreservesPendingReminder() {
     send("Call Alex tomorrow at 3pm every week")
-    XCTAssertTrue(app.buttons["Add"].waitForExistence(timeout: 20))
-    send("How about 5pm?")
-    XCTAssertTrue(reply("17:00").waitForExistence(timeout: 10))
-    XCTAssertTrue(reply("New reminder").exists)
-    XCTAssertEqual(app.buttons.matching(identifier: "Add").count, 1)
+    XCTAssertTrue(
+      app.descendants(matching: .any)["capture-added"].firstMatch.waitForExistence(timeout: 20))
+    XCTAssertTrue(
+      reply("Added the reminder").waitForExistence(timeout: 5), "the reply is a receipt")
+    XCTAssertTrue(reply("Call Alex").exists)
+    XCTAssertTrue(reply("15:00").exists)
     // Asked last: not signed in, the question puts its draft back in the composer.
     send("Did I set an alarm for 7am?")
     XCTAssertTrue(reply("Sign in to Luna AI").waitForExistence(timeout: 10))
     XCTAssertTrue(reply("New reminder").exists)
     XCTAssertFalse(reply("New alarm").exists)
-    XCTAssertTrue(reply("17:00").exists)
-    XCTAssertEqual(app.buttons.matching(identifier: "Add").count, 1)
-    app.buttons["Add"].tap()
-    XCTAssertTrue(
-      app.descendants(matching: .any)["capture-added"].firstMatch.waitForExistence(timeout: 5))
+    XCTAssertTrue(reply("15:00").exists)
+    XCTAssertFalse(app.buttons["Add"].exists, "a question prepares nothing")
+    XCTAssertEqual(
+      app.descendants(matching: .any).matching(identifier: "capture-added").count, 1,
+      "still the one reminder")
     XCTAssertTrue(app.buttons["capture-undo"].exists)
     XCTAssertTrue(app.buttons["capture-open"].exists)
   }

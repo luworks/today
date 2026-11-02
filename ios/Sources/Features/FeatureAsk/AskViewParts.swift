@@ -307,7 +307,8 @@
     package var applied = true
   }
 
-  /// Real approved Ask mutations. These functions never run while a proposal is merely being prepared.
+  /// Real Ask mutations: run when a clear request is applied or the user taps Apply, never while a
+  /// proposal is merely being prepared.
   @MainActor
   package enum AskNativeActions {
     package static func applyChange(

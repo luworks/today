@@ -37,7 +37,7 @@
 
   /// The agent side of one Ask conversation (docs/engineering/ai-agent-architecture.md P2, P4). It owns
   /// the on-phone tools and receives their cards: creates go into Ask's capture stack, changes are
-  /// shown here, Tidy uses the Tidy card. Nothing writes until a tap.
+  /// shown here, Tidy uses the Tidy card. Ask applies the `direct` ones right after the reply.
   @MainActor @Observable
   final class AskAgentSession: AgentCardSink {
     struct Change: Identifiable {

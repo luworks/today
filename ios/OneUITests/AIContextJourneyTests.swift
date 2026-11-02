@@ -1,6 +1,8 @@
 import XCTest
 
-/// Not signed in to Luna AI (TodayMock, -uiTesting): FastLane previews and continuations, no scripted model.
+/// Not signed in to Luna AI (TodayMock, -uiTesting): FastLane reads requests and continuations, no scripted model.
+/// A clear request is added right after the reply with Undo (owner decision 2026-11-02); an alarm without a time
+/// waits on an open card and asks for it.
 @MainActor
 final class AIContextJourneyTests: XCTestCase {
   private var app: XCUIApplication!
@@ -17,32 +19,27 @@ final class AIContextJourneyTests: XCTestCase {
     }
   }
 
+  /// The Chinese dinner request keeps its full title and its evening time, and is added at once with Undo.
   func testChineseScreenshotSequencePreservesDinnerAlarmContext() {
     openNewChat()
-    // Explicit recurrence keeps this alarm-conversion journey behind Add.
     send("今天晚上6点的时候吧，就提醒我一定不能再吃饭了，每天")
-    let title = assertPreview(
-      titleContaining: "不能再吃饭", kind: "New reminder", day: "Today", hour: 18)
-    keepScreenshot("Chinese U1 - dinner reminder at 6pm")
-
-    send("没有，就是加个闹钟就可以")
-    assertPreview(title: title, kind: "New alarm", day: "Today", hour: 18)
-    keepScreenshot("Chinese U2 - same dinner title and time as alarm")
-
-    send("我需要你来帮我设定闹钟哦")
-    assertPreview(title: title, kind: "New alarm", day: "Today", hour: 18)
-    keepScreenshot("Chinese U3 - alarm still awaits Add")
-    assertNoPlannerWrites()
+    assertAdded(titleContaining: "不能再吃饭", kind: "New reminder", day: "Today", hour: 18)
+    XCTAssertTrue(
+      app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "不需要的话点撤销"))
+        .firstMatch.waitForExistence(timeout: 5), "the reply is a receipt in Chinese")
+    keepScreenshot("Chinese U1 - dinner reminder at 6pm added")
+    undoAndAssertUndone()
+    assertActivityRecordsTheWrite()
   }
 
   func testNewChatClearsReferenceAndStoredThreadResumesUserContext() {
     openStoredThread()
     // The fixture contains text history, not a stored capture card. This turn must recover user context.
     send("I need you to help me set that alarm.")
-    let title = assertPreview(
+    let title = assertAdded(
       titleContaining: "Do not eat dinner again", kind: "New alarm", day: "Today", hour: 18)
     XCTAssertFalse(
-      previewTitle.label.localizedCaseInsensitiveContains("watering plants"),
+      title.localizedCaseInsensitiveContains("watering plants"),
       "An assistant aside must not replace the user's dinner request")
 
     closeChatToSidebar()
@@ -56,30 +53,46 @@ final class AIContextJourneyTests: XCTestCase {
     XCTAssertTrue(preview.buttons["Add"].waitForExistence(timeout: 10))
     XCTAssertTrue(preview.staticTexts["New alarm"].exists)
     XCTAssertFalse(preview.buttons["Add"].isEnabled, "An alarm without a time cannot be added")
-    XCTAssertEqual(previewTitle.label, "Alarm", "The new thread has a generic alarm title")
-    XCTAssertNotEqual(previewTitle.label, title, "The dinner title stays in its own thread")
+    XCTAssertEqual(
+      preview.buttons["capture-title"].firstMatch.label, "Alarm",
+      "The new thread has a generic alarm title")
+    XCTAssertNotEqual(
+      preview.buttons["capture-title"].firstMatch.label, title,
+      "The dinner title stays in its own thread")
     XCTAssertFalse(
       preview.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", formattedTime(18)))
         .firstMatch.exists,
       "The new thread cannot borrow the old thread's 6pm time")
-    XCTAssertFalse(app.descendants(matching: .any)["capture-added"].exists)
+    XCTAssertNil(
+      hittable("capture-added", in: app.descendants(matching: .any)),
+      "Nothing is added in the new thread")
     // Only this thread offers an Add (the closed thread stays built, hidden).
     XCTAssertEqual(
       app.buttons.matching(identifier: "Add").allElementsBoundByIndex.filter(\.isHittable).count, 1)
 
+    // The stored thread still shows its own alarm, Added; Undo takes it back.
     closeChatToSidebar()
     tapStoredThread()
-    send("Actually, make it 7pm tomorrow.")
-    assertPreview(title: title, kind: "New alarm", day: "Tomorrow", hour: 19)
-    assertNoPlannerWrites()
+    undoAndAssertUndone()
   }
 
+  /// The open card of the visible thread (an alarm still waiting for its time).
   private var preview: XCUIElement {
     app.descendants(matching: .any).matching(identifier: "capture-stack")
       .containing(.button, identifier: "Add").firstMatch
   }
 
-  private var previewTitle: XCUIElement { preview.buttons["capture-title"].firstMatch }
+  /// The first hittable element with `identifier` (closed threads stay built, hidden).
+  private func hittable(_ identifier: String, in query: XCUIElementQuery) -> XCUIElement? {
+    query.matching(identifier: identifier).allElementsBoundByIndex.first(where: \.isHittable)
+  }
+
+  /// The visible thread's Added card.
+  private var addedCard: XCUIElement {
+    let stacks = app.descendants(matching: .any).matching(identifier: "capture-stack")
+      .containing(.button, identifier: "capture-undo")
+    return stacks.allElementsBoundByIndex.last(where: \.isHittable) ?? stacks.firstMatch
+  }
 
   private var field: XCUIElement {
     let input = app.textViews["Ask AI or add anything"].firstMatch
@@ -117,47 +130,51 @@ final class AIContextJourneyTests: XCTestCase {
     XCTAssertTrue(field.waitForExistence(timeout: 5))
   }
 
+  /// Undo on the visible thread's Added card removes the item: the card says Undone.
+  private func undoAndAssertUndone(file: StaticString = #filePath, line: UInt = #line) {
+    let undo = addedCard.buttons["capture-undo"]
+    XCTAssertTrue(undo.waitForExistence(timeout: 10), file: file, line: line)
+    undo.tap()
+    XCTAssertTrue(
+      app.descendants(matching: .any).matching(identifier: "capture-undone").firstMatch
+        .waitForExistence(timeout: 5), "Undo removes it", file: file, line: line)
+  }
+
   private func closeChatToSidebar() {
     app.buttons["Close"].firstMatch.tap()
     XCTAssertTrue(app.buttons["New chat"].waitForExistence(timeout: 5))
   }
 
+  /// The request was added right after the reply: one Added card with the intended title, kind, day and time.
   @discardableResult
-  private func assertPreview(
+  private func assertAdded(
     titleContaining fragment: String, kind: String, day: String, hour: Int,
     file: StaticString = #filePath, line: UInt = #line
   ) -> String {
-    let title = previewTitle
+    let card = addedCard
     XCTAssertTrue(
-      title.waitForExistence(timeout: 15), "The capture card exposes its editable title",
+      card.descendants(matching: .any)["capture-added"].waitForExistence(timeout: 15),
+      "The request is added at once", file: file, line: line)
+    let title = card.buttons["capture-title"].firstMatch
+    XCTAssertTrue(
+      title.waitForExistence(timeout: 5), "The card exposes its editable title",
       file: file, line: line)
     let value = title.label
     XCTAssertTrue(
       value.localizedCaseInsensitiveContains(fragment),
-      "The capture card contains the user's intended title: \(value)", file: file, line: line)
-    assertPreview(title: value, kind: kind, day: day, hour: hour, file: file, line: line)
-    return value
-  }
-
-  private func assertPreview(
-    title: String, kind: String, day: String, hour: Int,
-    file: StaticString = #filePath, line: UInt = #line
-  ) {
-    XCTAssertTrue(preview.buttons["Add"].waitForExistence(timeout: 15), file: file, line: line)
-    XCTAssertTrue(preview.staticTexts[kind].waitForExistence(timeout: 10), file: file, line: line)
-    XCTAssertEqual(
-      previewTitle.label, title, "The full title survives the correction", file: file, line: line)
-    let summary = preview.staticTexts.containing(
+      "The card contains the user's intended title: \(value)", file: file, line: line)
+    XCTAssertTrue(card.staticTexts[kind].waitForExistence(timeout: 10), file: file, line: line)
+    let summary = card.staticTexts.containing(
       NSPredicate(format: "label CONTAINS %@ AND label CONTAINS %@", day, formattedTime(hour))
     ).firstMatch
     XCTAssertTrue(
       summary.waitForExistence(timeout: 10), "The card preserves the requested day and time",
       file: file, line: line)
+    XCTAssertTrue(card.buttons["capture-open"].exists, file: file, line: line)
     XCTAssertEqual(
-      app.buttons.matching(identifier: "Add").count, 1, "Only one proposal awaits approval",
-      file: file, line: line)
-    XCTAssertFalse(app.descendants(matching: .any)["capture-added"].exists, file: file, line: line)
-    XCTAssertFalse(app.buttons["capture-undo"].exists, file: file, line: line)
+      app.buttons.matching(identifier: "Add").allElementsBoundByIndex.filter(\.isHittable).count,
+      0, "Nothing waits for Add", file: file, line: line)
+    return value
   }
 
   private func formattedTime(_ hour: Int) -> String {
@@ -169,16 +186,16 @@ final class AIContextJourneyTests: XCTestCase {
     return time.string(from: date)
   }
 
-  private func assertNoPlannerWrites() {
-    // Activity shows change-ledger rows, not AI interaction telemetry. No Add has been tapped in this journey.
+  /// Activity shows change-ledger rows: the request's write (and its Undo) is there.
+  private func assertActivityRecordsTheWrite() {
     closeChatToSidebar()
     let activity = app.buttons["Activity"].firstMatch
     XCTAssertTrue(activity.waitForExistence(timeout: 5))
     if !activity.isHittable { app.openSidebar() }
     activity.tap()
     XCTAssertTrue(
-      app.staticTexts["No activity yet"].waitForExistence(timeout: 5),
-      "Clarifications and corrections must not write planner changes before Add")
+      app.descendants(matching: .any).matching(identifier: "activity.row").firstMatch
+        .waitForExistence(timeout: 5), "The added item is recorded in Activity")
   }
 
   private func keepScreenshot(_ name: String) {

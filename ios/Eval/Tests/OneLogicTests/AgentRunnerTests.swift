@@ -310,9 +310,9 @@ final class AgentRunnerTests: XCTestCase {
     XCTAssertTrue(AgentRouting.useAgent(.clarifyCorrection, agentHasOpenCards: true))
     XCTAssertFalse(AgentRouting.useAgent(.clarifyCorrection, agentHasOpenCards: false))
     XCTAssertTrue(
-      AgentRouting.useAgent(.continuation(capture, direct: true), agentHasOpenCards: true))
+      AgentRouting.useAgent(.continuation(capture), agentHasOpenCards: true))
     XCTAssertFalse(
-      AgentRouting.useAgent(.continuation(capture, direct: false), agentHasOpenCards: false))
+      AgentRouting.useAgent(.continuation(capture), agentHasOpenCards: false))
   }
 
   func testOnlyTheUsersOwnWordsAskToMoveAMeeting() {

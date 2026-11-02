@@ -1,7 +1,7 @@
 import Foundation
 
-/// A narrow submitted-message authority, separate from seven-day background grants.
-/// Rules must establish the action and timing; model output alone cannot authorize a write.
+/// The clear one-off reminder the rules add without asking the model (FastLane's fast route).
+/// Rules must establish the action and timing; anything less goes to the agent.
 public enum OneOffReminderRequest {
   public static func capture(
     _ text: String, now: Date, calendar: Calendar
@@ -48,29 +48,6 @@ public enum OneOffReminderRequest {
   static func reminderVerbs(_ text: String) -> Int {
     let pattern = try? NSRegularExpression(pattern: #"提醒我|remind me"#, options: [.caseInsensitive])
     return pattern?.numberOfMatches(in: text, range: NSRange(text.startIndex..., in: text)) ?? 0
-  }
-
-  /// Recovery can use the original subject, but never erase ambiguity or recurrence words
-  /// just because the parsed result omitted them.
-  public static func contextAllows(_ context: ConversationContext) -> Bool {
-    for turn in context.userTurns.reversed() {
-      if CaptureConversation.referencesReminder(turn.text)
-        || CaptureConversation.isOneOffAnswer(turn.text)
-        || turn.text.range(
-          of: #"^\s*(?:你做吧|你来吧|go ahead|do it|please do)[.!。]*\s*$"#,
-          options: [.regularExpression, .caseInsensitive]) != nil
-      {
-        continue
-      }
-      guard CaptureParser.leadingMonth(turn.text) == nil,
-        !ChatRouting.hasMultipleActions(turn.text), !ChatRouting.hasMaterialCorrection(turn.text)
-      else { return false }
-      // An alarm conversation never continues into a direct reminder ("make it 6:45").
-      return turn.text.range(
-        of: #"还是|或者|\bor\b|\bevery\b|\brecurr|重复|每|\b(?:alarm|timer)\b|wake me|闹钟|计时器|叫醒|叫我起床"#,
-        options: [.regularExpression, .caseInsensitive]) == nil
-    }
-    return false
   }
 
   public static func eligible(_ capture: Capture) -> Bool {

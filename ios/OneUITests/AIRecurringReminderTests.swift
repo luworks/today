@@ -1,6 +1,7 @@
 import XCTest
 
-/// Three journeys not signed in to Luna AI (TodayMock): FastLane previews and continuations, no scripted model.
+/// Not signed in to Luna AI (TodayMock): the rules read a recurring reminder and add it right after the reply, with
+/// Undo and Open (owner decision 2026-11-02); no scripted model.
 @MainActor
 final class AIRecurringReminderTests: XCTestCase {
   private var app: XCUIApplication!
@@ -18,18 +19,25 @@ final class AIRecurringReminderTests: XCTestCase {
     }
   }
 
+  /// A clear recurring request is written at once; Undo on its card takes it back.
   func testDirectChineseSundayPreparesReminderWithoutWriting() {
     send("每周日下午5点提醒我丢垃圾")
-    assertPreview("丢垃圾", repeatLabel: "Every Sun", hour: 17)
-    keepScreenshot("Sunday trash reminder awaits Add")
-    assertNoPlannerWrites()
+    assertAdded("丢垃圾", repeatLabel: "Every Sun", hour: 17)
+    XCTAssertTrue(
+      app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "已添加提醒“丢垃圾”"))
+        .firstMatch.waitForExistence(timeout: 5), "the reply is a receipt")
+    keepScreenshot("Sunday trash reminder added with Undo")
+    card.buttons["capture-undo"].tap()
+    XCTAssertTrue(
+      card.descendants(matching: .any)["capture-undone"].waitForExistence(timeout: 5),
+      "Undo removes the reminder")
+    XCTAssertTrue(card.buttons["capture-add-again"].exists)
+    assertActivityRecordsTheWrite()
   }
 
   func testFridaySundaySurviveAddAndEditorSaveReopen() {
     send("添加一个reminder：每周五、每周日下午5点提醒我丢垃圾")
-    assertPreview("丢垃圾", repeatLabel: "Every Fri, Sun", hour: 17)
-    XCTAssertFalse(app.descendants(matching: .any)["capture-added"].exists)
-    preview.buttons["Add"].tap()
+    assertAdded("丢垃圾", repeatLabel: "Every Fri, Sun", hour: 17)
     let open = app.buttons["capture-open"].firstMatch
     XCTAssertTrue(open.waitForExistence(timeout: 5))
     open.tap()
@@ -42,9 +50,10 @@ final class AIRecurringReminderTests: XCTestCase {
     app.buttons["Cancel"].tap()
   }
 
-  private var preview: XCUIElement {
-    app.descendants(matching: .any).matching(identifier: "capture-stack")
-      .containing(.button, identifier: "Add").firstMatch
+  /// The newest capture card (earlier ones stay in the chat).
+  private var card: XCUIElement {
+    let stacks = app.descendants(matching: .any).matching(identifier: "capture-stack")
+    return stacks.element(boundBy: max(stacks.count - 1, 0))
   }
   private var field: XCUIElement {
     let input = app.textViews["Ask AI or add anything"].firstMatch
@@ -60,19 +69,22 @@ final class AIRecurringReminderTests: XCTestCase {
     XCTAssertTrue(send.waitForNonExistence(timeout: 5))
     XCTAssertTrue(app.staticTexts["Thinking…"].waitForNonExistence(timeout: 15))
   }
-  private func assertPreview(_ title: String, repeatLabel: String, hour: Int) {
-    XCTAssertTrue(preview.buttons["Add"].waitForExistence(timeout: 15))
-    XCTAssertTrue(preview.staticTexts["New reminder"].exists)
-    let titleButton = preview.buttons["capture-title"].firstMatch
+  /// The request was written right after the reply: one Added card with Undo and Open, no Add.
+  private func assertAdded(_ title: String, repeatLabel: String, hour: Int) {
+    XCTAssertTrue(card.descendants(matching: .any)["capture-added"].waitForExistence(timeout: 15))
+    XCTAssertTrue(card.staticTexts["New reminder"].exists)
+    let titleButton = card.buttons["capture-title"].firstMatch
     XCTAssertTrue(titleButton.waitForExistence(timeout: 5))
     XCTAssertEqual(titleButton.label, title)
     XCTAssertTrue(
-      preview.staticTexts.containing(
+      card.staticTexts.containing(
         NSPredicate(
           format: "label CONTAINS %@ AND label CONTAINS %@", repeatLabel, formattedTime(hour))
       ).firstMatch.exists)
-    XCTAssertEqual(app.buttons.matching(identifier: "Add").count, 1)
-    XCTAssertFalse(app.descendants(matching: .any)["capture-added"].exists)
+    XCTAssertTrue(card.buttons["capture-undo"].exists)
+    XCTAssertTrue(card.buttons["capture-open"].exists)
+    XCTAssertFalse(app.buttons["Add"].exists, "nothing waits for Add")
+    XCTAssertEqual(app.descendants(matching: .any).matching(identifier: "capture-added").count, 1)
   }
   private func assertSavedEditor() {
     let title = app.textFields["task.title"]
@@ -96,7 +108,8 @@ final class AIRecurringReminderTests: XCTestCase {
     return formatter.string(
       from: Calendar.current.date(bySettingHour: hour, minute: 0, second: 0, of: Date())!)
   }
-  private func assertNoPlannerWrites() {
+  /// The write (and its Undo) is in the Activity ledger.
+  private func assertActivityRecordsTheWrite() {
     app.buttons["Close"].firstMatch.tap()
     // Activity lives in the sidebar: open it from the page's menu button.
     let menu = app.buttons["Open menu"].firstMatch
@@ -105,7 +118,9 @@ final class AIRecurringReminderTests: XCTestCase {
     let activity = app.buttons["Activity"].firstMatch
     XCTAssertTrue(activity.waitForExistence(timeout: 5))
     activity.tap()
-    XCTAssertTrue(app.staticTexts["No activity yet"].waitForExistence(timeout: 5))
+    XCTAssertTrue(
+      app.descendants(matching: .any).matching(identifier: "activity.row").firstMatch
+        .waitForExistence(timeout: 5), "the reminder's creation is recorded")
   }
   private func keepScreenshot(_ name: String) {
     let attachment = XCTAttachment(screenshot: app.screenshot())

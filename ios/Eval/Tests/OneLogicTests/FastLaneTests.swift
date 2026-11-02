@@ -43,7 +43,6 @@ final class FastLaneTests: XCTestCase {
     ] {
       let decision = decide(text)
       if case .directReminder = decision { XCTFail(text) }
-      if case .continuation(_, direct: true) = decision { XCTFail(text) }
     }
   }
 
@@ -69,17 +68,11 @@ final class FastLaneTests: XCTestCase {
 
   func testContinuationsCompleteTheConversationsOwnDraft() throws {
     let utterance = "11点去 costco 加油 买 粒粒"
-    guard case .continuation(let capture, let direct) = decide("one off", turns: [utterance]) else {
+    guard case .continuation(let capture) = decide("one off", turns: [utterance]) else {
       return XCTFail("expected a continuation")
     }
     XCTAssertEqual(capture.title, "去 costco 加油 买 粒粒")
     XCTAssertEqual(capture.hour, 11)
-    XCTAssertEqual(
-      direct,
-      FastLane.isEligibleOneOff(capture)
-        && FastLane.contextAllowsOneOff(
-          ConversationContext(turns: [.init(isUser: true, text: utterance, timestamp: now)]))
-    )
     // A recurring request stays out of the one-off exception, even when answered with "one off".
     XCTAssertEqual(decide("one off", turns: ["每天11点提醒我买奶"]), .notFastLane)
   }
@@ -116,7 +109,6 @@ final class FastLaneTests: XCTestCase {
     ] {
       let decision = decide(answer, turns: [turn])
       if case .directReminder = decision { XCTFail(answer) }
-      if case .continuation(_, direct: true) = decision { XCTFail(answer) }
     }
   }
 

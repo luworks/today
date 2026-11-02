@@ -1,6 +1,8 @@
 import XCTest
 
-/// The AI page keeps its context between messages: a follow-up edits the open preview instead of starting a new item.
+/// The AI page keeps its context between messages: an answer completes the open card instead of starting a new item.
+/// Clear requests are added right after the reply (owner decision 2026-11-02), so the open card here is an alarm
+/// that still needs its time.
 @MainActor
 final class AskMultiTurnTests: XCTestCase {
   var app: XCUIApplication!
@@ -31,20 +33,25 @@ final class AskMultiTurnTests: XCTestCase {
   }
 
   func testFollowUpChangesTheTimeOnTheSameCard() {
-    send("Call Alex tomorrow at 3pm every week")
-    XCTAssertTrue(app.buttons["Add"].waitForExistence(timeout: 90))
-    send("make it 4pm")
+    send("make a alarm")
+    let add = app.buttons["Add"]
+    XCTAssertTrue(add.waitForExistence(timeout: 90))
+    XCTAssertFalse(add.isEnabled, "an alarm without a time waits")
     XCTAssertTrue(
-      label(containing: "16:00").waitForExistence(timeout: 10), "the card now says 16:00")
+      label(containing: "What time should the alarm ring?").waitForExistence(timeout: 10),
+      "the reply asks for the missing time")
+    XCTAssertFalse(app.descendants(matching: .any)["capture-added"].exists)
+    send("4pm")
     XCTAssertTrue(
-      label(containing: "Call Alex").exists, "same item, not a new one called “make it 4pm”")
-    XCTAssertEqual(app.buttons.matching(identifier: "Add").count, 1, "still one card")
-    app.buttons["Add"].tap()
+      app.descendants(matching: .any)["capture-added"].waitForExistence(timeout: 10),
+      "the answer completes the same card, now Added")
+    XCTAssertTrue(label(containing: "16:00").exists, "with the answered time")
+    XCTAssertEqual(
+      app.descendants(matching: .any).matching(identifier: "capture-stack").count, 1,
+      "same item, not a new one called “4pm”")
+    XCTAssertFalse(app.buttons["Add"].exists, "nothing waits for Add")
     XCTAssertTrue(
-      app.descendants(matching: .any)["capture-added"].waitForExistence(timeout: 5),
-      "the card stays, now Added")
-    XCTAssertTrue(
-      label(containing: "Call Alex").exists && label(containing: "16:00").exists,
-      "with the edited time")
+      label(containing: "Added the alarm").waitForExistence(timeout: 5), "the reply is a receipt")
+    XCTAssertTrue(app.buttons["capture-undo"].exists)
   }
 }

@@ -11,7 +11,7 @@ final class ActionPolicyTests: XCTestCase {
   ) -> R {
     R(
       tool: .proposeCreate, source: source, words: words, kind: .reminder, fields: [.title, .due],
-      clearOneOffReminder: true)
+      askedForAction: true)
   }
 
   // MARK: Tool metadata
@@ -30,49 +30,96 @@ final class ActionPolicyTests: XCTestCase {
       .refuse(.readOnlyTool))
   }
 
-  // MARK: Principle 1: AI prepares, the user decides
+  // MARK: Principle 1: clear requests are applied with Undo (owner decision 2026-11-02)
 
-  func testDirectOnlyForTheFastLaneClearOneOffReminderInTheUsersOwnWords() {
+  func testAClearRequestInTheUsersOwnWordsIsAppliedWithUndo() {
     XCTAssertEqual(ActionPolicy.tier(oneOff()), .direct)
-    XCTAssertEqual(ActionPolicy.tier(oneOff(source: .agent)), .preview)
+    XCTAssertEqual(ActionPolicy.tier(oneOff(source: .agent)), .direct)
+    // Siri confirms in its own intent UI; words written by others are only shown.
     XCTAssertEqual(ActionPolicy.tier(oneOff(source: .siri)), .preview)
     XCTAssertEqual(ActionPolicy.tier(oneOff(words: .derived)), .preview)
-    var unclear = oneOff()
-    unclear.clearOneOffReminder = false
-    XCTAssertEqual(ActionPolicy.tier(unclear), .preview)
+    // A question or chit-chat never writes by itself.
+    var question = oneOff(source: .agent)
+    question.askedForAction = false
+    XCTAssertEqual(ActionPolicy.tier(question), .preview)
   }
 
-  func testRecurrenceAlarmsEventsAndEditsAreNeverDirect() {
-    var repeating = oneOff()
+  func testAlarmsRecurrenceEventsEditsAndTidyAreAppliedToo() {
+    var repeating = oneOff(source: .agent)
     repeating.fields.insert(.repeatRule)
-    var ringing = oneOff()
-    ringing.fields.insert(.ringsAsAlarm)
-    var alarm = oneOff()
+    var alarm = oneOff(source: .agent)
     alarm.kind = .alarm
-    var event = oneOff()
+    alarm.fields.insert(.ringsAsAlarm)
+    var event = oneOff(source: .agent)
     event.kind = .event
-    var edit = oneOff()
+    var edit = oneOff(source: .agent)
     edit.tool = .proposeEdit
-    var tidy = oneOff()
+    var tidy = oneOff(source: .agent)
     tidy.tool = .proposeTidy
-    var undo = oneOff()
-    undo.tool = .proposeUndo
-    for request in [repeating, ringing, alarm, event, edit, tidy, undo] {
-      XCTAssertEqual(ActionPolicy.tier(request), .preview, "\(request)")
+    var reminderDelete = oneOff(source: .agent)
+    reminderDelete.tool = .proposeDelete
+    var move = R(
+      tool: .proposeEdit, source: .agent, kind: .event, fields: [.start], askedForAction: true,
+      userAskedToMoveEvent: true)
+    var soloDelete = R(tool: .proposeDelete, source: .agent, kind: .event, askedForAction: true)
+    for request in [repeating, alarm, event, edit, tidy, reminderDelete, move, soloDelete] {
+      XCTAssertEqual(ActionPolicy.tier(request), .direct, "\(request)")
     }
-    // Exhaustively: nothing other than the one-off reminder create is ever direct.
-    for tool in AgentTool.allCases where tool.isWrite {
-      for source in [ActionPolicy.Source.fastLane, .agent, .siri] {
-        for kind in [ActionPolicy.Kind.reminder, .event, .alarm, .list] {
-          var r = R(tool: tool, source: source, kind: kind, clearOneOffReminder: true)
-          r.userAskedToMoveEvent = true
-          let isTheException =
-            tool == .proposeCreate && source == .fastLane && kind == .reminder
-          XCTAssertEqual(
-            ActionPolicy.tier(r) == .direct, isTheException, "\(tool) \(source) \(kind)")
-        }
-      }
+    move.attendees = 1
+    soloDelete.affectsSeries = true
+    XCTAssertNotEqual(ActionPolicy.tier(move), .direct)
+    XCTAssertNotEqual(ActionPolicy.tier(soloDelete), .direct)
+  }
+
+  func testOnlyMessagesThatAskForAnActionCount() {
+    for text in [
+      "今天下午 5 点的时候提醒我，就绝对不能吃饭了", "明天早上7点叫醒我", "Set an alarm for 6:30 tomorrow",
+      "Remind me to call Alex tomorrow at 11am", "把牙医改到4点", "move the dentist to 4pm",
+      "Could you remind me to stretch at 4pm?", "能帮我明天8点设个闹钟吗？", "整理逾期",
+    ] {
+      XCTAssertTrue(ActionPolicy.asksForAction(text), text)
     }
+    for text in [
+      "明天有什么安排？", "Should I move the dentist?", "What's on tomorrow?", "谢谢",
+      "我已经设好闹钟了", "我妈说她明天要提醒自己吃药", "Can you explain how alarms work?",
+      "Don't add anything, just chatting", "",
+    ] {
+      XCTAssertFalse(ActionPolicy.asksForAction(text), text)
+    }
+  }
+
+  func testMissingInformationIsAskedNotGuessed() {
+    let now = Date(timeIntervalSince1970: 1_800_000_000)
+    XCTAssertTrue(ActionPolicy.autoAddReady(Capture(title: "Milk", day: now, hasDay: false)))
+    var alarm = Capture(title: "Gym", day: now, hasDay: true)
+    alarm.ringsAsAlarm = true
+    XCTAssertFalse(ActionPolicy.autoAddReady(alarm), "an alarm needs its time")
+    alarm.hour = 7
+    XCTAssertTrue(ActionPolicy.autoAddReady(alarm))
+    var event = Capture(title: "Lunch", day: now, hasDay: false)
+    event.kind = .event
+    XCTAssertFalse(ActionPolicy.autoAddReady(event), "an event needs its day")
+    event.hasDay = true
+    XCTAssertTrue(ActionPolicy.autoAddReady(event))
+  }
+
+  func testTheReplySaysWhatWasDoneNeverTapAdd() {
+    let alarm = AgentReply.label(kind: .alarm, title: "绝对不能吃饭", chinese: true)
+    let zh = AgentReply.receipt(.init(added: [alarm]), chinese: true)
+    XCTAssertEqual(zh, "已添加闹钟“绝对不能吃饭”。不需要的话点撤销。")
+    let en = AgentReply.receipt(
+      .init(added: [AgentReply.label(kind: .reminder, title: "Milk", chinese: false)]),
+      chinese: false)
+    XCTAssertEqual(en, "Added the reminder “Milk”. Tap Undo if you don't want it.")
+    for text in [zh, en] {
+      XCTAssertFalse(text.contains("Add") && !text.contains("Added"), text)
+      XCTAssertFalse(text.contains("点添加") || text.contains("点“添加”"), text)
+    }
+    let failed = AgentReply.receipt(.init(failed: ["Gym"]), chinese: false)
+    XCTAssertTrue(failed.contains("draft"), failed)
+    XCTAssertFalse(failed.contains("Undo"), failed)
+    let waiting = AgentReply.receipt(.init(changed: ["事件“周会”"], waiting: 1), chinese: true)
+    XCTAssertEqual(waiting, "已修改事件“周会”。不需要的话点撤销。这张卡片需要你确认后才会生效。")
   }
 
   func testNoBackgroundWrites() {
@@ -105,6 +152,8 @@ final class ActionPolicyTests: XCTestCase {
     XCTAssertEqual(ActionPolicy.tier(move), .refuse(.meetingsStayFixed))
     move.userAskedToMoveEvent = true
     XCTAssertEqual(ActionPolicy.tier(move), .preview)
+    move.askedForAction = true
+    XCTAssertEqual(ActionPolicy.tier(move), .direct, "an attendee-free move is applied with Undo")
     move.attendees = 4
     XCTAssertEqual(ActionPolicy.tier(move), .confirmConsequence([.notifies(attendees: 4)]))
     move.affectsSeries = true
@@ -116,12 +165,18 @@ final class ActionPolicyTests: XCTestCase {
     XCTAssertEqual(ActionPolicy.tier(rename), .preview)
   }
 
-  func testEventDeletesConfirmTheirConsequence() {
-    let delete = R(tool: .proposeDelete, source: .agent, kind: .event, attendees: 2)
+  func testEventDeletesThatReachOthersConfirmTheirConsequence() {
+    let delete = R(
+      tool: .proposeDelete, source: .agent, kind: .event, askedForAction: true, attendees: 2)
     XCTAssertEqual(
       ActionPolicy.tier(delete), .confirmConsequence([.deletesEvent, .notifies(attendees: 2)]))
-    let reminderDelete = R(tool: .proposeDelete, source: .agent, kind: .reminder)
-    XCTAssertEqual(ActionPolicy.tier(reminderDelete), .preview)
+    let series = R(
+      tool: .proposeDelete, source: .agent, kind: .event, askedForAction: true,
+      affectsSeries: true)
+    XCTAssertEqual(ActionPolicy.tier(series), .confirmConsequence([.deletesEvent, .wholeSeries]))
+    let reminderDelete = R(
+      tool: .proposeDelete, source: .agent, kind: .reminder, askedForAction: true)
+    XCTAssertEqual(ActionPolicy.tier(reminderDelete), .direct)
   }
 
   // MARK: Principle 4: stopping an alarm ≠ finishing a task
@@ -143,19 +198,20 @@ final class ActionPolicyTests: XCTestCase {
     fromNote.source = .agent
     XCTAssertEqual(ActionPolicy.tier(fromNote), .refuse(.noteIsNotATask))
     fromNote.viaMakeTask = true
-    XCTAssertEqual(ActionPolicy.tier(fromNote), .preview)
-    fromNote.source = .fastLane
-    XCTAssertEqual(ActionPolicy.tier(fromNote), .preview, "a note is never written directly")
+    XCTAssertEqual(ActionPolicy.tier(fromNote), .direct, "the user tapped Make a task")
   }
 
   // MARK: Principle 6: overdue items are never silently moved
 
-  func testOverdueRedatesAreAlwaysShown() {
+  func testOverdueRedatesHappenOnlyWhenAsked() {
     for source in [ActionPolicy.Source.fastLane, .agent, .siri] {
       let tidy = R(tool: .proposeTidy, source: source, kind: .reminder, fields: [.due])
       XCTAssertEqual(ActionPolicy.tier(tidy), .preview)
       XCTAssertTrue(ActionPolicy.tier(tidy).allowsAddAll)
     }
+    let asked = R(
+      tool: .proposeTidy, source: .agent, kind: .reminder, fields: [.due], askedForAction: true)
+    XCTAssertEqual(ActionPolicy.tier(asked), .direct)
   }
 
   // MARK: Apply-time recheck (§4.2, M1)

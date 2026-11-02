@@ -115,11 +115,9 @@ final class CalendarRecurringDeleteTests: XCTestCase {
     input.tap()
     input.typeText("Move it to tomorrow at 11am")
     app.buttons["ask-send"].tap()
-    let card = app.descendants(matching: .any)["change-card"].firstMatch
-    XCTAssertTrue(card.waitForExistence(timeout: 15))
-    XCTAssertTrue(card.staticTexts["Only this occurrence changes."].exists)
-    card.buttons["Apply"].tap()
+    // No attendees: the move of this occurrence is applied right after the reply, with Undo.
     XCTAssertTrue(app.staticTexts["The calendar event was moved."].waitForExistence(timeout: 15))
+    XCTAssertTrue(app.buttons["ask-undo"].waitForExistence(timeout: 5))
     app.buttons["chat.close"].tap()
     XCTAssertTrue(isListed(on: yesterday, app), "the earlier series occurrence is unchanged")
   }

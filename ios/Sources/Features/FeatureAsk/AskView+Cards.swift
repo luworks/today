@@ -107,8 +107,9 @@
 
     /// Writes one proposal (a card that was undone can be added again) and marks it Added. The card stays; it remembers
     /// what was written so Undo and Open reach exactly that.
+    /// `reportFailure` false: the caller says it in its own receipt.
     @discardableResult
-    func commit(_ id: UUID) -> Capture? {
+    func commit(_ id: UUID, reportFailure: Bool = true) -> Capture? {
       guard let i = proposals.firstIndex(where: { $0.id == id }),
         let next = proposals[i].status.after(.add)
       else { return nil }
@@ -140,10 +141,12 @@
           capture.kind == .event
           ? actions.pendingEventCreationID(id) : actions.pendingReminderCreationID(id)
         persistCards()
-        messages.append(
-          reply(
-            "Couldn't save “\(capture.title)”: \(error.localizedDescription) The draft is still here; tap Add to retry."
-          ))
+        if reportFailure {
+          messages.append(
+            reply(
+              "Couldn't save “\(capture.title)”: \(error.localizedDescription) The draft is still here; tap Add to retry."
+            ))
+        }
         return nil
       }
       recordCard(resolved: "capture", edits.isEmpty ? "applied" : "edited", edits: edits)
@@ -281,8 +284,9 @@
       !task.isDone && (task.due.map { $0 < runtime.calendar.startOfDay(for: now()) } ?? false)
     }
 
-    /// Suggests a new date for every overdue reminder (see `OverdueTidy`). Nothing changes until Apply.
-    func proposeTidy() {
+    /// Tidy overdue (offline rules): a new date for every overdue reminder (see `OverdueTidy`), applied
+    /// at once with Undo (owner decision 2026-11-02).
+    func tidyOverdue() {
       let overdue = tasks.filter { isOverdue($0) }
       guard !overdue.isEmpty else {
         messages.append(reply("Nothing is overdue."))
@@ -296,15 +300,15 @@
       tidy = OverdueTidy.suggest(items, now: now(), calendar: runtime.calendar).compactMap { s in
         overdue[s.id].due.map { TidyRow(task: overdue[s.id], oldDue: $0, choice: s.choice) }
       }
-      let n = tidy.count
-      recordCard(shown: "tidy", items: n)
+      recordCard(shown: "tidy", items: tidy.count)
       messages.append(
         reply(
-          "\(n) overdue reminder\(n == 1 ? "" : "s"). Flagged and recent ones first, three a day; "
-            + "ones older than a month lose their date but stay in their list. Change any row, then Apply. Nothing changes until you do."
+          "Flagged and recent ones first, three a day; ones older than a month lose their date but stay in their list."
         ))
+      applyTidy()
     }
 
+    /// Writes the Tidy rows with an Undo row; says what it did.
     func applyTidy() {
       let count = tidy.filter { $0.choice != .keep }.count
       let feedback = AskNativeActions.applyTidy(
@@ -315,6 +319,20 @@
         agentTidyID = nil
       }
       show(feedback, card: "tidy")
+    }
+
+    /// The agent's Tidy card applied right after the reply: the reply's receipt says what changed,
+    /// so only the Undo row is shown here. False when the save failed (the rows stay).
+    func applyTidyNow() -> Bool {
+      let count = tidy.filter { $0.choice != .keep }.count
+      let feedback = AskNativeActions.applyTidy(
+        rows: &tidy, context: context, actions: actions, ledger: ledger, runtime: runtime)
+      guard feedback.applied else { return false }
+      recordCard(resolved: "tidy", "applied", items: count)
+      if let id = agentTidyID { agent?.tools.mark(id, .applied) }
+      agentTidyID = nil
+      if let undo = feedback.undo { offerUndo(undo.label, card: "tidy", undo.action) }
+      return true
     }
   }
 #endif
