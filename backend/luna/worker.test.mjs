@@ -102,7 +102,7 @@ test('agent mode injects the fixed prompt, 12 strict tools and settings',()=>{
  const body=prepareAgent(agentBody({input:items,stream:true}));
  assert.equal(body.model,'gpt-6-luna');assert.deepEqual(body.reasoning,{effort:'low'});assert.equal(body.store,false);
  assert.equal(body.parallel_tool_calls,true);assert.deepEqual(body.include,['reasoning.encrypted_content']);assert.equal(body.text,undefined);
- assert.equal(body.stream,true);assert.deepEqual(body.input,items);assert.equal(body.run_id,undefined);assert.match(body.instructions,/never write anything yourself/);
+ assert.equal(body.stream,true);assert.deepEqual(body.input,items);assert.equal(body.run_id,undefined);assert.match(body.instructions,/never write anything yourself/);assert.match(body.instructions,/same day as the item just before it/);
  assert.deepEqual(body.tools.map(t=>t.name),['get_agenda','find_items','get_item','free_time','list_lists','get_activity','propose_create','propose_edit','propose_delete','propose_undo','revise_proposal','propose_tidy']);
  const strict=s=>{if(s.type==='object'||s.properties){assert.equal(s.additionalProperties,false);assert.deepEqual(s.required,Object.keys(s.properties));Object.values(s.properties).forEach(strict);}if(s.items)strict(s.items);};
  for(const t of toolsV1){assert.equal(t.strict,true);strict(t.parameters);}

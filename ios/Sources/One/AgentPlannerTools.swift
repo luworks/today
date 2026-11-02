@@ -327,6 +327,62 @@
       return (day, false)
     }
 
+    /// Date/time words as a create, revise or edit reads them (`when_text`).
+    private struct When {
+      /// The day the words resolve to, or nil when they name none and the time is still ahead today.
+      var day: Date?
+      /// The words name the day ("tomorrow", "周一", a date, "in 2 hours"), not only a time.
+      var namesDay: Bool
+      var hour: Int?
+      var minute: Int
+      /// A range or length in the words ("9am to 5pm", "for 2 hours").
+      var minutes: Int?
+    }
+
+    private func when(_ words: String, alarm: Bool) -> When? {
+      var raw = words.trimmingCharacters(in: .whitespacesAndNewlines)
+      guard !raw.isEmpty else { return nil }
+      if raw.range(of: #"^\d{4}-\d{2}-\d{2}"#, options: .regularExpression) != nil,
+        let iso = moment(raw)
+      {
+        let c = cal.dateComponents([.hour, .minute], from: iso.date)
+        return When(
+          day: cal.startOfDay(for: iso.date), namesDay: true, hour: iso.hasTime ? c.hour : nil,
+          minute: iso.hasTime ? (c.minute ?? 0) : 0, minutes: nil)
+      }
+      // A bare clock number ("10", "6:45") is a time, also next to day words ("tomorrow 10",
+      // "10 Friday") when the rest names a day and no time ("Nov 5" stays a date).
+      if raw.range(of: #"^\d{1,2}(?:[:：]\d{2})?$"#, options: .regularExpression) != nil {
+        raw = "at " + raw
+      } else {
+        var tokens = raw.split(whereSeparator: \.isWhitespace).map(String.init)
+        let isNumber = { (t: String) in
+          t.range(of: #"^\d{1,2}$"#, options: .regularExpression) != nil
+        }
+        let number =
+          tokens.count > 1 && isNumber(tokens.last!)
+          ? tokens.removeLast()
+          : (tokens.count > 1 && isNumber(tokens[0]) ? tokens.removeFirst() : nil)
+        if let number {
+          let rest = tokens.joined(separator: " ")
+          let dayOnly = CaptureParser.parse(rest, now: now, calendar: cal)
+          if dayOnly.hasDay, dayOnly.hour == nil { raw = rest + " at " + number }
+        }
+      }
+      let parsed = CaptureParser.parse(raw, now: now, calendar: cal, alarm: alarm)
+      guard parsed.hasDay || parsed.hour != nil else { return nil }
+      // Read again as of midnight: a time that has passed is not rolled to tomorrow there, so only
+      // words that name a day (or a relative time, whose clock differs) still give one.
+      let atMidnight = CaptureParser.parse(
+        raw, now: cal.startOfDay(for: now), calendar: cal, alarm: alarm)
+      let namesDay =
+        atMidnight.hasDay || atMidnight.hour != parsed.hour || atMidnight.minute != parsed.minute
+      return When(
+        day: parsed.hasDay ? cal.startOfDay(for: parsed.day) : nil, namesDay: namesDay,
+        hour: parsed.hour, minute: parsed.hour == nil ? 0 : parsed.minute,
+        minutes: parsed.durationMinutes)
+    }
+
     private func range(_ start: String?, _ end: String?, default fallback: DateInterval)
       -> DateInterval?
     {
@@ -662,15 +718,24 @@
       c.kind = kind == "event" ? .event : .task
       if let words = item["when_text"]?.string, !words.trimmingCharacters(in: .whitespaces).isEmpty
       {
-        guard let m = moment(words) else {
+        guard let w = when(words, alarm: kind == "alarm") else {
           return .failure(
             .error("unreadable_when", "Couldn't read “\(words)”. Ask the user for the day or time.")
           )
         }
-        c.day = cal.startOfDay(for: m.date)
+        // A revision keeps the card's own day unless the words name a new one ("改成11点" on
+        // next Monday's card stays on Monday), and its time unless they give a new one.
+        if let base, base.hasDay, !w.namesDay {
+          c.day = base.day
+        } else {
+          c.day = w.day ?? cal.startOfDay(for: now)
+        }
         c.hasDay = true
-        c.hour = m.hasTime ? cal.component(.hour, from: m.date) : nil
-        c.minute = m.hasTime ? cal.component(.minute, from: m.date) : 0
+        if let hour = w.hour {
+          c.hour = hour
+          c.minute = w.minute
+        }
+        if c.kind == .event, let minutes = w.minutes { c.durationMinutes = minutes }
       }
       if let list = item["list"]?.string {
         guard let name = listName(list) else {
@@ -720,6 +785,11 @@
       if let rule = c.repeatRule { o["repeat"] = .string(rule) }
       if c.kind == .event && c.hour == nil {
         o["note"] = "No time given: shown as all-day. Ask if a time is wanted."
+      } else if c.kind == .event, let start = c.clockTime(calendar: cal) {
+        // What Add writes: an event without a length lasts an hour.
+        let minutes = c.durationMinutes ?? 60
+        o["minutes"] = .number(Double(minutes))
+        o["end"] = stamp(start.addingTimeInterval(TimeInterval(minutes * 60)))
       }
       return .object(o)
     }
@@ -757,7 +827,8 @@
           }
           let key = [
             kind.rawValue, Self.fold(c.title), c.hasDay ? "\(c.day.timeIntervalSince1970)" : "",
-            "\(c.hour ?? -1):\(c.minute)", c.listName ?? "", c.repeatRule ?? "",
+            "\(c.hour ?? -1):\(c.minute)", "\(c.durationMinutes ?? 0)", c.listName ?? "",
+            c.repeatRule ?? "",
           ].joined(separator: "|")
           let opened = book.open(
             tool: .proposeCreate, kind: kind.rawValue, tier: tier, run: turn.runID, contentKey: key)
@@ -782,9 +853,24 @@
       EditItem(id: "x", type: type, title: title, start: start, minutes: minutes, attendees: 0)
     }
 
+    /// The new start an edit's `when_text` names. The words are only the destination ("今天12点半",
+    /// "Friday", "6:45"), never a whole sentence, so a time in them is never read as naming the item.
+    /// A day or time they name replaces that part of the item's start; a bare time stays on the
+    /// item's day (an edit, not a new item); an alarm's ambiguous hour is in the morning. Words with
+    /// neither ("推迟一小时") shift the start.
     private func newStart(_ words: String, item: EditItem) -> Date? {
-      Editing.newStart(for: item, text: words, now: now, calendar: cal)
-        ?? moment(words).flatMap { $0.hasTime ? $0.date : nil }
+      guard let w = when(words, alarm: item.type == "alarm") else {
+        return Editing.newStart(for: item, text: words, now: now, calendar: cal)
+      }
+      let today = cal.startOfDay(for: now)
+      let day =
+        w.namesDay ? (w.day ?? today) : (item.start.map { cal.startOfDay(for: $0) } ?? today)
+      guard let hour = w.hour ?? item.start.map({ cal.component(.hour, from: $0) }) else {
+        return nil
+      }
+      let minute =
+        w.hour != nil ? w.minute : item.start.map { cal.component(.minute, from: $0) } ?? 0
+      return cal.date(bySettingHour: hour, minute: minute, second: 0, of: day)
     }
 
     private func label(_ date: Date?) -> String {

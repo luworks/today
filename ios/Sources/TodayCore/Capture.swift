@@ -238,7 +238,11 @@ public enum CaptureParser {
       options: [.regularExpression, .caseInsensitive]) != nil
   }
 
-  public static func parse(_ raw: String, now: Date = .now, calendar: Calendar = .current)
+  /// `alarm` says the words are an alarm's time even when they don't say so ("6:15 tomorrow" handed
+  /// over by the agent): an ambiguous hour is then in the morning, as in Apple Clock.
+  public static func parse(
+    _ raw: String, now: Date = .now, calendar: Calendar = .current, alarm: Bool = false
+  )
     -> Capture
   {
     let monthContext = leadingMonth(raw, now: now, calendar: calendar)
@@ -323,7 +327,8 @@ public enum CaptureParser {
     }
     // An alarm request means a morning hour unless it says otherwise ("wake me at 6:30" is 06:30, not 18:30).
     let isAlarm =
-      raw.range(
+      alarm
+      || raw.range(
         of: #"wake\s+me|\balarm\b|\btimer\b|计时|闹钟|起床|叫醒"#,
         options: [.regularExpression, .caseInsensitive]) != nil
     let defaultPeriod = impliedPeriod ?? (isAlarm ? "上午" : nil)
@@ -413,7 +418,7 @@ public enum CaptureParser {
       lead
       + #"(?<![:：.\d])\b(\d{1,2})(?:[:：](\d{2}))?\s*(am|pm)?\s*(?:-|–|to|~)\s*(\d{1,2})(?:[:：](\d{2}))?\s*(am|pm)\b"#
     let rangeZH =
-      #"(凌晨|清晨|早晨|上午|早上|中午|下午|傍晚|晚上)?\s*(?<![:：.\d])(\d{1,2})(?:[:：](\d{2})|点(半)?)?\s*(?:到|至|-|~)\s*(\d{1,2})(?:[:：](\d{2})|点(半)?)"#
+      #"(?:从\s*)?(凌晨|清晨|早晨|上午|早上|中午|下午|傍晚|晚上)?\s*(?:从\s*)?(?<![:：.\d])(\d{1,2})(?:[:：](\d{2})|点(半)?)?\s*(?:到|至|-|~)\s*(\d{1,2})(?:[:：](\d{2})|点(半)?)"#
     if let m = take(rangeEN, from: &text) {
       let endPeriod = m[5]
       let endH = adjust(Int(m[3] ?? ""), period: endPeriod)
