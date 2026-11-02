@@ -1,6 +1,6 @@
 import Foundation
 
-/// The words a person (or the on-device model) puts in front of the thing itself when asking for a reminder:
+/// The words a person puts in front of the thing itself when asking for a reminder:
 /// "帮我增加一个 reminder 吧：", "帮我加个提醒，", "add a reminder to", "reminder:", "提醒我：".
 /// They are instructions to the app, not part of the title. What follows them is the user's own wording and is kept as is
 /// (a "我需要…" after the colon stays), so a title that had a lead-in is not cleaned of its own filler words.
@@ -55,7 +55,4 @@ public enum CaptureLeadIn {
     }
     return nil
   }
-
-  /// `strip`, or the title unchanged.
-  public static func stripped(_ title: String) -> String { strip(title) ?? title }
 }

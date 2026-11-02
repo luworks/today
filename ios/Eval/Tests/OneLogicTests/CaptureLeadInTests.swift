@@ -98,7 +98,7 @@ final class CaptureLeadInTests: XCTestCase {
 
   func testNothingLeftKeepsTheOriginal() {
     XCTAssertNil(CaptureLeadIn.strip("帮我加个提醒："))
-    XCTAssertEqual(CaptureLeadIn.stripped("add a reminder"), "add a reminder")
+    XCTAssertNil(CaptureLeadIn.strip("add a reminder"))
   }
 
   // MARK: The model's title

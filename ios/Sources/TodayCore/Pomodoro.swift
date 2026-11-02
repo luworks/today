@@ -53,15 +53,6 @@ public enum Pomodoro {
     return roundsToday > 0 && roundsToday % roundsPerSet == 0 ? .longBreak : .shortBreak
   }
 
-  /// The primary button for that next step: "Start 5-min break", "Start 15-min long break", "Focus again".
-  public static func nextTitle(_ next: PomodoroPhase) -> String {
-    switch next {
-    case .focus: "Focus again"
-    case .shortBreak: "Start \(next.minutes)-min break"
-    case .longBreak: "Start \(next.minutes)-min long break"
-    }
-  }
-
   /// "No focus rounds yet today", "1 focus round today", "3 focus rounds today" (VoiceOver).
   public static func spokenRounds(_ rounds: Int) -> String {
     if rounds <= 0 { return "No focus rounds yet today" }

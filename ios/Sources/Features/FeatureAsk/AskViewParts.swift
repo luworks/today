@@ -366,22 +366,4 @@
       return feedback
     }
   }
-
-  func askTimeLabel(_ date: Date, runtime: PlannerRuntime) -> String {
-    let formatter = DateFormatter()
-    formatter.calendar = runtime.calendar
-    formatter.timeZone = runtime.calendar.timeZone
-    formatter.locale = runtime.locale
-    formatter.dateStyle = .none
-    formatter.timeStyle = .short
-    return formatter.string(from: date)
-  }
-
-  /// Explicit-calendar projection while One's persistent model helpers retain compatibility defaults.
-  func askOccurrences(_ event: OneEvent, on day: Date, calendar: Calendar) -> [Date] {
-    guard let interval = calendar.dateInterval(of: .day, for: day) else { return [] }
-    return Recurrence.occurrences(
-      start: event.start, duration: event.duration, rule: event.repeats, in: interval,
-      calendar: calendar)
-  }
 #endif

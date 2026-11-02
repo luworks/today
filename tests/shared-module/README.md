@@ -7,7 +7,7 @@ The six Foundation source files moved from `ios/Shared/` to the real package sou
 | Source | Public interfaces |
 | --- | --- |
 | `ActivityOutbox.swift` | `ActivityOutbox`: folder/limit constants, folder URL, append, pendingFiles, remove |
-| `ShareInbox.swift` | `SharedReminder`: all fields and default-preserving initializer; `ShareInbox`: Day/id, paths, draft/due, Codable, append/submit/read/acknowledge/drain; `ShareImport`: run and generic Result fields/initializer |
+| `ShareInbox.swift` | `SharedReminder`: all fields and default-preserving initializer; `ShareInbox`: Day/id, paths, draft/due, Codable, append/submit/read/acknowledge; `ShareImport`: run and generic Result fields/initializer |
 | `WidgetSnapshot.swift` | `WidgetItem`/Kind, `WidgetSnapshot`/CalendarSettings and `NextUp`: fields and constructors; snapshot paths/Codable/load/save; `WidgetLink`; `NextItems` selection/merge/order/timeline |
 | `TravelTime.swift` | `TravelPlace` and `TravelEstimate`: fields/constructors; `TravelTime` constants and calculation methods |
 | `LockScreenNext.swift` | `LockScreenNext`/Lead: fields/constructor, countdownWindow/make/spokenCountdown |

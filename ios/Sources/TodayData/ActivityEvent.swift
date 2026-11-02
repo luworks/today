@@ -394,11 +394,8 @@ public enum ActivityRetention: String, CaseIterable, Identifiable, Sendable {
   }
 }
 
-/// The fixed windows of the other tiers (document §2.3) and the one the autonomy policy uses.
+/// The fixed windows of the other tiers (document §2.3).
 public enum ActivityWindows {
-  /// "The user chose this planned time themselves" looks back this far. Fixed, so a longer ledger retention never makes the
-  /// policy ask more often (`Ledger.protectedRefs`).
-  public static let userChoseDays = 90
   /// Undo snapshots of deleted reminders are kept this long; Undo from Activity stops being offered after it.
   public static let snapshotDays = 30
   public static let aiDays = 180

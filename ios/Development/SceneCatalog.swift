@@ -50,7 +50,6 @@
     private(set) var settingsOpenCount = 0
     private(set) var widgetRewriteCount = 0
     private(set) var capturesAddedCount = 0
-    private(set) var approvedPlanCount = 0
 
     init(
       configuration: SceneConfiguration, datasetURL: URL? = SceneSession.bundledDataset,
@@ -228,7 +227,6 @@
     }
     func rewriteWidgets() { widgetRewriteCount += 1 }
     func captureAdded(_ capture: Capture) { capturesAddedCount += 1 }
-    func planApproved(_ count: Int) { approvedPlanCount += count }
     func exportDestination(_ format: ActivityExportFormat) throws -> URL {
       try FileManager.default.createDirectory(
         at: exportDirectory, withIntermediateDirectories: true)

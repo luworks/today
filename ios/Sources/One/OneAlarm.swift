@@ -109,15 +109,6 @@
       "la2|\(isOn)|\(hour):\(minute)|\(weekdays.sorted())|\(label)|\(snooze)|\(sound)|\(snoozeMinutes)"
     }
 
-    /// Switching on a one-time alarm sets it for the next occurrence of its time, like Clock does.
-    package func setOn(_ on: Bool) {
-      if on && !isOn {
-        createdAt = .now
-        alarmKitSignature = nil
-      }
-      isOn = on
-    }
-
     /// A one-time alarm turns itself off after it has rung, like Apple Clock.
     package func retireIfRung(now: Date = .now) {
       guard isOn, weekdays.isEmpty,

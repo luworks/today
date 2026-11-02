@@ -288,13 +288,6 @@ public enum CalendarMath {
     return ((b.year ?? 0) - (a.year ?? 0)) * 12 + (b.month ?? 0) - (a.month ?? 0)
   }
 
-  /// First day of the week containing `date`.
-  public static func weekStart(of date: Date, calendar: Calendar = .app) -> Date {
-    let day = calendar.startOfDay(for: date)
-    let back = (calendar.component(.weekday, from: day) - calendar.firstWeekday + 7) % 7
-    return calendar.date(byAdding: .day, value: -back, to: day) ?? day
-  }
-
   /// The week of the year `date` falls in (Settings > Calendar > "Show week numbers"), by the calendar's own rule for week 1.
   public static func weekNumber(of date: Date, calendar: Calendar = .app) -> Int {
     calendar.component(.weekOfYear, from: date)
@@ -590,17 +583,6 @@ public enum AlarmPlan {
   public static func nextFiveMinutes(after date: Date, calendar: Calendar = .current) -> Date {
     let c = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: date)
     let next = ((c.minute ?? 0) / wheelMinuteStep + 1) * wheelMinuteStep
-    let base =
-      calendar.date(
-        from: DateComponents(year: c.year, month: c.month, day: c.day, hour: c.hour, minute: 0))
-      ?? date
-    return calendar.date(byAdding: .minute, value: next, to: base) ?? date
-  }
-
-  /// The next quarter hour after `date` (10:56 → 11:00, 10:45 → 11:00).
-  public static func nextQuarterHour(after date: Date, calendar: Calendar = .current) -> Date {
-    let c = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: date)
-    let next = ((c.minute ?? 0) / 15 + 1) * 15
     let base =
       calendar.date(
         from: DateComponents(year: c.year, month: c.month, day: c.day, hour: c.hour, minute: 0))

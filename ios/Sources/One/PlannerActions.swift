@@ -219,14 +219,6 @@
       eventCreationDrafts[requestID] = nil
     }
 
-    /// Explicit native Create confirmation; submitted-chat authority stays in insertOneOffReminder.
-    package func createReminder(_ task: OneTask, into context: ModelContext) throws {
-      try reminders.commitCreation(task, context: context)
-      ledger.record(
-        .created, task: task, kind: "task", title: task.title,
-        context: context)
-    }
-
     /// Narrow submitted-chat authority; does not grant background autonomy or recurrence writes.
     package func insertOneOffReminder(
       _ capture: Capture, requestID: UUID, recoveryExternalID: String? = nil,

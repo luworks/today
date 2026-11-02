@@ -36,16 +36,6 @@
   /// 0.97 press scale with a light haptic.
 
   extension View {
-    /// Liquid Glass on iOS 26+, material on older systems.
-    @ViewBuilder
-    package func glassCapsule() -> some View {
-      if #available(iOS 26, *) {
-        glassEffect(.regular.interactive(), in: Capsule())
-      } else {
-        background(.regularMaterial, in: Capsule())
-      }
-    }
-
     @ViewBuilder
     package func glassCircle() -> some View {
       if #available(iOS 26, *) {

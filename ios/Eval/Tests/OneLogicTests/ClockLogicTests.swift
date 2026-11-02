@@ -234,19 +234,7 @@ final class OverlapTests: XCTestCase {
       XCTAssertEqual(overlap.duration, 9 * 3600)
       XCTAssertEqual(WorldClock.hourMinute(zone: home, at: overlap.start).hour, 9)
       XCTAssertEqual(WorldClock.hourMinute(zone: home, at: overlap.end).hour, 18)
-      XCTAssertEqual(
-        WorldClock.workCurve([], home: home, on: noon, stepMinutes: 60).count, Int(hours) + 1)
     }
-  }
-
-  func testWorkCurve() {
-    let curve = WorldClock.workCurve(
-      [tz("America/New_York"), tz("Europe/London")], home: tz("America/Los_Angeles"),
-      on: Date(timeIntervalSince1970: 1_792_263_600), stepMinutes: 60)
-    XCTAssertEqual(curve.count, 25, "every hour of the home day, both ends included")
-    XCTAssertEqual(curve.map(\.count).max(), 3)
-    XCTAssertEqual(
-      curve.first(where: { $0.count == 3 })?.date, Date(timeIntervalSince1970: 1_792_252_800))
   }
 
   func testNamesDatesAndHome() {

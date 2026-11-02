@@ -54,17 +54,11 @@ public enum FastLane {
   public static func parse(_ text: String, now: Date, calendar: Calendar) -> Capture {
     CaptureConversation.parse(text, now: now, calendar: calendar)
   }
-  public static func referencesReminder(_ text: String) -> Bool {
-    CaptureConversation.referencesReminder(text)
-  }
   public static func resolve(
     _ text: String, context: ConversationContext, pending: Capture?, now: Date, calendar: Calendar
   ) -> Capture? {
     CaptureConversation.resolve(
       text, context: context, pending: pending, now: now, calendar: calendar)
-  }
-  public static func isOneOffAnswer(_ text: String) -> Bool {
-    CaptureConversation.isOneOffAnswer(text)
   }
   public static func looksLikeEdit(
     _ text: String, items: [EditItem], now: Date, calendar: Calendar

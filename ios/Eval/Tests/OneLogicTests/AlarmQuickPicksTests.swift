@@ -10,7 +10,6 @@ final class AlarmQuickPicksTests: XCTestCase {
 
   func testNoHistoryOffersTheMorningFallbacks() {
     XCTAssertEqual(AlarmQuickPicks.times(history: []), AlarmQuickPicks.fallbackTimes)
-    XCTAssertEqual(AlarmQuickPicks.usualTime(history: []), Time(hour: 7, minute: 0))
   }
 
   func testMostUsedTimesComeFirstAndFallbacksFillTheRest() {
@@ -20,7 +19,6 @@ final class AlarmQuickPicksTests: XCTestCase {
     XCTAssertEqual(
       AlarmQuickPicks.times(history: history),
       [Time(hour: 6, minute: 45), Time(hour: 22, minute: 0), Time(hour: 6, minute: 30)])
-    XCTAssertEqual(AlarmQuickPicks.usualTime(history: history), Time(hour: 6, minute: 45))
   }
 
   func testATieGoesToTheEarlierTimeAndFallbacksAreNotRepeated() {

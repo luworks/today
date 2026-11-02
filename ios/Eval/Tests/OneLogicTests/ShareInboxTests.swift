@@ -43,7 +43,7 @@ final class ShareInboxTests: XCTestCase {
       DateComponents(month: 10, day: 19, hour: 0))
   }
 
-  func testAppendThenDrainEmptiesTheInbox() throws {
+  func testAppendThenAcknowledgeEmptiesTheInbox() throws {
     let url = FileManager.default.temporaryDirectory.appendingPathComponent(
       "share-inbox-\(UUID()).json")
     defer { try? FileManager.default.removeItem(at: url) }
@@ -51,11 +51,13 @@ final class ShareInboxTests: XCTestCase {
     XCTAssertTrue(
       ShareInbox.append(
         SharedReminder(title: "Two", due: now, sharedAt: now.addingTimeInterval(5)), at: url))
-    XCTAssertEqual(ShareInbox.drain(at: url).map(\.title), ["One", "Two"])
-    XCTAssertEqual(ShareInbox.drain(at: url), [], "taken once")
+    let read = try ShareInbox.read(at: url)
+    XCTAssertEqual(read.map(\.title), ["One", "Two"])
+    XCTAssertTrue(ShareInbox.acknowledge(Set(read.map(\.id)), at: url))
+    XCTAssertEqual(try ShareInbox.read(at: url), [], "taken once")
   }
 
-  func testDrainPreservesAnUndecodableInboxForRecovery() throws {
+  func testReadPreservesAnUndecodableInboxForRecovery() throws {
     let url = FileManager.default.temporaryDirectory.appendingPathComponent(
       "share-inbox-\(UUID()).json")
     defer { try? FileManager.default.removeItem(at: url) }
@@ -63,7 +65,7 @@ final class ShareInboxTests: XCTestCase {
     let original = Data(#"[{"title":"Keep the original shared note""#.utf8)
     try original.write(to: url)
 
-    XCTAssertTrue(ShareInbox.drain(at: url).isEmpty)
+    XCTAssertThrowsError(try ShareInbox.read(at: url))
     XCTAssertEqual(
       try Data(contentsOf: url), original, "a decode failure must not delete the only copy")
   }
@@ -105,8 +107,7 @@ final class ShareInboxTests: XCTestCase {
     XCTAssertTrue(ShareInbox.submit(draft, at: url) { completions += 1 })
     XCTAssertEqual(completions, 1)
     XCTAssertEqual(
-      ShareInbox.drain(at: url), [draft],
+      try ShareInbox.read(at: url), [draft],
       "title, note and date survive the failed submission and retry")
-    XCTAssertTrue(ShareInbox.drain(at: url).isEmpty)
   }
 }

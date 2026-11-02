@@ -30,11 +30,6 @@ public enum AlarmQuickPicks {
     return picks
   }
 
-  /// The time the user sets most, or 7:00 when there is none yet: the chat's "Wake me at … tomorrow".
-  public static func usualTime(history: [Time]) -> Time {
-    mostUsed(history).first ?? Time(hour: 7, minute: 0)
-  }
-
   /// Up to `limit` names the user has given alarms, most used first (ties keep the order given). Blank names and Clock's
   /// "Alarm" are skipped; names that differ only in case or surrounding spaces count as one.
   public static func labels(history: [String], limit: Int = 3) -> [String] {

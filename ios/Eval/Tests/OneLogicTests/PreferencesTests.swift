@@ -107,9 +107,9 @@ final class PreferencesTests: XCTestCase {
       CalendarMath.monthWeeks(of: oct, calendar: sunday)[0].prefix(while: { $0 == nil }).count, 4)
     // Wednesday the 14th: its week starts Monday the 12th, or Sunday the 11th.
     XCTAssertEqual(
-      monday.component(.day, from: CalendarMath.weekStart(of: oct, calendar: monday)), 12)
+      monday.component(.day, from: monday.dateInterval(of: .weekOfYear, for: oct)!.start), 12)
     XCTAssertEqual(
-      sunday.component(.day, from: CalendarMath.weekStart(of: oct, calendar: sunday)), 11)
+      sunday.component(.day, from: sunday.dateInterval(of: .weekOfYear, for: oct)!.start), 11)
     XCTAssertEqual(CalendarMath.weekdayLetters(calendar: monday).first, "M")
     XCTAssertEqual(CalendarMath.weekdayLetters(calendar: sunday).first, "S")
   }

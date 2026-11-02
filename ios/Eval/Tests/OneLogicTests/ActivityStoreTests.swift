@@ -284,27 +284,14 @@ final class ActivityStoreTests: XCTestCase {
     XCTAssertEqual(try s.content(uid: "d1"), [])
   }
 
-  func testUndoneAndSubjectRefQueries() throws {
+  func testUndoneQuery() throws {
     let s = try memory()
     var undo = change("Undid", actor: "you", kind: "change.undone", uid: "undo1")
     undo.undoOf = "orig"
     try s.insert([
       change("orig", actor: "ai", kind: "change.planned", ref: "r1", uid: "orig"), undo,
-      change("mine", actor: "you", kind: "change.moved", ago: 3_600, ref: "r2"),
-      change("mine old", actor: "you", kind: "change.moved", ago: 200 * 86_400, ref: "r3"),
-      change("mine done", actor: "you", kind: "change.completed", ref: "r4"),
     ])
     XCTAssertEqual(try s.undone(among: ["orig", "undo1", "x"]), ["orig"])
-    let day = ActivityClock.ms(now.addingTimeInterval(-86_400))
-    XCTAssertEqual(try s.subjectRefs(actor: "ai", sinceMs: day), ["r1"])
-    XCTAssertEqual(
-      try s.subjectRefs(
-        actor: "you", kinds: ["change.planned", "change.moved", "change.unscheduled"], sinceMs: day),
-      ["r2"])
-    XCTAssertEqual(
-      try s.subjectRefs(
-        actor: "you", kinds: ["change.moved"],
-        sinceMs: ActivityClock.ms(now.addingTimeInterval(-365 * 86_400))), ["r2", "r3"])
   }
 
   func testPageQueriesUseAnIndex() throws {

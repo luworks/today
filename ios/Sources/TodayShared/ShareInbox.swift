@@ -165,22 +165,6 @@ public enum ShareInbox {
     if let error { throw error }
   }
 
-  /// Everything waiting, oldest first; the inbox is empty afterwards. Undecodable data stays untouched for recovery.
-  public static func drain(at url: URL? = fileURL) -> [SharedReminder] {
-    guard let url else { return [] }
-    var items: [SharedReminder] = []
-    coordinate(url) { url in
-      guard let data = try? Data(contentsOf: url), let decoded = decode(data) else { return }
-      do {
-        try FileManager.default.removeItem(at: url)
-        items = decoded
-      } catch {
-        // Returning items without removing them would import them again on the next activation.
-      }
-    }
-    return items.sorted { $0.sharedAt < $1.sharedAt }
-  }
-
   /// The extension and the app run in different processes: a file coordinator keeps a read-then-write from losing an item.
   private static func coordinate(_ url: URL, _ body: (URL) -> Void) {
     var error: NSError?

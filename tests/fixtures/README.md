@@ -13,15 +13,11 @@ The four images in [`design-refs/due-quick-add-20261030`](design-refs/due-quick-
 09:41 for matched navigation response samples; they create no temporary dataset.
 
 | Dataset | Consumers and original generator |
-| [`settle-day-boundary.json`](settle-day-boundary.json) | `TodayFocusStoreTests`: controlled Los Angeles midnight, spring-forward and fall-back dates; daily Settle expiry and unchanged absolute Snooze expiry. |
 | --- | --- |
 | [`populated-history.json`](populated-history.json), [`populated-unsent-draft.txt`](populated-unsent-draft.txt) | `PerformanceClimbTests.testPopulatedHistorySelectedDayNavigation` and `PopulatedHistoryTests`: 800 completed reminders + 200 past events over 90 days, 30 active reminders + 10 events today, two tomorrow anchors, and 100 mixed English/CJK messages. Real calendar selection, old-message position across panel Close/reopen, native multiline paste with exact unsent retention. No live sync or alarms. |
 | [`today-density.json`](today-density.json) | `TodayDensityTests`: synthetic bilingual schedule modeled on the owner's density screenshot, two all-day events, timed rows, repeat/list/deadline metadata and multiple gaps. UI time 10:30, auto-scroll off, same viewport and font for before/after; accessibility text checks grow long titles. |
 | [`today-reminder-completion.json`](today-reminder-completion.json) | `TodayReminderCompletionTests`: owner-reported Bring the water cup at 12:30, with notes and a due time. Tests namespace the title and seed the simulator EventKit store through `addToday`; no user reminder is used. |
 | [`today-disclosure-sections.json`](today-disclosure-sections.json) | `TodayTomorrowTests`: one overdue reminder, current task, daily recurring meeting/alarm and next-day entries. Validates collapsed section order, overdue expansion and week-strip day navigation. |
-| [`today-focus.json`](today-focus.json) | `TodayFocusTests`: local 10:00–11:00 meeting, 09:00 invoice, yesterday's overdue reminder and one untimed 60-minute task. Clock pinned to 09:00; four native journeys cover Settle/Restore, Snooze/Undo, source deadline/completion preservation, same-store relaunch and retained busy-time reservations. Relaunch consumes `empty-relaunch.json` without reseeding; no Apple sync, timers or alarms. |
-| Snooze timing inline inputs | [`SnoozeSelectionTests.swift`](../../ios/Eval/Tests/OneLogicTests/SnoozeSelectionTests.swift) keeps synthetic absolute instants and a Los Angeles DST boundary beside the pure clock-at-submit regressions. The custom-picker/cancel journey in `TodayFocusTests` reuses `today-focus.json` at 09:00; no generated fixture. |
-| Focus logic and integration inline inputs | [`TodayFocusStoreTests.swift`](../../ios/Eval/Tests/OneLogicTests/TodayFocusStoreTests.swift) versions tiny opaque identities, JSON failure inputs and absolute/DST instants beside the tests. [`TodayFocusIntegrationTests.swift`](../../ios/TodayIntegrationTests/TodayFocusIntegrationTests.swift) versions synthetic SwiftData/Activity models and read-only source identity/deletion spies; no private content or EventKit account is used. |
 | [`reminder-compact-editor.json`](reminder-compact-editor.json) | `ReminderEditorTests`: reference 10:32 reminder, one deadline field, advanced draft cancellation and undated keyboard save. Production TaskEditor; clock 10:32. |
 | [`reminder-time-save.json`](reminder-time-save.json) | `ReminderTimeSaveTests`: real 14:00 -> 13:10 DatePicker save, concurrent independent Apple note edit, native metadata/identity, reopen/refresh/relaunch. |
 | [`today-alarm-actions.json`](today-alarm-actions.json) | `TodayAlarmActionsTests`: two independent repeating alarms and one unchanged reminder; native Today tap, long press, swipe, retry draft and persistent deletion. |
@@ -129,8 +125,6 @@ English alarm/date/time corrections, and New chat isolation plus stored-thread
 resumption. They use `-uiTesting` and the simulator's production rule fallback;
 they do not inject model output or verify Apple Intelligence. Chinese screenshots
 are retained as XCTest attachments inside the eventual xcresult bundle.
-
-- `ios/Eval/Tests/OneLogicTests/conversation-journeys.json` is a copied Swift package resource: thirteen bilingual multi-turn journeys with expected route, title, time/date, preview action and zero writes before Add/Apply. `ConversationJourneyTests` exercises the production context resolver, routing and parser; UI journeys additionally check the real confirmation gate.
 
 ## Recurring reminder goals
 
@@ -251,9 +245,3 @@ They are not reusable UI datasets; the production retention policy lives in
 `ask-reading-history.json` contains 36 synthetic long chat messages for `AskReadingPositionTests`. The Mock-only `-uiTestingAskReplyDelay` capability delays replies and capture parsing by twelve seconds so a real history pan can finish before a reply/card arrives. `AskInteractionTests` keeps short native text-input and injected Calendar read fixtures inline beside its tests.
 
 `ChatPanelTests.swift` keeps its small unsent English/Chinese draft and Hello interaction inline. Long-history panel scrolling reuses `ask-reading-history.json`; failed creation and exact Undo/Open reuse `ai-oneoff-reminder-ui.json`. No private data is required.
-
-`remove-returned-to-today.json` supplies synthetic old settled/restored events and a settled reminder,
-new-day task/meeting and overdue reminder for
-`TodayFocusTests.testCrossDayReleaseUsesOriginalDatesWithoutReturnHistory`.
-The test pins local dates using ISO `-uiTestingNow`, which also supplies the Mock
-dataset load clock, then relaunches its isolated persistent store on the next day.

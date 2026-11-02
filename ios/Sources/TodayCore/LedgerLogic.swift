@@ -214,13 +214,6 @@ public struct TaskSnapshot: Codable, Equatable {
 }
 
 public enum LedgerFormat {
-  /// Entries older than this are dropped at launch.
-  public static let retentionDays = 90
-
-  public static func retentionCutoff(now: Date, calendar: Calendar = .current) -> Date {
-    calendar.date(byAdding: .day, value: -retentionDays, to: calendar.startOfDay(for: now)) ?? now
-  }
-
   /// "Planned “Buy milk”", "Allowed “Plan reminders into free time”".
   public static func headline(_ action: LedgerAction, title: String) -> String {
     "\(action.verb) “\(title)”"
