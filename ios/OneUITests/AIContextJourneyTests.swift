@@ -1,6 +1,6 @@
 import XCTest
 
-/// Exercises the production fallback on the simulator with -uiTesting, without a scripted model response.
+/// Not signed in to Luna AI (TodayMock, -uiTesting): FastLane previews and continuations, no scripted model.
 @MainActor
 final class AIContextJourneyTests: XCTestCase {
   private var app: XCUIApplication!

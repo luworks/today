@@ -1,3 +1,0 @@
-You classify ONE message for a planner app.
-The person's locale is {LOCALE}.
-task = something to do. event = a meeting, appointment, meal, trip or class. alarm = the user asks to be woken up or rung at a time. Ignore dates and times.

@@ -1,10 +1,10 @@
 # Today AI：Agent 架构（定稿 v3）
 
-日期 2026-10-31 · 状态：**设计定稿；P0（Worker agent 模式）已部署（2026-10-31）；P1 已合并；P2（手机上的 agent 循环，开关 `today.ai.agent` 默认关）已实现，模拟器实测见 `docs/qa/agent-p2-20261101.md`；P3 评测已完成，见 `docs/qa/agent-p3-eval-20261101.md`；P3 之后尚未实现** · 迁移完成后取代 `docs/engineering/ai-architecture.md` 描述的"规则路由 + 多个零散 prompt"架构。那份文档在迁移期间保留，作为现状审计。
+日期 2026-10-31 · 状态：**设计定稿；P0（Worker agent 模式）已部署（2026-10-31）；P1 已合并；P2 已实现（模拟器实测见 `docs/qa/agent-p2-20261101.md`）；P3 评测已完成（`docs/qa/agent-p3-eval-20261101.md`）；P4 已完成（2026-11-01）：agent 就是 Today 的 AI，开关 `today.ai.agent` 已删除，旧管线、建议 chip、Worker 的 strict-JSON 模式和 Decisions 路由都已删除，实测见 `docs/qa/agent-p4-20261101.md`。负责人决定不等 P3 结论的后续工作就上线；P5 尚未开始** · 取代了原来"规则路由 + 多个零散 prompt"的架构（原 `docs/engineering/ai-architecture.md` 现状审计已随 P4 删除，见 git 历史）。
 
 本文按四步写：§1 新框架（v1）→ §2 和竞品对比 → §3 根据对比优化（v2）→ §4 最终版本（v3），以及为什么选它。§5 记录独立审查发现的问题和修正位置。
 
-资料来源：OpenAI 的 Responses / Decisions / function calling 官方文档，Apple WWDC26 session，各竞品的帮助中心，本仓库的现状审计，`docs/qa/decisions-api-spike-20261031.md`，`docs/apple-intelligence.md`，`docs/research/ai-native-vision.md`。标 **[二手]** 的来自媒体或厂商营销；标 **[未核实]** 的还没有用一次真实请求验证过。
+资料来源：OpenAI 的 Responses / Decisions / function calling 官方文档，Apple WWDC26 session，各竞品的帮助中心，本仓库的现状审计，Decisions API spike（2026-10-31，P4 时随 `/v1/decisions` 一起删除，见 git 历史），`docs/research/ai-native-vision.md`。标 **[二手]** 的来自媒体或厂商营销；标 **[未核实]** 的还没有用一次真实请求验证过。
 
 模型：云端用我们自己 Worker 后面的 `gpt-6-luna`（OpenAI Responses API）。所有模型调用都经过一个 `ModelClient` 协议。v1 只有 `HostedLunaClient` 一个实现。以后要接本地模型（例如 Llama 或 Apple Foundation Models），就是再加一个实现，上层不用改。
 
@@ -15,7 +15,7 @@
 1. **一个 agent，一套带类型的工具，由代码决定怎么写，再加一条纯确定性的快车道。** 现在约 6 个互相重叠的路由器和 5 个各自为政的 prompt 全部删掉。
 2. **agent 循环跑在手机上，Worker 只做"带锁的转发"**：负责鉴权，固定模型和工具清单，并在服务端记录每轮走了几步。工具读写的是手机本地的 Apple 日历、提醒事项和闹钟；每次请求只把这一步需要的内容发给模型。
 3. **模型永远不直接写。** 写类工具只能生成"提议卡"（`Proposal`）。是直接执行、显示预览，还是要用户确认后果，由 `ActionPolicy`（代码）决定；用户点 Apply 时还会再检查一次。产品原则 1–6 写在 `ActionPolicy` 里。
-4. **快车道只用规则，离线也能用。** 规则有把握的输入（提醒、事件、闹钟）都在本地直接出预览卡；只有"清楚的一次性提醒"可以直接建（现行例外，范围不变）。Decisions API 只作为**可选**的额外检查，要在盲测集上做到零误判才启用。
+4. **快车道只用规则，离线也能用。** 规则有把握的输入（提醒、事件、闹钟）都在本地直接出预览卡；只有"清楚的一次性提醒"可以直接建（现行例外，范围不变）。（Decisions API 原计划作为可选的额外检查；P4 时连同 Worker 的 `/v1/decisions` 一起删除，P3 没有用到它。）
 5. **我们领先的地方要保住：精确的 Undo 收据和 Activity 账本。** 调研中没有任何竞品公开写明"每一次 AI 改动都能精确撤销"。
 6. **三项决定已定（§4.7）**：预算提到 $5 并修正记账，effort 用 `low`，离线由快车道出预览卡。预算和记账已在 P0 生效（2026-10-31，提高时已用 $0.312805）。
 
@@ -187,7 +187,7 @@ AgentRunner ─ModelClient─ Worker ─ Luna  │
 
 ### 4.4 Worker 合同（扩展现有的 `/v1/responses`，不新增接口；P0 已实现）
 
-请求体带 `tools_version` 就是 agent 模式，否则走原来的 strict JSON 模式（行为不变，现在的 App 继续用）。实现细节以 `backend/luna/README.md` 为准。
+请求体带 `tools_version` 就是 agent 模式；P4 起 strict JSON 模式已删除，不带 `tools_version` 的请求返回 `tools_version_required`。实现细节以 `backend/luna/README.md` 为准。
 
 整个 agent 都建在 **OpenAI Responses API**（`POST https://api.openai.com/v1/responses`）上。手机只和我们自己 Worker 上的 `/v1/responses` 通信，由 Worker 补上固定的模型、系统提示和工具清单，再转发给 OpenAI。迁移期间，这个接口同时支持两种请求：旧管线的"strict JSON、不带工具"和新 agent 的"items 加工具"。到 P4 删掉旧管线时，旧模式也一起删掉。
 
@@ -205,7 +205,7 @@ AgentRunner ─ModelClient─ Worker ─ Luna  │
 
 新旧对比：
 
-| 项目 | strict JSON 模式（不变） | agent 模式（v3，已实现） |
+| 项目 | strict JSON 模式（P4 已删除，仅作对比） | agent 模式（v3，已实现） |
 |---|---|---|
 | 输入 | 只接受字符串 `input` 和 `instructions` | items 数组（message、`function_call`、`function_call_output`、reasoning）；**拒绝客户端传来的 system / developer 角色**，系统提示由服务端按版本注入 |
 | 工具 | 禁止 | **服务端白名单**，按 `tools_version` 选择；客户端不能自带工具 |
@@ -225,7 +225,7 @@ AgentRunner ─ModelClient─ Worker ─ Luna  │
 | **P1** | 抽出 `ToolRegistry`、`ActionPolicy`、`FastLane`，**行为不变**。① 先用内存 `ModelContainer` 加假的 `CalendarService`，给 `AskNativeActions.applyChange` 和 `applyTidy`（`AskView.swift` 约 2232–2470 行）以及系统事件改期的编排写**行为快照测试**，然后再抽取。② 把快车道要用的判定函数收进 `FastLane`：`ChatRouting.intent / requestsEvent / hasMultipleActions / hasMaterialCorrection`、`CaptureConversation.parse / referencesReminder / resolve / isOneOffAnswer`、`Editing.looksLikeEdit` | — |
 | **P2** ✅ | `AgentRunner`、`ModelClient`、`HostedLunaClient`、`ScriptedModelClient`、skills 文件，放在开关 `today.ai.agent` 后面（默认关） | — |
 | **P3** ✅ | 评测：开发集加**新写的盲测集**（70 题，已冻结），新旧两套架构跑同一套题，量 §4.3 的全部指标（`docs/qa/agent-p3-eval-20261101.md`）。结论：模型侧 0 次不安全写入；21 次不安全写入全部来自快车道规则（#270 已修）；Worker 在 10 ms CPU 上限处中途被杀（#271 减半，需升级 Workers Paid）；完成率 84.8 %（旧架构 62.9 %），延迟、步数、成本达标。Decisions 额外检查未测 | — |
-| **P4** | 默认打开 agent，删除旧管线 | `ChatRouting` 和 `Dialogue` 里没被收进 `FastLane` 的部分、`Understanding`、`AICapture`、`ChatResponse`、`Editing`（`looksLikeEdit` 已移走）、`AskSuggestionRanker`、`SentenceRoute` 等路由规则、`EditingLogic` 的判断部分、`AskView` 的路由部分（目标是从 2492 行降到 1000 行以下）、约 20 个只测旧路由的测试文件、`ios/Eval/Understanding`、旧的 AI 文档 |
+| **P4** ✅ | 默认打开 agent，删除旧管线（2026-11-01；离线由 `FastLane.localPreview` 出预览卡，§4.7 #3；负责人要求不留任何旧代码：建议 chip、AIResponseTrace、Decisions 路由、旧评测和旧 AI 文档也一起删除） | `ChatRouting` 和 `Dialogue` 里没被收进 `FastLane` 的部分、`Understanding`、`AICapture`、`ChatResponse`、`Editing`（`looksLikeEdit` 已移走）、`AskSuggestionRanker`、`SentenceRoute` 等路由规则、`EditingLogic` 的判断部分、`AskView` 的路由部分（目标是从 2492 行降到 1000 行以下）、约 20 个只测旧路由的测试文件、`ios/Eval/Understanding`、旧的 AI 文档 |
 | **P5** | Siri 接入 ToolRegistry，iOS 27 采用 app schemas；修改类 intent 加 `requestConfirmation` | `IntentLogic` 里和 ToolRegistry 重复的部分 |
 
 **一定保留**：`CaptureParser`（日期由代码算）、`FastLane` 的判定函数、`IntentLogic` 和 `EditingLogic.newStart`（Siri 在用）、`PlannerActions` / `Ledger` / Undo、卡片 UI、`OverdueTidy.suggest`、`TidySheet`、`ListGuess`。
@@ -240,7 +240,7 @@ AgentRunner ─ModelClient─ Worker ─ Luna  │
 | 多 agent（一个总管 + 几个专家） | 我们的任务面很窄，单 agent 加 12 个不重叠的工具就够了。多 agent 的 token 用量约是普通聊天的 15 倍，延迟也更高。Anthropic 和 OpenAI 的指南都建议先把单 agent 用到极限 |
 | agent 循环放在服务器上 | 不管循环放哪，工具结果都要经过 Worker 发给 OpenAI，所以真正的差别是**服务器要不要保存对话**。工具必须在手机上执行，放到服务器上也省不掉往返，反而要在服务器上长期保存用户的对话。我们只在服务器上放最少的状态（`runs` 计数，§4.4），对话留在手机上 |
 | 端侧 Foundation Models 当 agent | 上下文只有 4–8K，装不下我们约 6K 的固定前缀和历史；实测它在编辑请求里从来不会追问（15 次里 0 次）。只留一个 `ModelClient` 空位，等它变强再接 |
-| 用 Decisions API 做总路由 | 它只能做选择题，填不了标题和时间，还多一次往返；在 27 句的开发集上，"信息够不够"这道题在置信度 0.98 时还会答错。只保留为可选的额外检查 |
+| 用 Decisions API 做总路由 | 它只能做选择题，填不了标题和时间，还多一次往返；在 27 句的开发集上，"信息够不够"这道题在置信度 0.98 时还会答错。P4 已删除该路由 |
 | OpenAI Agents SDK | 没有 Swift 版本，用它就得把循环放到服务器上（同上） |
 | `previous_response_id` / Conversations API | 都要求 OpenAI 保存数据，Conversations 还不支持零数据保留；我们在手机上自己回放历史 |
 
@@ -295,6 +295,21 @@ AgentRunner ─ModelClient─ Worker ─ Luna  │
 **已知残余风险**：
 - Siri 读到被注入的内容后，可能去调"加一条提醒"。这种写入能完全撤销，并且会记进 Ledger。
 - 共享的 Apple 提醒列表没有逐条记录作者，代码无法区分"别人写的"和"自己写的"，所以一律按不可信处理。
+
+## 6. 沿用的产品规则（P4 时从 `docs/apple-intelligence.md` 迁入，原文已删除）
+
+### 6.1 AI 改会议（原则 2）
+
+- **只在用户要求时**：用户说"把下午的会往后挪一小时"，或点了冲突卡片上的"建议调整"。没有冲突时不主动"优化"，AI 不在后台改日历。会议**不会**因为拖动或模型自发而移动；`ActionPolicy` 从用户原话里判断是否要求了移动（`AgentRouting.userAskedToMove`）。
+- **一律先出卡片，用户点 Apply 才写**，只改**这一次**（重复事件用 `.thisEvent`），有 Undo。
+- 卡片写清**影响范围**：自己的事件只写 `12:00 → 13:00`；你是组织者、有 N 位参会人 → "会通知 N 人"，定为 `confirmConsequence`；你不是组织者 → 说明只改自己的日历、不会通知对方。只读或订阅日历不可改，只提示。
+- Undo 把时间改回去；已发出的参会人更新撤不回，Undo 会再发一次更新，卡片和 Undo 提示里要说明。Activity 的 Undo 不覆盖有参会人的事件（`ActivityUndo.swift`），所以 Undo 永远不会额外通知别人。
+
+### 6.2 提交的一次性提醒（`FastLane` 的 direct 例外）
+
+用户点 Send 就授权创建一条**清楚的一次性提醒**；没说重复就是一次，不再追问。原话的事项、日期和时间由规则决定，包括 `setting reminder`、`one off` 这类只补上下文的续答。例：09:11 说 `11点去 costco 加油 买 粒粒`，按解析器现有的"下一个 11:00"规则，是今天 11:00 的提醒（截止和提醒时间），不是计划工作时间；时间已过则是明天。事项或时间有实质歧义时仍出预览或追问。
+
+这个例外**不包括**：日历事件和邀请、闹钟、重复提醒、修改、删除，也不是后台授权。直接创建照常写 Activity（批准、Undo、Open 收据），要等本地保存和已连接的 EventKit 提交都成功；失败时保留可重试或取消的草稿。系统端创建在本地保存和补偿都失败时保留真实身份，重试不会建出第二条。续答复用已有卡片；Undo / Cancel 不会悄悄再加回去。
 
 ## 来源
 

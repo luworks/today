@@ -13,6 +13,8 @@ public enum OneOffReminderRequest {
       // Someone else's plans, a question about what Today can do, an event with a length, or two
       // reminders in one message are never a clear one-off reminder (agent P3 holdout findings).
       !FastLane.isReportedSpeech(text), !isQuestion(text), !hasDuration(text),
+      // "整理逾期" asks for the Tidy card; it is not a reminder titled "整理逾期".
+      !OverdueTidy.isRequest(text),
       reminderVerbs(text) < 2,
       text.range(
         of:

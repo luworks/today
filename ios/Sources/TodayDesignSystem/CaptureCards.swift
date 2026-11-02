@@ -71,17 +71,9 @@
 
     package var body: some View {
       VStack(alignment: .leading, spacing: 8) {
-        HStack {
-          Label(capture.kindLabel, systemImage: "sparkles")
-            .font(.caption)
-            .foregroundStyle(.secondary)
-          if capture.fromAppleIntelligence {
-            Text("· AI")
-              .font(.caption)
-              .foregroundStyle(.secondary)
-              .lineLimit(1)
-          }
-        }
+        Label(capture.kindLabel, systemImage: "sparkles")
+          .font(.caption)
+          .foregroundStyle(.secondary)
         if status == .open {
           PillSwitcher(
             items: Mode.allCases, selection: mode,

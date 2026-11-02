@@ -1,7 +1,6 @@
 import XCTest
 
-/// Real routing/parser and native write gates with deterministic development services.
-/// Live Foundation Models screenshots are retained separately; no model answer is injected here.
+/// Not signed in to Luna AI (TodayMock's default): the rules' local previews and native write gates.
 @MainActor
 final class AIAnnualCheckTests: XCTestCase {
   private var app: XCUIApplication!
@@ -74,10 +73,26 @@ final class AIAnnualCheckTests: XCTestCase {
     XCTAssertFalse(app.descendants(matching: .any)["capture-added"].exists)
   }
 
+  /// Not signed in, a report or a question gets no rule preview: the AI is unavailable and the draft goes back.
   func testBookedReportAndQuestionDoNotPrepareAnotherTask() {
-    send("明年8月 我已经预约医生做 annual check 了")
-    XCTAssertFalse(app.buttons["Add"].exists)
-    send("Next August how do I book a doctor?")
+    ask("明年8月 我已经预约医生做 annual check 了", expecting: "需要登录 Luna AI")
+    app.buttons["Close"].firstMatch.tap()
+    app.buttons["Ask AI or add anything"].tap()
+    ask("Next August how do I book a doctor?", expecting: "Sign in to Luna AI")
+  }
+
+  /// Sends text the rules can't preview: the reply says why, and the draft is back in the composer.
+  private func ask(_ text: String, expecting reply: String) {
+    let input = app.textViews["Ask AI or add anything"].firstMatch
+    let field = input.exists ? input : app.textViews.firstMatch
+    XCTAssertTrue(field.waitForExistence(timeout: 5))
+    field.tap()
+    field.typeText(text)
+    app.buttons["ask-send"].tap()
+    XCTAssertTrue(
+      app.staticTexts.containing(NSPredicate(format: "label BEGINSWITH %@", reply)).firstMatch
+        .waitForExistence(timeout: 5))
+    XCTAssertTrue(app.buttons["ask-send"].exists, "the draft is back in the composer")
     XCTAssertFalse(app.buttons["Add"].exists)
     XCTAssertFalse(app.descendants(matching: .any)["capture-stack"].exists)
   }

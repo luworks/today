@@ -172,6 +172,9 @@ final class FastLaneTests: XCTestCase {
     let alarm = try XCTUnwrap(preview("Set an alarm for 7am tomorrow"))
     XCTAssertTrue(alarm.ringsAsAlarm)
     XCTAssertEqual(alarm.hour, 7)
+    let set = try XCTUnwrap(preview("设一个明天早上6点的闹钟"))
+    XCTAssertTrue(set.ringsAsAlarm)
+    XCTAssertEqual(set.title, "Alarm", "the request's own words are not a label")
     let wake = try XCTUnwrap(preview("明天早上7点叫醒我"))
     XCTAssertTrue(wake.ringsAsAlarm)
     XCTAssertEqual(wake.hour, 7)
@@ -218,5 +221,13 @@ final class FastLaneTests: XCTestCase {
     let plain = try XCTUnwrap(preview("Call the bank tomorrow at 10am"))
     XCTAssertFalse(plain.ringsAsAlarm)
     XCTAssertEqual(plain.kind, .task)
+  }
+
+  func testATidyRequestIsNeverADirectReminder() {
+    for text in ["整理逾期", "整理过期", "Tidy overdue", "清理逾期提醒", "整理3条逾期"] {
+      XCTAssertTrue(OverdueTidy.isRequest(text), text)
+      if case .directReminder = decide(text) { XCTFail(text) }
+      XCTAssertNil(FastLane.localPreview(text, items: [], now: now, calendar: calendar), text)
+    }
   }
 }

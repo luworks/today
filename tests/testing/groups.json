@@ -28,7 +28,6 @@
         "JourneyTests/testJ1_addTimedTaskFromOneLine",
         "JourneyTests/testJ3_completeAndUndo",
         "CalendarAlarmTests/testWeekLateAlarmOpensItsEditorWithoutOtherEntries",
-        "AskSuggestionTests/testPolitePlanRequestPreservesPreviewThroughOperationQuestionsUntilApply",
         "TodayReminderCompletionTests/testImportedTimelineNavigationAndCancelledEditorsStayResponsive"
       ]
     },
@@ -127,16 +126,6 @@
       "reason": "^set ACTIVITY_BENCH_ROWS$"
     },
     {
-      "test": "TodayTests/CaptureTitleQualityExportTests/testExportDevelopmentFallbackObservations",
-      "category": "export",
-      "reason": "^Set frozen TitleQuality fixture and canonical evidence output paths to export observations$"
-    },
-    {
-      "test": "TodayTests/RecurringReminderExportTests/testExportDevelopmentRecurringObservations",
-      "category": "export",
-      "reason": "^Set recurring fixture and canonical evidence directory to export actual observations$"
-    },
-    {
       "test": "EntryActionsTests/testShakeOffersUndoAfterDelete",
       "category": "hardware",
       "reason": "this Xcode cannot synthesize a shake"
@@ -163,10 +152,6 @@
           "suite": "AIAlarmContextTests",
           "path": "ios/OneUITests/AIAlarmContextTests.swift",
           "methods": [
-            {
-              "name": "testMixedRelativeAlarmPreviewContextQuestionAddAndUndo",
-              "line": 18
-            },
             {
               "name": "testFullWrongHistoryRecoversOriginalClockAfterReopenAndNewChatIsIsolated",
               "line": 41
@@ -202,10 +187,6 @@
             {
               "name": "testFridaySundaySurviveAddAndEditorSaveReopen",
               "line": 25
-            },
-            {
-              "name": "testEnglishRecurrenceFollowupAndTimeCorrectionKeepSubjectAndDays",
-              "line": 42
             }
           ]
         },
@@ -231,14 +212,6 @@
           "suite": "AIResponsePerformanceTests",
           "path": "ios/OneUITests/AIResponsePerformanceTests.swift",
           "methods": [
-            {
-              "name": "testConversationFreshLaunchN3",
-              "line": 188
-            },
-            {
-              "name": "testCaptureFollowupConfirmationFreshLaunchN3",
-              "line": 201
-            },
             {
               "name": "testPlanConfirmationFreshLaunchN3",
               "line": 230
@@ -398,24 +371,12 @@
               "line": 25
             },
             {
-              "name": "testChatThenExplicitRequestAndChatPreservesPreview",
-              "line": 41
-            },
-            {
               "name": "testExistingAlarmQuestionPreservesPendingReminder",
               "line": 59
             },
             {
               "name": "testExplicitEventAndAlarmRequestsStillShowPreviews",
               "line": 78
-            },
-            {
-              "name": "testChineseExistingActionQuestionsInFreshChatDoNotProposeItems",
-              "line": 87
-            },
-            {
-              "name": "testQuestionAndUnknownStatementDoNotCreateCards",
-              "line": 99
             }
           ]
         },
@@ -434,36 +395,6 @@
             {
               "name": "testEdit_moveTaskKeepsDeadline",
               "line": 89
-            },
-            {
-              "name": "testEdit_moveEventToTomorrow",
-              "line": 100
-            },
-            {
-              "name": "testEdit_deleteTaskAndUndo",
-              "line": 109
-            },
-            {
-              "name": "testEdit_clarifyAsksInsteadOfCard",
-              "line": 121
-            }
-          ]
-        },
-        {
-          "suite": "AskMultiCaptureTests",
-          "path": "ios/OneUITests/AskMultiCaptureTests.swift",
-          "methods": [
-            {
-              "name": "testEveryItemShowsAtOnceAndAddAllFilesThem",
-              "line": 32
-            },
-            {
-              "name": "testAddOneAndSkipAnother",
-              "line": 52
-            },
-            {
-              "name": "testUndoOneRowAndAddItAgain",
-              "line": 63
             }
           ]
         },
@@ -478,54 +409,6 @@
             {
               "name": "testFollowUpMakesItAnAlarm",
               "line": 43
-            },
-            {
-              "name": "testAskingWhichMeetingOffersRealItemsAndTapWorks",
-              "line": 51
-            },
-            {
-              "name": "testAskingWhichMeetingAcceptsTypedAnswer",
-              "line": 61
-            },
-            {
-              "name": "testMissingTimeIsAskedForThenAnswered",
-              "line": 69
-            },
-            {
-              "name": "testNewReminderInterruptsAnExistingEventsTimePrompt",
-              "line": 77
-            },
-            {
-              "name": "testEnglishQuestionTimeAnswerPreservesConversationAndRequiresApply",
-              "line": 98
-            },
-            {
-              "name": "testChineseQuestionTimeAnswerPreservesConversationAndRequiresApply",
-              "line": 102
-            },
-            {
-              "name": "testReminderQuestionPreservesTimeFollowupAndChangeUntilApply",
-              "line": 106
-            },
-            {
-              "name": "testPoliteStoryQuestionPreservesTimeFollowupAndChangeUntilApply",
-              "line": 110
-            },
-            {
-              "name": "testChineseExistingReminderQuestionPreservesTimeFollowupAndChangeUntilApply",
-              "line": 114
-            },
-            {
-              "name": "testChineseAddedReminderQuestionPreservesTimeFollowupAndChangeUntilApply",
-              "line": 118
-            },
-            {
-              "name": "testNewRequestMentioningAnItemsTimeIsACaptureNotAnEdit",
-              "line": 184
-            },
-            {
-              "name": "testItMeansWhatWeTalkedAboutLast",
-              "line": 199
             }
           ]
         },
@@ -533,14 +416,6 @@
           "suite": "AskSuggestionTests",
           "path": "ios/OneUITests/AskSuggestionTests.swift",
           "methods": [
-            {
-              "name": "testTwoOrThreeChipsAndTappingOneSendsIt",
-              "line": 27
-            },
-            {
-              "name": "testChipsDifferByTimeOfDay",
-              "line": 42
-            },
             {
               "name": "testReviewTodayAnswersWithWhatGotDone",
               "line": 53
@@ -550,16 +425,8 @@
               "line": 73
             },
             {
-              "name": "testPoliteTidyRequestRequiresApplyAndAboutQuestionPreservesIt",
-              "line": 88
-            },
-            {
               "name": "testChineseQuestionReviewUsesExistingReadOnlySummary",
               "line": 101
-            },
-            {
-              "name": "testCanonicalRemainingTodayQuestionReadsCurrentDataset",
-              "line": 113
             }
           ]
         },
@@ -1074,16 +941,6 @@
           ]
         },
         {
-          "suite": "LocalConversationResponseTests",
-          "path": "ios/OneUITests/LocalConversationResponseTests.swift",
-          "methods": [
-            {
-              "name": "testLocalReplyAndUserMessageSurviveReopeningThread",
-              "line": 5
-            }
-          ]
-        },
-        {
           "suite": "MessageCopyTests",
           "path": "ios/OneUITests/MessageCopyTests.swift",
           "methods": [
@@ -1394,24 +1251,12 @@
               "line": 330
             },
             {
-              "name": "testNewReminderListAlarmDefaultsAndAskSuggestionsAreInSettings",
-              "line": 363
-            },
-            {
               "name": "testDefaultReminderListChosenInSettingsContainsTheSavedQuickAdd",
               "line": 373
             },
             {
               "name": "testDefaultAlarmSoundChosenInSettingsSurvivesSaveAndReopen",
               "line": 403
-            },
-            {
-              "name": "testAskPageHidesItsSuggestionsWhenSwitchedOff",
-              "line": 452
-            },
-            {
-              "name": "testAskPageShowsSuggestionsByDefault",
-              "line": 459
             },
             {
               "name": "testNewAlarmStartsWithTheChosenSnoozeLength",
@@ -1792,108 +1637,6 @@
       ],
       "logic": [
         {
-          "suite": "AICaptureMappingTests",
-          "path": "ios/Eval/Tests/OneLogicTests/AICaptureMappingTests.swift",
-          "methods": [
-            {
-              "name": "testNextTuesdayFromModelDate",
-              "line": 24
-            },
-            {
-              "name": "testTomorrowAndToday",
-              "line": 34
-            },
-            {
-              "name": "testYearRollover",
-              "line": 41
-            },
-            {
-              "name": "testDateWithTimeSuffixIsAccepted",
-              "line": 46
-            },
-            {
-              "name": "testBadDatesAreDropped",
-              "line": 51
-            },
-            {
-              "name": "testPastDateIsDropped",
-              "line": 59
-            },
-            {
-              "name": "testMissingTimeKeepsDueDate",
-              "line": 66
-            },
-            {
-              "name": "testNoDayNoTime",
-              "line": 73
-            },
-            {
-              "name": "testTimeWithoutDayLaterTodayStaysToday",
-              "line": 80
-            },
-            {
-              "name": "testTimeWithoutDayAlreadyPassedMeansTomorrow",
-              "line": 88
-            },
-            {
-              "name": "testBadTimesAreDropped",
-              "line": 94
-            },
-            {
-              "name": "testDuration",
-              "line": 101
-            },
-            {
-              "name": "testRepeatNames",
-              "line": 110
-            },
-            {
-              "name": "testEveryRepeatNameIsARealRule",
-              "line": 122
-            },
-            {
-              "name": "testAllDayEventDropsTimeAndDuration",
-              "line": 130
-            },
-            {
-              "name": "testAllDayOnATaskIsIgnored",
-              "line": 140
-            },
-            {
-              "name": "testKindDefaultsToTask",
-              "line": 146
-            },
-            {
-              "name": "testEmptyTitleIsRejected",
-              "line": 151
-            },
-            {
-              "name": "testTitleIsTrimmed",
-              "line": 156
-            },
-            {
-              "name": "testRuleParserCapturesAreNotMarkedAsAI",
-              "line": 160
-            },
-            {
-              "name": "testInstructionsCarryDateZoneLocaleAndTable",
-              "line": 166
-            },
-            {
-              "name": "testInstructionsAcrossYearEnd",
-              "line": 182
-            },
-            {
-              "name": "testLabelledContentReplacesATranslatedTitle",
-              "line": 190
-            },
-            {
-              "name": "testTitleWithoutALabelIsKept",
-              "line": 197
-            }
-          ]
-        },
-        {
           "suite": "ActivityLedgerTests",
           "path": "ios/Eval/Tests/OneLogicTests/ActivityLedgerTests.swift",
           "methods": [
@@ -2260,86 +2003,6 @@
             {
               "name": "testEveningAfterSixOffersReviewAndAnAlarmForAnEarlyStart",
               "line": 70
-            },
-            {
-              "name": "testNoAlarmSuggestedWhenOneAlreadyRingsBeforeTheFirstEvent",
-              "line": 83
-            },
-            {
-              "name": "testNothingToDoGivesASensibleFallback",
-              "line": 88
-            },
-            {
-              "name": "testEmptyEveningFallbackIsAnAlarmAndAReminder",
-              "line": 98
-            },
-            {
-              "name": "testChineseChatHistoryGivesChineseText",
-              "line": 103
-            },
-            {
-              "name": "testSystemLanguageDecidesWhenThereAreNoChats",
-              "line": 117
-            },
-            {
-              "name": "testRecentlyUsedSuggestionIsNotRepeatedButAnOldOneIs",
-              "line": 124
-            },
-            {
-              "name": "testTwoOpensAtDifferentTimesOrWithDifferentDataDiffer",
-              "line": 144
-            },
-            {
-              "name": "testHabitFromPastRemindersBecomesAReminder",
-              "line": 153
-            },
-            {
-              "name": "testNextMeetingGetsAPrepareReminderAndALeaveReminder",
-              "line": 163
-            },
-            {
-              "name": "testOverlappingEventsOfferMovingTheLaterOne",
-              "line": 171
-            },
-            {
-              "name": "testRepeatingEventsAreNeverOfferedForMoving",
-              "line": 177
-            },
-            {
-              "name": "testSentenceThatWouldLandOnTheWrongDayIsDroppedNotShown",
-              "line": 182
-            },
-            {
-              "name": "testEveryCandidateSentenceRoutesToSomethingActionable",
-              "line": 211
-            },
-            {
-              "name": "testTheKindsOfSentenceReachTheRightPlace",
-              "line": 224
-            },
-            {
-              "name": "testModelCanReorderAndRephraseWhenTheRouteStaysTheSame",
-              "line": 252
-            },
-            {
-              "name": "testModelWordingThatChangesTheRouteIsReplacedByTheRuleSentence",
-              "line": 264
-            },
-            {
-              "name": "testInventedSuggestionOnlyReplacesTheLastChipWhenItRoutes",
-              "line": 274
-            },
-            {
-              "name": "testCacheIsReusedOnlyForTheSameChipsWithinAFewMinutes",
-              "line": 286
-            },
-            {
-              "name": "testLanguageDetection",
-              "line": 296
-            },
-            {
-              "name": "testFactsForThePromptAreShort",
-              "line": 303
             }
           ]
         },
@@ -2540,10 +2203,6 @@
             {
               "name": "testNothingLeftKeepsTheOriginal",
               "line": 93
-            },
-            {
-              "name": "testModelTitleWithTheInstructionStillInIt",
-              "line": 100
             }
           ]
         },
@@ -2551,14 +2210,6 @@
           "suite": "CaptureTitleCleanupTests",
           "path": "ios/Eval/Tests/OneLogicTests/CaptureTitleCleanupTests.swift",
           "methods": [
-            {
-              "name": "testInjectedSemanticGenerationChangesOnlyContentAndRetainsOriginal",
-              "line": 16
-            },
-            {
-              "name": "testSemanticUnavailableAndTimeoutUseConservativeFallback",
-              "line": 34
-            },
             {
               "name": "testOldCaptureDecodesWithoutOptionalNotes",
               "line": 58
@@ -2574,24 +2225,6 @@
             {
               "name": "testReminderCleanupPreservesConditionsNegationAndLanguage",
               "line": 95
-            },
-            {
-              "name": "testModelTitleCleanupKeepsStructuredFields",
-              "line": 110
-            },
-            {
-              "name": "testModelTitlesDoNotLoseActionContent",
-              "line": 125
-            }
-          ]
-        },
-        {
-          "suite": "CaptureTitleQualityExportTests",
-          "path": "ios/Eval/Tests/OneLogicTests/CaptureTitleQualityExportTests.swift",
-          "methods": [
-            {
-              "name": "testExportDevelopmentFallbackObservations",
-              "line": 8
             }
           ]
         },
@@ -2676,18 +2309,6 @@
               "line": 221
             },
             {
-              "name": "testCanonicalRemainingTodayQuestionUsesAgendaRoute",
-              "line": 227
-            },
-            {
-              "name": "testAnythingLeftTodayUsesReadOnlyAgendaRoute",
-              "line": 239
-            },
-            {
-              "name": "testWhatsOnTodayUsesReadOnlyAgendaRoute",
-              "line": 252
-            },
-            {
               "name": "testPoliteContentGenerationStaysConversation",
               "line": 264
             },
@@ -2722,10 +2343,6 @@
             {
               "name": "testRelativeTimeNarrativesAndQuestionsStayConversation",
               "line": 385
-            },
-            {
-              "name": "testOnlyAgendaQuestionsGetTodaySummary",
-              "line": 399
             }
           ]
         },
@@ -3006,14 +2623,6 @@
           "path": "ios/Eval/Tests/OneLogicTests/DialogueTests.swift",
           "methods": [
             {
-              "name": "testPickByOrdinal",
-              "line": 12
-            },
-            {
-              "name": "testPickByTitleWords",
-              "line": 21
-            },
-            {
               "name": "testChangeTimeOnly",
               "line": 31
             },
@@ -3056,10 +2665,6 @@
             {
               "name": "testNewTimedRequestDoesNotAnswerAnExistingItemsTimePrompt",
               "line": 104
-            },
-            {
-              "name": "testRecapIsShort",
-              "line": 113
             }
           ]
         },
@@ -3074,10 +2679,6 @@
             {
               "name": "testClarificationIsNotAnEdit",
               "line": 35
-            },
-            {
-              "name": "testClarificationIsNotAnAnswerToWhichOne",
-              "line": 40
             },
             {
               "name": "testClarificationBecomesAReminderToday3pm",
@@ -3118,10 +2719,6 @@
             {
               "name": "testQuestionsAreNeverEdits",
               "line": 126
-            },
-            {
-              "name": "testRealAnswersStillPick",
-              "line": 133
             },
             {
               "name": "testStartsNewItem",
@@ -3818,14 +3415,6 @@
             {
               "name": "testYourOwnWordsAlwaysCopy",
               "line": 5
-            },
-            {
-              "name": "testStatusSentencesAreTemplates",
-              "line": 10
-            },
-            {
-              "name": "testTodaySummaryCarriesContent",
-              "line": 21
             }
           ]
         },
@@ -4096,16 +3685,6 @@
           ]
         },
         {
-          "suite": "RecurringReminderExportTests",
-          "path": "ios/Eval/Tests/OneLogicTests/RecurringReminderExportTests.swift",
-          "methods": [
-            {
-              "name": "testExportDevelopmentRecurringObservations",
-              "line": 7
-            }
-          ]
-        },
-        {
           "suite": "RecurringReminderTests",
           "path": "ios/Eval/Tests/OneLogicTests/RecurringReminderTests.swift",
           "methods": [
@@ -4140,10 +3719,6 @@
             {
               "name": "testOneOffWeekendDoesNotGainRecurrence",
               "line": 142
-            },
-            {
-              "name": "testModelMappingRetainsAllExplicitDaysAndRejectsMalformedSets",
-              "line": 148
             }
           ]
         },

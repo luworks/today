@@ -36,10 +36,6 @@ The four images in [`design-refs/due-quick-add-20261030`](design-refs/due-quick-
 | [`week-alarm-afternoon.json`](week-alarm-afternoon.json) | `CalendarAlarmTests.testWeekLateAlarmOpensItsEditorWithoutOtherEntries`. Minimal issue #53 reproduction: one Take medicine alarm at 13:00, no events/reminders/chats; clock pinned to 09:00 and alarms on. Distinguishes late-grid touch delivery from event density or task gestures. |
 | [`repeating-reminder-daily-home.json`](repeating-reminder-daily-home.json) | `RepeatingReminderTests.setUp()` for `testCompletingARepeatingReminderMovesItToItsNextDay` and `testUndoBringsBackTheSameRowAtTheSameTime`. Replaces its temporary JSON generator: Home list (color 1), daily `Clean the drain filter`, due today at 07:00. Clock pinned to 09:41. |
 
-## Hosted model comparison
-
-`ai/luna-effort-20261029.json` freezes 16 capture and 8 edit cases sampled evenly from the historical r4 suites before calling GPT-6 Luna. `ios/Eval/open/eval_luna_effort.py` runs two repetitions at each of low, medium, high and xhigh. These are synthetic development cases, not a blind holdout or app UI coverage. Raw responses, usage and timings stay in the primary checkout QA results directory.
-
 ## Dates, defaults and isolation
 
 Dates are relative: `day: 0` means the local start of the day the fixture loads,
@@ -112,31 +108,6 @@ For a committed-state accessibility probe also pass `-uiTestingShareInbox`,
 `-uiTestingShareID <fresh UUID>` and `-uiTestingShareProbeTitle 'Upgrade baseline 20261018'`;
 expect `acknowledged;tasks=1;receipts=0;pending=0`. Do not reseed the reminder.
 The fixture is intentionally frozen; future schema changes should keep opening it.
-
-## Bilingual semantic title and conversation evaluation
-
-- [`ai-title-rewrite-cases.json`](ai-title-rewrite-cases.json): 38 authored cases,
-  46 turns, 25 development / 13 reserved validation (not blind). Consumed by the
-  offline [`TitleQuality/score.py`](../../ios/Eval/TitleQuality/score.py); this is
-  an evaluation resource, not an app `TestDataset` JSON. Frozen clock, thread
-  transitions, route/type/time, semantic facts, note retention and Add/Apply
-  expectations are explained in the [rubric/interface](../../ios/Eval/TitleQuality/README.md).
-- [`ai-title-rewrite-observed.json`](ai-title-rewrite-observed.json): sparse
-  historical owner-screenshot transcription and attributed review. Unknown notes,
-  gates and model path are intentionally omitted, not marked passing. The raw
-  screenshot and scorer logs stay in canonical `tests/results/`, indexed by QA
-  journal session `ai-title-quality-20261018`. This fixture is evidence for the
-  scorer and baseline only, not a fresh app/model execution.
-- `AskCardStaysTests` keeps three short capture title journeys inline: the owner's
-  exact Chinese sleep request, a pending reminder title draft, and an Added alarm
-  title Save/Cancel/reopen/creation-Undo journey. These inputs require no external
-  dataset beyond the existing `today-dataset.json` used by the suite.
-
-- `CaptureTitleQualityExportTests` consumes the frozen PR #67 fixture selected by
-  `AI_TITLE_EVAL_FIXTURES`, exports actual parser/offline-refinement content to
-  `AI_TITLE_EVAL_OUTPUT`, and uses only development watch/sleep/peanut cases.
-  It does not feed expected answers to the implementation. UI gates and persisted
-  writes remain unobserved; reserved cases and Foundation Models stay unmeasured.
 
 ## AI context journeys
 
@@ -213,10 +184,6 @@ Event-save supplemental EventKit metadata is seeded by the versioned DEBUG hooks
   assistant histories, explicit clarification/proceed recovery, acknowledgments,
   ordinary/quoted/reported and unrelated-subject negatives. `ReminderRecoveryTests`
   executes production routing/context/parser and checks a ready date-only Capture.
-- `ai-reminder-recovery-ui.json`: empty planner plus three text-only chats containing
-  mistaken assistant asides. `AIReminderRecoveryTests` checks actual Add cards,
-  exact date/title, no change-ledger writes before Add, persisted editor and Undo.
-  Simulator fallback is exercised; no Foundation Models outputs are injected.
 
 ## Relative alarm and chat visibility (IMG6815)
 
@@ -290,25 +257,3 @@ new-day task/meeting and overdue reminder for
 `TodayFocusTests.testCrossDayReleaseUsesOriginalDatesWithoutReturnHistory`.
 The test pins local dates using ISO `-uiTestingNow`, which also supplies the Mock
 dataset load clock, then relaunches its isolated persistent store on the next day.
-
-## AI chat capability assessment
-
-[`ai-chat-capability-eval.json`](ai-chat-capability-eval.json) defines 24
-synthetic bilingual manual Live-app scenarios, with explicit expected outcomes
-and a simulator-only setup. [`ai-chat-capability-protocol.md`](../../docs/qa/ai-chat-capability-protocol.md)
-defines evidence, attribution and scoring; this authored set is development data,
-not a blind holdout or a claim of model execution. The Decisions spike uses its
-separate frozen labels in [`ai/decisions-spike-labels.json`](ai/decisions-spike-labels.json)
-and the consumer `scripts/ai/decisions_eval.py`.
-
-Today button color tests keep small opaque RGB inputs inline in
-`ios/Eval/Tests/OneLogicTests/TodayButtonColorTests.swift`; the simulator journey
-`ios/OneUITests/TodayIdentityTests.swift` uses the built-in Blue preset and native
-custom picker, without personal calendar data.
-
-AI calendar creation retry fixtures are inline in `ios/TodayIntegrationTests/PlannerSessionTests.swift` (`aiCalendarAddFailureRetryRecoveryAndExactUndo`): synthetic Coffee event, chosen writable calendar, injected remote/local save failures and deletion outcomes. They contain no owner calendar data.
-
-Calendar 2 Day DST coordinate cases are small inline ISO-8601 inputs in
-`ios/Eval/Tests/OneLogicTests/CalendarDayAxisTests.swift`: Los Angeles rollback,
-spring forward, ordinary days, repeated-hour spans and cross-midnight clipping.
-They contain no personal planner data.

@@ -119,7 +119,6 @@
     let runtime: PlannerRuntime
     let services: PlannerTestServices
     let presentation: PlannerPresentation
-    let memory = AskSuggestionMemory()
     let probe = AskEvalProbe()
     /// World key → store identity (`AskEvalProbe.key`), and back.
     var keys: [String: String] = [:]
@@ -210,19 +209,12 @@
 
     func open() async throws {
       AskEvalProbe.current = probe
-      let live = AskIntelligence.live(locale: runtime.locale)
-      // Suggestion chips are not under test: rules only, so they spend no model calls.
-      let intelligence = AskIntelligence(
-        backend: live.backend, parse: live.parse, propose: live.propose,
-        refineTitle: live.refineTitle, respond: live.respond, plan: live.plan,
-        rank: { _, _, _, _ in nil }, prewarm: {}, isAvailable: live.isAvailable,
-        unavailableReason: live.unavailableReason)
       let view = AskView(
         thread: nil, calendar: services.calendar, now: runtime.now,
         actions: services.actions, ledger: services.ledger, activity: services.activity,
-        intelligence: intelligence, agentModel: model,
+        agentModel: model,
         voice: VoiceInput(driver: LiveSpeechInputDriver(locale: runtime.locale)),
-        presentation: presentation, travel: services.travel, suggestionMemory: memory,
+        presentation: presentation,
         onBack: { _ in }, onAdded: { _ in }, onOpenDay: { _ in },
         onOpenTask: { _, _ in }, onOpenAlarm: { _, _ in }
       )
@@ -248,7 +240,6 @@
       window = nil
       previous?.makeKey()
       AskEvalProbe.current = nil
-      memory.dispose()
       services.dispose()
       defaults.removePersistentDomain(forName: suite)
     }

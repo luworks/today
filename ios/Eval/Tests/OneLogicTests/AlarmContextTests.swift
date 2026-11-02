@@ -71,10 +71,6 @@ final class AlarmContextTests: XCTestCase {
     XCTAssertEqual(recovered.title, "烘干衣服")
     XCTAssertEqual(recovered.hour, 16)
     XCTAssertEqual(recovered.minute, 25)
-    let reply = try XCTUnwrap(ChatRouting.contextReply("... 你可以看到我上面的 context 吗", context: context))
-    XCTAssertTrue(reply.contains(original.text))
-    XCTAssertTrue(reply.contains("最近历史的精简内容"))
-    XCTAssertTrue(reply.contains("不会添加"))
   }
 
   func testRelativeMidnightAndDSTUseElapsedMinutesFromOriginalTurn() throws {
@@ -118,11 +114,6 @@ final class AlarmContextTests: XCTestCase {
     ] {
       XCTAssertNotEqual(ChatRouting.intent(text), .capture, text)
     }
-    XCTAssertNil(ChatRouting.contextReply("Hello", context: ConversationContext([])))
-    XCTAssertFalse(
-      try XCTUnwrap(
-        ChatRouting.contextReply("Can you see the above context?", context: ConversationContext([]))
-      ).contains("烘干衣服"))
   }
 
   func testVersionedFullThreeTurnBilingualEvaluation() throws {
@@ -149,7 +140,6 @@ final class AlarmContextTests: XCTestCase {
         let old = preview
         if step.route == "conversation" {
           XCTAssertEqual(ChatRouting.intent(step.user), .conversation)
-          XCTAssertNotNil(ChatRouting.contextReply(step.user, context: context))
           XCTAssertNil(
             CaptureConversation.resolve(
               step.user, context: context, pending: preview, now: at, calendar: cal))

@@ -123,7 +123,7 @@ Round 21 count: 6 demonstrated (1, 2, 3, 5, 8, 9), 1 partly (4), 3 built (6, 7, 
 9. Suggests a plan for the day (preview, user applies)
 10. Voice input
 
-NL-capture eval accuracy (train / test) is tracked separately in the log. Since round 20 the AI page uses the on-device Apple Intelligence model when available (the rule parser decides day, time and title; the model decides task / event / alarm), proposes several items from one line, keeps multi-turn context, and edits existing items through a change card (`AskEditTests`, `AskMultiCaptureTests`, `AskMultiTurnTests`). Held-out results: `ios/Eval/Understanding/RESULTS.md`; design: `docs/apple-intelligence.md`.
+Since P4 (2026-11-01) the AI page is the on-phone agent (`docs/engineering/ai-agent-architecture.md`): `FastLane` rules first (local, offline), then the agent with typed tools; every write is a card the user confirms. Its evaluation is the P3 blind set (§4.3 targets), not the retired NL-capture rounds.
 
 ### 6. Visual design (benchmark: Notion, Linear) — judged on screenshots
 1. One accent color; everything else semantic system colors

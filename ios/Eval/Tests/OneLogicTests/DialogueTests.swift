@@ -50,25 +50,6 @@ final class DialogueTests: XCTestCase {
     XCTAssertEqual(bare.day, tomorrow)
   }
 
-  // MARK: pick
-
-  func testPickByOrdinal() {
-    let t = ["Product sync", "Design review", "Lunch with Priya"]
-    XCTAssertEqual(Dialogue.pick("the first one", from: t), 0)
-    XCTAssertEqual(Dialogue.pick("第二个", from: t), 1)
-    XCTAssertEqual(Dialogue.pick("3", from: t), 2)
-    XCTAssertEqual(Dialogue.pick("the last one", from: t), 2)
-    XCTAssertEqual(Dialogue.pick("最后一个", from: t), 2)
-  }
-
-  func testPickByTitleWords() {
-    let t = ["Product sync", "Design review", "Lunch with Priya"]
-    XCTAssertEqual(Dialogue.pick("the design one", from: t), 1)
-    XCTAssertEqual(Dialogue.pick("lunch", from: t), 2)
-    XCTAssertNil(Dialogue.pick("something else entirely", from: t), "no match: it is a new message")
-    XCTAssertNil(Dialogue.pick("sync review", from: t), "two matches: ask again")
-  }
-
   // MARK: refine
 
   func testChangeTimeOnly() {
@@ -176,10 +157,4 @@ final class DialogueTests: XCTestCase {
     }
   }
 
-  func testRecapIsShort() {
-    let lines = (0..<10).map { (isUser: $0 % 2 == 0, text: String(repeating: "x", count: 300)) }
-    let recap = Dialogue.recap(lines)
-    XCTAssertEqual(recap.split(separator: "\n").count, 4)
-    XCTAssertLessThan(recap.count, 600)
-  }
 }

@@ -125,10 +125,10 @@ final class ActivityRecorderTests: XCTestCase {
   func testRecorderWritesIntoARealStore() async throws {
     let store = try ActivityStore(location: .memory)
     let r = recorder(store)
-    r.record(ActivityEvents.chipTapped(id: "overdue", rank: 0, source: "rules", at: now))
+    r.record(ActivityEvents.aiUndo(card: "capture", thread: nil, at: now))
     r.flush()
     let page = try store.page(ActivityQuery(tiers: [.ai]))
-    XCTAssertEqual(page.map(\.kind), ["ai.chip.tapped"])
+    XCTAssertEqual(page.map(\.kind), [ActivityKind.aiUndo])
     XCTAssertEqual(
       page.first?.device, store.deviceID, "the store fills in this install's device id")
   }
@@ -272,11 +272,13 @@ final class ActivityRecorderTests: XCTestCase {
   func testKindsMapToTiers() async {
     XCTAssertEqual(ActivityKind.tier(of: "change.moved"), .changes)
     XCTAssertEqual(ActivityKind.tier(of: "grant.granted"), .changes)
-    XCTAssertEqual(ActivityKind.tier(of: "ai.chip.tapped"), .ai)
+    XCTAssertEqual(ActivityKind.tier(of: "ai.card.shown"), .ai)
     XCTAssertEqual(ActivityKind.tier(of: "ui.screen.open"), .usage)
     XCTAssertEqual(ActivityKind.tier(of: "sys.error"), .system)
     XCTAssertEqual(
-      ActivityEvents.chipsShown(ids: ["a", "b"], source: "rules", hour: 9, at: now).tier, 2)
+      ActivityEvents.cardShown(card: "capture", items: 1, latencyMs: nil, thread: nil, at: now)
+        .tier,
+      2)
     XCTAssertEqual(ActivityEvents.shareImport(count: 2, at: now).tier, 4)
     XCTAssertEqual(ActivityEvents.error(source: "sync", code: "E1", at: now).actor, "system")
   }

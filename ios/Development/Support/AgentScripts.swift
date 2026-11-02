@@ -19,15 +19,22 @@
       // A plain answer, no cards.
       case "reply":
         return [ScriptedModelClient.reply("This is a scripted answer. Nothing was changed.")]
+      // The same, 12 seconds late: what the chat does while an answer is still coming.
+      case "slow-reply":
+        return [
+          ScriptedModelClient.reply(
+            "This is a slow scripted answer. Nothing was changed.", delay: .seconds(12))
+        ]
       // Signed in, but the request fails: the rules take over.
       case "offline":
         return [.fail(.network), .fail(.network), .fail(.network)]
-      // "Move the dentist to 5pm" on the sample data: look it up, then one change card.
+      // "Move Dentist to 5pm" on the sample data: look it up, then one change card. Dentist is an
+      // event there, so find_items names it e1.
       case "move-dentist":
         return [
           ScriptedModelClient.calls([Call("find_items", ["query": "Dentist"], id: "c1")]),
           ScriptedModelClient.calls([
-            Call("propose_edit", ["id": "t1", "when_text": "5pm"], id: "c2")
+            Call("propose_edit", ["id": "e1", "when_text": "5pm"], id: "c2")
           ]),
           ScriptedModelClient.reply("Here's the change. Nothing changes until you apply it."),
         ]

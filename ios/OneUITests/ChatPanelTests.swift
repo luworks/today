@@ -48,8 +48,9 @@ final class ChatPanelTests: XCTestCase {
     XCTAssertTrue(field.waitForExistence(timeout: 5))
     field.typeText("Hello\n")
     XCTAssertTrue(app.staticTexts["Hello"].waitForExistence(timeout: 5))
+    // Not signed in to Luna AI (TodayMock): a greeting gets the "sign in" answer and its draft back.
     let reply = app.staticTexts.containing(
-      NSPredicate(format: "label CONTAINS %@", "What's on your mind?")
+      NSPredicate(format: "label BEGINSWITH %@", "Sign in to Luna AI")
     )
     .firstMatch
     XCTAssertTrue(reply.waitForExistence(timeout: 8))

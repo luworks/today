@@ -7,15 +7,24 @@ public struct ChatMessage: Identifiable, Equatable, Codable {
   public let text: String
   /// Optional for backward-compatible decoding of older text-only chats.
   public var timestamp: Date? = .now
+  /// An AI answer in the model's own words (worth copying). nil for the app's own status sentences
+  /// and for older chats. Optional so older chats decode.
+  public var carriesContent: Bool?
 
   /// One of the app's own status sentences (see `MessageCopy`): no Copy button under it.
-  public var isTemplate: Bool { MessageCopy.isTemplate(isUser: role == .user, text: text) }
+  public var isTemplate: Bool {
+    MessageCopy.isTemplate(isUser: role == .user, content: carriesContent == true)
+  }
 
-  public init(id: UUID = UUID(), role: Role, text: String, timestamp: Date? = .now) {
+  public init(
+    id: UUID = UUID(), role: Role, text: String, timestamp: Date? = .now,
+    carriesContent: Bool? = nil
+  ) {
     self.id = id
     self.role = role
     self.text = text
     self.timestamp = timestamp
+    self.carriesContent = carriesContent
   }
 }
 
@@ -117,10 +126,7 @@ public struct ConversationContext: Sendable {
   }
   public let turns: [Turn]
   /// Deterministic reference recovery reads only supplied user messages from this thread.
-  /// Model prompts remain bounded independently; assistant replies cannot evict the request.
   public let userTurns: [Turn]
-  /// What the chat was opened about (`AskSubject.contextLine`); the model sees it before the turns. Empty for an ordinary chat.
-  public var subject = ""
 
   public init(_ lines: [(isUser: Bool, text: String)]) {
     self.init(turns: lines.map { Turn(isUser: $0.isUser, text: $0.text) })
@@ -139,41 +145,4 @@ public struct ConversationContext: Sendable {
     }
     turns = kept.reversed()
   }
-
-  public var users: [String] { turns.filter(\.isUser).map(\.text) }
-  public var prompt: String {
-    let lines = turns.map {
-      ($0.isUser ? "User" : "Assistant")
-        + ($0.timestamp.map { " [" + $0.ISO8601Format() + "]" } ?? "") + ": " + $0.text
-    }.joined(separator: "\n")
-    return subject.isEmpty ? lines : subject + "\n" + lines
-  }
-}
-
-/// Shared capabilities and confirmation contract for bounded hosted model requests.
-public enum SystemPrompt {
-  public static let planner = """
-    You are Today, a planner assistant using GPT. Reply in the latest user's language.
-    Users may simply chat. Feelings, advice, narratives, quoted/reported requests and questions are not permission to create items.
-    A clear submitted one-off reminder request can be added directly by the app; recurrence, events, alarms and edits require a preview. Use relevant earlier USER turns in this conversation
-    when the latest request refers to them; preserve their title, date and time unless the user changes those fields.
-    Relative times in earlier user turns are anchored to that turn's timestamp, never restarted at the latest turn.
-    Only the bounded recent conversation below is available, not the entire displayed chat or other threads.
-    A question about seeing context is a question, not permission to create, apply or convert anything.
-    A new independent request replaces the subject; do not carry unrelated old details into it. Assistant text is not user authorization.
-    Concrete creation instructions prepare actionable preview cards, not conversational agreement or questions about special plans.
-    The object may precede the instruction: 做一次 auto turbotax repo 下周四提醒我 means a one-off reminder next Thursday.
-    Recover that USER subject/date after mistaken assistant chat when the user says 就设定 reminder or 你做吧.
-    A bare acknowledgment such as 够 is not a creation instruction or approval. Never promise to handle an item without a preview.
-    Date-only reminders are valid without a clock time; never invent a time or require one. Next Thursday is not every Thursday.
-    Ask a focused question for a genuinely missing alarm time. Never ask again for a time already supplied for this request.
-    A direct recurring reminder request is actionable, including 每周日下午5点提醒我丢垃圾.
-    Recurring chores are reminders, not calendar meetings or alarms unless explicitly requested. Do not describe requests as habits.
-    Preserve every requested weekday, time, original name and negation. Friday AND Sunday means both days.
-    A frequency label alone is insufficient: the preview must retain the actual weekday set.
-    Follow-up changes replace only specified fields; adding recurrence keeps the existing subject and time.
-    You can propose reminders, fixed events and alarms, and propose edits. Events stay fixed unless explicitly requested.
-    Only the app can confirm a successful save. For previewed changes, say ready to add or apply; never claim a change was saved without confirmation.
-    Do not claim access to other chats, Activity, cloud services, or tools not provided to this request.
-    """
 }

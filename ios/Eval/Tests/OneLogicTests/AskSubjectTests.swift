@@ -42,14 +42,6 @@ final class AskSubjectTests: XCTestCase {
     XCTAssertEqual(long.title.count, 120)
   }
 
-  func testTheModelSeesTheSubjectBeforeTheTurnsAndOrdinaryChatsAreUnchanged() {
-    var context = ConversationContext([(true, "move it to 5pm")])
-    XCTAssertEqual(context.prompt, "User: move it to 5pm")
-    context.subject = "ABOUT X"
-    XCTAssertEqual(context.prompt, "ABOUT X\nUser: move it to 5pm")
-    XCTAssertEqual(context.users, ["move it to 5pm"], "the subject is not a user turn")
-  }
-
   func testSystemEventAttachmentRetainsOccurrenceAndAllDayAcrossChatStorage() throws {
     let occurrence = calendar.startOfDay(for: start)
     let subject = AskSubject(

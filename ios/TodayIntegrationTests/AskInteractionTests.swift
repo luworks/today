@@ -60,71 +60,6 @@
         "ASK_INPUT pasteAndSyntheticMarkedText tasks=\(try fixture.container.mainContext.fetchCount(FetchDescriptor<OneTask>())) draft=\(fixture.inputText.count)"
       )
     }
-
-    @Test
-    func suggestionRenderingDoesNotReadCalendarUntilLifecycleRefresh() async throws {
-      let fixture = try AskFixture()
-      defer { fixture.dispose() }
-      var reads = 0
-      var stores = 0
-      var eventTitle = "Fixture review meeting"
-      fixture.defaults.set(true, forKey: "one.calendarSync.enabled")
-      let source = CalendarSync(
-        defaults: fixture.defaults, runtime: fixture.runtime, arguments: [],
-        makeStore: {
-          stores += 1
-          return EKEventStore()
-        },
-        readEvents: { interval in
-          reads += 1
-          let start = fixture.runtime.now().addingTimeInterval(3600)
-          guard interval.contains(start) else { return [] }
-          return [
-            ExternalEvent(
-              id: "ask-occurrence", eventIdentifier: "ask-event",
-              title: eventTitle, start: start, end: start.addingTimeInterval(1800),
-              isAllDay: false, calendarID: "ask-calendar", calendarTitle: "Fixture", color: .blue)
-          ]
-        }, authorizationStatus: { .fullAccess })
-      defer { source.dispose() }
-      let list = AskSuggestionList(
-        calendar: source, now: fixture.runtime.now,
-        presentation: fixture.presentation, travel: fixture.services.travel,
-        activity: fixture.services.activity, intelligence: fixture.intelligence,
-        memory: fixture.memory, onSend: { _ in }
-      )
-      // Evaluate the body itself. ImageRenderer also runs lifecycle tasks, so its total reads
-      // cannot distinguish a render-time read from an explicitly scheduled lifecycle read.
-      _ = list.body
-      print("ASK_SUGGESTIONS body rangeReads=\(reads)")
-      #expect(reads == 0, "Evaluating body must not query Calendar")
-      let host = UIHostingController(rootView: list.modelContainer(fixture.container))
-      host.loadViewIfNeeded()
-      host.view.frame = CGRect(x: 0, y: 0, width: 393, height: 852)
-      host.view.layoutIfNeeded()
-      try fixture.show(host)
-      try await Task.sleep(for: .milliseconds(200))
-      #expect(reads > 0, "The lifecycle must still prepare suggestions")
-      #expect(try await fixture.waitForLabel(eventTitle))
-      let initial = reads
-      #expect(initial == 2, "One accepted snapshot reads today and tomorrow once each")
-      host.view.setNeedsLayout()
-      host.view.layoutIfNeeded()
-      try await Task.sleep(for: .milliseconds(100))
-      #expect(reads == initial)
-      eventTitle = "Refreshed review meeting"
-      source.refresh()
-      try await Task.sleep(for: .milliseconds(200))
-      #expect(reads == initial + 2, "Calendar version changes must refresh each day exactly once")
-      #expect(try await fixture.waitForLabel(eventTitle))
-      let refreshed = reads
-      await source.setEnabled(false)
-      try await Task.sleep(for: .milliseconds(100))
-      #expect(reads == refreshed, "Disabling Calendar must not read its retired source")
-      #expect(try await fixture.waitForLabel(eventTitle, present: false))
-      #expect(stores == 0, "The injected scalar source must never open EventKit")
-      print("ASK_SUGGESTIONS lifecycle=\(initial) refreshed=\(refreshed) disabled=\(reads)")
-    }
   }
 
   @MainActor
@@ -137,22 +72,9 @@
       calendar: Calendar(identifier: .gregorian), locale: Locale(identifier: "en_US"))
     let services: PlannerTestServices
     let presentation: PlannerPresentation
-    let memory = AskSuggestionMemory()
     var window: UIWindow?
     var previous: UIWindow?
     var host: UIViewController?
-    var intelligence: AskIntelligence {
-      AskIntelligence(
-        backend: { .scripted },
-        parse: { text, _, now, calendar in CaptureParser.parse(text, now: now, calendar: calendar)
-        },
-        propose: { _, _, _, _ in nil }, refineTitle: { capture, _, _ in capture },
-        respond: { _, _, _ in
-          return .reply("Delayed fixture reply")
-        }, plan: { _, _, _, _, _ in EditPlan(op: .none, target: nil) },
-        rank: { _, _, _, _ in nil }, prewarm: {}, isAvailable: { true },
-        unavailableReason: { _ in nil })
-    }
     init() throws {
       defaults = try #require(UserDefaults(suiteName: suite))
       let schema = Schema([
@@ -170,9 +92,11 @@
       let view = AskView(
         thread: thread, calendar: services.calendar, now: runtime.now,
         actions: services.actions, ledger: services.ledger, activity: services.activity,
-        intelligence: intelligence, agentModel: .unavailable,
+        agentModel: .scripted([
+          ScriptedModelClient.reply("Delayed fixture reply", delay: .seconds(2))
+        ]),
         voice: VoiceInput(driver: LiveSpeechInputDriver(locale: runtime.locale)),
-        presentation: presentation, travel: services.travel, suggestionMemory: memory,
+        presentation: presentation,
         onBack: { _ in }, onAdded: { _ in }, onOpenDay: { _ in },
         onOpenTask: { _, _ in }, onOpenAlarm: { _, _ in }
       )
@@ -237,7 +161,6 @@
       window?.rootViewController = nil
       host = nil
       previous?.makeKey()
-      memory.dispose()
       services.dispose()
       defaults.removePersistentDomain(forName: suite)
     }

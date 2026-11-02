@@ -18,7 +18,6 @@ build/
 
 # local model eval: generated outputs and downloaded weights
 *.gguf
-ios/Eval/open/results/
 
 # Persistent QA database and raw evidence; fixtures and tools stay versioned.
 tests/results/

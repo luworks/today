@@ -2,9 +2,9 @@
 
 Read the [PosterBoard recovery and evidence impact](../../docs/performance/posterboard-recovery-20261018.md) before running any simulator command. The original Today-Performance device is quarantined; use the explicit selection in `simulator_policy.py`. This is a new device context, with boot-only evidence and no Today acceptance yet.
 
-Read [protocol v2](../../docs/performance/pages-ai-protocol-v2.md),
-[complete source inventory](../../docs/performance/page-coverage-v2.md) and
-[AI stage audit](../../docs/performance/ai-response-baseline-v2.md).
+Read [protocol v2](../../docs/performance/pages-ai-protocol-v2.md) and
+[complete source inventory](../../docs/performance/page-coverage-v2.md). The old AI
+response-stage audit was removed with the old AI pipeline (P4, 2026-11-01).
 
 Production source is frozen `b1fc12b`; measurement revision for the first batch is
 `83b4fb8`. Historical package/performance experiments are on separate branches.

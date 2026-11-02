@@ -679,9 +679,9 @@ final class CRUDTests: XCTestCase {
       app.staticTexts["Anything left today?"].waitForExistence(timeout: 5),
       "the message is in the chat")
     XCTAssertTrue(
-      app.staticTexts.containing(NSPredicate(format: "label BEGINSWITH 'Today:'")).firstMatch
-        .waitForExistence(timeout: 5),
-      "the AI answers")
+      app.staticTexts.containing(NSPredicate(format: "label BEGINSWITH 'Sign in to Luna AI'"))
+        .firstMatch.waitForExistence(timeout: 5),
+      "the AI answers (not signed in to Luna AI)")
     app.buttons["Close"].tap()
 
     openSidebar()

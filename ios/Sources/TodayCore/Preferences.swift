@@ -19,13 +19,12 @@ public enum Preferences {
   public static let newReminderListKey = "today.setting.newReminderList"
   public static let newAlarmSnoozeKey = "today.setting.newAlarmSnooze"
   public static let newAlarmSoundKey = "today.setting.newAlarmSound"
-  public static let askSuggestionsKey = "today.setting.askSuggestions"
   public static let weatherSummaryKey = "today.setting.weatherSummary"
 
   static let allKeys = [
     compressEmptyHoursKey, dimPastDaysKey, firstWeekdayKey, weekNumbersKey, calendarStartKey,
     showFreeTimeKey, newReminderListKey, newAlarmSnoozeKey, newAlarmSoundKey,
-    askSuggestionsKey, weatherSummaryKey,
+    weatherSummaryKey,
   ]
 
   // MARK: Defaults (the behaviour before these choices existed)
@@ -41,7 +40,6 @@ public enum Preferences {
   public static let newAlarmSnooze = AlarmPlan.defaultSnoozeMinutes
   /// "" = the system alarm sound.
   public static let newAlarmSound = ""
-  public static let askSuggestions = true
   public static let weatherSummary = false
 
   // MARK: Choices

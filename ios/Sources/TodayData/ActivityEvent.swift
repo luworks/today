@@ -49,8 +49,6 @@ public enum ActivityKind {
   public static let aiTurn = "ai.turn"
   public static let aiCardShown = "ai.card.shown"
   public static let aiCardResolved = "ai.card.resolved"
-  public static let aiChipsShown = "ai.chips.shown"
-  public static let aiChipTapped = "ai.chip.tapped"
   public static let aiUndo = "ai.undo"
   // Tier 3
   public static let uiScreenOpen = "ui.screen.open"

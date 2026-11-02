@@ -13,7 +13,7 @@
     var body: some View {
       Form {
         Section {
-          Text("GPT-6 Luna · Medium")
+          Text("GPT-6 Luna")
           Text(
             "AI requests send your message and limited relevant chat or planner context to Today AI and OpenAI. Your full calendar, reminders and Health databases stay on your iPhone."
           )
@@ -26,7 +26,7 @@
             LabeledContent("Signed in as", value: name)
             Toggle("Use cloud AI", isOn: $account.enabled)
             if let used = account.used, let limit = account.dailyLimit {
-              LabeledContent("Daily AI calls (UTC)", value: "\(used) / \(limit)")
+              LabeledContent("AI requests today (UTC)", value: "\(used) / \(limit)")
             }
             Button("Sign out") { Task { await account.signOut() } }
               .disabled(account.busy)

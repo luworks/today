@@ -21,10 +21,8 @@ public struct Capture: Equatable, Codable, Sendable {
   public var ringsAsAlarm: Bool = false {
     didSet { if ringsAsAlarm, !oldValue { title = CaptureParser.alarmLabel(title) } }
   }
-  /// A whole-day event (no start time). Only the Apple Intelligence path sets it today.
+  /// A whole-day event (no start time).
   public var isAllDay: Bool = false
-  /// True when the on-device model (Apple Intelligence) produced this proposal; shown as a small label on the card.
-  public var fromAppleIntelligence: Bool = false
   /// The Reminders list a task goes to (`OneTask.listName`). nil = the app's default; the AI screen fills in the Inbox
   /// or a confident `ListGuess`, and the user can change it on the card.
   public var listName: String? = nil
@@ -145,7 +143,7 @@ public struct Capture: Equatable, Codable, Sendable {
   public init(
     title: String, day: Date, hasDay: Bool, hour: Int? = nil, minute: Int = 0,
     repeatRule: String? = nil, durationMinutes: Int? = nil, kind: Kind = .task,
-    ringsAsAlarm: Bool = false, isAllDay: Bool = false, fromAppleIntelligence: Bool = false,
+    ringsAsAlarm: Bool = false, isAllDay: Bool = false,
     listName: String? = nil, isWorkBlock: Bool = false, notes: String? = nil
   ) {
     self.title = title
@@ -158,7 +156,6 @@ public struct Capture: Equatable, Codable, Sendable {
     self.kind = kind
     self.ringsAsAlarm = ringsAsAlarm
     self.isAllDay = isAllDay
-    self.fromAppleIntelligence = fromAppleIntelligence
     self.listName = listName
     self.isWorkBlock = isWorkBlock
     self.notes = notes
@@ -1094,6 +1091,13 @@ public enum CaptureParser {
     }
     t = t.replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
       .trimmingCharacters(in: CharacterSet(charactersIn: " ,，.。:：-"))
+    // Only the request's own words are left ("设一个明天早上6点的闹钟" → "设一个 的"): no label.
+    if t.range(
+      of: #"^(?:帮我)?(?:设(?:置)?|定|订|加)?\s*(?:一?个)?\s*的?$"#, options: .regularExpression)
+      != nil
+    {
+      return "Alarm"
+    }
     guard let first = t.first else { return "Alarm" }
     return first.uppercased() + t.dropFirst()
   }
@@ -1185,237 +1189,7 @@ public enum CaptureParser {
   }
 }
 
-// MARK: - Apple Intelligence mapping (pure Foundation, no FoundationModels)
-
-/// One item as the on-device model proposes it. Mirrors the `@Generable` struct in AICapture.swift,
-/// but with plain strings so the mapping below can be unit tested without the model.
-public struct CaptureDraft: Equatable {
-  /// "task" or "event".
-  public var kind: String
-  public var title: String
-  /// "yyyy-MM-dd", or nil when the line names no day.
-  public var date: String? = nil
-  /// 24-hour "HH:mm", or nil when the line names no time.
-  public var time: String? = nil
-  public var durationMinutes: Int? = nil
-  /// "daily", "weekdays", "weekly", "monthly", "yearly"; nil or "none" = one-off.
-  public var repeatRule: String? = nil
-  public var isAllDay: Bool = false
-  /// Explicit Calendar weekdays (Sunday = 1); empty/nil keeps the legacy repeat name.
-  public var repeatWeekdays: [Int]? = nil
-
-  public init(
-    kind: String, title: String, date: String? = nil, time: String? = nil,
-    durationMinutes: Int? = nil, repeatRule: String? = nil, isAllDay: Bool = false,
-    repeatWeekdays: [Int]? = nil
-  ) {
-    self.kind = kind
-    self.title = title
-    self.date = date
-    self.time = time
-    self.durationMinutes = durationMinutes
-    self.repeatRule = repeatRule
-    self.isAllDay = isAllDay
-    self.repeatWeekdays = repeatWeekdays
-  }
-}
-
-public enum CaptureDraftMapper {
-  /// Turns model output into the `Capture` shown on the preview card. Returns nil when the draft is unusable
-  /// (empty title), so the caller can fall back to the rule parser. Never trusts the model: bad dates, times,
-  /// durations and repeat names are dropped instead of guessed.
-  public static func capture(
-    from draft: CaptureDraft, now: Date = .now, calendar: Calendar = .current
-  ) -> Capture? {
-    // The model sometimes keeps the instruction ("增加一个 reminder 吧：…"); the title is what comes after it.
-    let title = CaptureParser.cleanRequestTitle(draft.title)
-    guard !title.isEmpty else { return nil }
-
-    let today = calendar.startOfDay(for: now)
-    let kind: Capture.Kind = draft.kind.lowercased() == "event" ? .event : .task
-    let allDay = kind == .event && draft.isAllDay
-
-    // A date in the past is far more likely a model slip than something the user meant.
-    var day = today
-    var hasDay = false
-    if let parsed = parseDay(draft.date, calendar: calendar), parsed >= today {
-      day = parsed
-      hasDay = true
-    }
-
-    var hour: Int?
-    var minute = 0
-    if !allDay, let (h, m) = parseTime(draft.time) { (hour, minute) = (h, m) }
-
-    // Same rule as the rule parser: a time with no day that has already passed today means tomorrow.
-    if let h = hour, !hasDay,
-      let t = calendar.date(bySettingHour: h, minute: minute, second: 0, of: today), t < now,
-      let tomorrow = calendar.date(byAdding: .day, value: 1, to: today)
-    {
-      day = tomorrow
-      hasDay = true
-    }
-
-    var duration: Int?
-    if !allDay, let d = draft.durationMinutes, (1...1440).contains(d) { duration = d }
-
-    var recurrence = repeatRule(draft.repeatRule)
-    if let days = draft.repeatWeekdays, !days.isEmpty {
-      guard days.allSatisfy({ (1...7).contains($0) }),
-        recurrence == RepeatRule.weekly.rawValue || recurrence == RepeatRule.weekdays.rawValue
-      else { return nil }
-      recurrence = RepeatRule.weeklyOn(Array(Set(days)).sorted()).rawValue
-      let lowerBound = hasDay ? day : today
-      let candidates = days.compactMap { weekday -> Date? in
-        let delta = (weekday - calendar.component(.weekday, from: lowerBound) + 7) % 7
-        guard let candidate = calendar.date(byAdding: .day, value: delta, to: lowerBound) else {
-          return nil
-        }
-        if let hour,
-          let time = calendar.date(bySettingHour: hour, minute: minute, second: 0, of: candidate),
-          time < now
-        {
-          return calendar.date(byAdding: .day, value: 7, to: candidate)
-        }
-        return candidate
-      }
-      if let next = candidates.min() {
-        day = next
-        hasDay = true
-      }
-    }
-    var capture = Capture(
-      title: title, day: day, hasDay: hasDay, hour: hour, minute: minute,
-      repeatRule: recurrence, durationMinutes: duration, kind: kind,
-      isAllDay: allDay, fromAppleIntelligence: true)
-    // The model gives a length only for work time; a plain time on a task is when it alerts.
-    capture.isWorkBlock = kind == .task && duration != nil
-    return capture
-  }
-
-  /// Keeps the user's own words as the title. The model tends to shorten or translate ("walk" for
-  /// "去走路，今天一定要走到 5 万步吧"). When the line labels its content ("提醒内容：…", "内容：…", "title: …"), that text
-  /// is the title unless the model's title is other words copied from the line; otherwise the model's title stays.
-  public static func userWording(_ title: String, source: String) -> String {
-    guard let labelled = labelledContent(source) else { return title }
-    let copied = source.localizedCaseInsensitiveContains(title)
-    return !copied || labelled.localizedCaseInsensitiveContains(title) ? labelled : title
-  }
-
-  /// The text after a content label, up to the end of its line, or nil.
-  static func labelledContent(_ source: String) -> String? {
-    let pattern = #"(?:提醒内容|内容|事项|标题|(?i:content|title|note))\s*[:：]\s*([^\n]+)"#
-    guard let re = try? NSRegularExpression(pattern: pattern),
-      let m = re.firstMatch(in: source, range: NSRange(source.startIndex..., in: source)),
-      let r = Range(m.range(at: 1), in: source)
-    else { return nil }
-    let text = source[r].trimmingCharacters(in: .whitespacesAndNewlines)
-    return text.isEmpty ? nil : text
-  }
-
-  /// "yyyy-MM-dd" (a trailing "T..." or " ..." is ignored) to a start-of-day Date; nil if it is not a real date.
-  static func parseDay(_ text: String?, calendar: Calendar) -> Date? {
-    guard let text else { return nil }
-    let head = text.trimmingCharacters(in: .whitespaces).prefix { $0 != "T" && $0 != " " }
-    let fields = head.split(separator: "-", omittingEmptySubsequences: false)
-    let parts = fields.compactMap { Int($0) }
-    guard fields.count == 3, parts.count == 3 else { return nil }
-    guard
-      let date = calendar.date(from: DateComponents(year: parts[0], month: parts[1], day: parts[2]))
-    else { return nil }
-    // Rejects overflow such as 2026-02-31, which Calendar silently rolls into March.
-    let back = calendar.dateComponents([.year, .month, .day], from: date)
-    guard back.year == parts[0], back.month == parts[1], back.day == parts[2] else { return nil }
-    return calendar.startOfDay(for: date)
-  }
-
-  /// 24-hour "HH:mm" (or "H:mm").
-  static func parseTime(_ text: String?) -> (Int, Int)? {
-    guard let text else { return nil }
-    let parts = text.trimmingCharacters(in: .whitespaces).split(
-      separator: ":", omittingEmptySubsequences: false
-    ).compactMap { Int($0) }
-    guard parts.count == 2, (0...23).contains(parts[0]), (0...59).contains(parts[1]) else {
-      return nil
-    }
-    return (parts[0], parts[1])
-  }
-
-  /// Model repeat name to a `RepeatRule` raw value; "none", empty or anything unknown is a one-off.
-  public static func repeatRule(_ name: String?) -> String? {
-    let n = (name ?? "").trimmingCharacters(in: .whitespaces).lowercased()
-    return (n == "weekday" ? RepeatRule.weekdays : RepeatRule(rawValue: n))?.rawValue
-  }
-
-  /// System instructions for the model: today's date, weekday, time zone, locale, and a 14-day lookup table so the
-  /// model copies dates instead of doing calendar arithmetic. The weekday rules match the rule parser.
-  public static func instructions(
-    now: Date = .now, calendar: Calendar = .current,
-    localeIdentifier: String = Locale.current.identifier
-  ) -> String {
-    var cal = calendar
-    cal.locale = Locale(identifier: "en_US_POSIX")
-    let today = cal.startOfDay(for: now)
-
-    func iso(_ d: Date) -> String {
-      let c = cal.dateComponents([.year, .month, .day], from: d)
-      return String(format: "%04d-%02d-%02d", c.year ?? 0, c.month ?? 0, c.day ?? 0)
-    }
-    func weekdayName(_ d: Date) -> String {
-      ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][
-        cal.component(.weekday, from: d) - 1]
-    }
-    var monday = cal
-    monday.firstWeekday = 2
-    let thisWeekStart = monday.dateInterval(of: .weekOfYear, for: today)?.start
-    let nextWeekStart = thisWeekStart.flatMap { monday.date(byAdding: .day, value: 7, to: $0) }
-    let weekAfterStart = nextWeekStart.flatMap { monday.date(byAdding: .day, value: 7, to: $0) }
-    let tomorrow = cal.date(byAdding: .day, value: 1, to: today)
-
-    let table = (0..<14).compactMap { cal.date(byAdding: .day, value: $0, to: today) }.map {
-      d -> String in
-      var line = "\(iso(d)) \(weekdayName(d))"
-      if d == today { line += " (today)" } else if d == tomorrow { line += " (tomorrow)" }
-      if let a = nextWeekStart, let b = weekAfterStart, d >= a, d < b { line += " (next week)" }
-      return line
-    }.joined(separator: "\n")
-
-    let clock = String(
-      format: "%02d:%02d", cal.component(.hour, from: now), cal.component(.minute, from: now))
-    return """
-      You turn one line the user typed or dictated into proposed events and tasks for a planner app. \
-      You only propose; the user reviews every item before anything is created. Never invent details that are not in the text.
-
-      Today is \(iso(today)), \(weekdayName(today)). The current time is \(clock). \
-      Time zone: \(cal.timeZone.identifier). User locale: \(localeIdentifier). Weeks start on Monday.
-
-      The next 14 days (copy dates from this table):
-      \(table)
-
-      Rules:
-      - Return one item per separate thing the user mentions, in the order mentioned, at most 5.
-      - kind is "event" for something at a fixed time with other people or a place (meeting, appointment, lunch, flight, class) \
-      or with a start and end time; otherwise "task" (things to do, buy, send, call, pay).
-      - title is concise and faithful to the requested action, in the user's language. Remove scheduling date/time/repeat words, \
-      their dangling connectors (such as 的时候), request phrases (such as 提醒我 / remind me to), and boundary punctuation. \
-      Preserve meaningful conditions, negation and modality (必须要 / 一定要 / must / must not); do not reduce the action to one word.
-      - Example: 今天晚上11点的时候提醒我，必须要睡觉 -> title 必须要睡觉, time 23:00, date today. \
-      下雨的时候带伞 keeps 下雨的时候; remind me to never skip medication keeps never skip medication.
-      - date is yyyy-MM-dd. A bare weekday ("Friday") is its next occurrence after today. "next <weekday>" is that weekday in the \
-      following week, marked (next week) in the table. For dates beyond the table use the year of today, or next year if the date has passed. \
-      Leave date empty when the text names no day.
-      - time is 24-hour HH:mm. A bare hour from 1 to 6 with no am/pm means the afternoon. Leave time empty when none is given.
-      - durationMinutes only when a length or an end time is given ("3-4pm" is 60). Otherwise leave it empty.
-      - repeat only when the text says it repeats (every day, weekdays, weekly, monthly, yearly). Otherwise never.
-      - For weekly requests copy ALL named weekdays into repeatWeekdays (Sunday=1, Monday=2, ..., Saturday=7).
-      Friday and Sunday is [6,1], not just Friday. Recurring chores are tasks unless an event or alarm is explicitly requested.
-      - allDay is true only for an event on a whole day (birthday, holiday, trip day) with no time.
-      """
-  }
-}
-
-/// Title-only content refinement. The model has no scheduling fields to generate or mutate.
-/// The injected generator is the production path as well as the host-test seam.
+/// Title-only content cleanup by rules (the parser's last step). No model.
 public enum CaptureTitleRefinement {
   public static func fallback(_ capture: Capture, source: String) -> Capture {
     var result = capture
@@ -1472,37 +1246,6 @@ public enum CaptureTitleRefinement {
     return result
   }
 
-  public static func refine(
-    _ capture: Capture, source: String, history: String = "", available: Bool,
-    timeout: TimeInterval = 4,
-    generate: @escaping @Sendable (String) async -> String?
-  ) async -> Capture {
-    let backup = fallback(capture, source: source)
-    guard available else { return backup }
-    let prompt =
-      "Current request: " + source + "\nExisting action: " + backup.title
-      + "\nRelevant user context: " + String(history.suffix(1600))
-    guard let generated = await bounded(seconds: timeout, work: { await generate(prompt) }) else {
-      return backup
-    }
-    let title = CaptureParser.cleanRequestTitle(generated)
-    guard !title.isEmpty else { return backup }
-    var result = backup
-    result.title = title
-    // Month-only requests have no due-date field to carry their month. Preserve the
-    // already anchored label even when title generation omits scheduling words.
-    if let prefix = backup.title.range(
-      of: #"^(?:[0-9]{4}年[0-9]{1,2}月|[A-Za-z]+ [0-9]{4})\s+"#,
-      options: .regularExpression), !title.hasPrefix(String(backup.title[prefix]))
-    {
-      result.title = String(backup.title[prefix]) + title
-    }
-    result.fromAppleIntelligence = true
-    // Keep all original facts, motivation, numbers and modality even when the model paraphrases the action.
-    result.notes = retainedNotes(backup.notes, source: source)
-    return result
-  }
-
   private static func insideQuotedText(_ text: String, at index: String.Index) -> Bool {
     let prefix = text[..<index]
     // A note label inside an explicitly quoted name belongs to that name.
@@ -1516,43 +1259,4 @@ public enum CaptureTitleRefinement {
     return notes.contains(source) ? notes : notes + "\n" + source
   }
 
-  private static func bounded(seconds: TimeInterval, work: @escaping @Sendable () async -> String?)
-    async -> String?
-  {
-    await withCheckedContinuation { continuation in
-      let once = Completion(continuation)
-      let task = Task { once.resume(await work()) }
-      Task {
-        try? await Task.sleep(nanoseconds: UInt64(max(0, seconds) * 1_000_000_000))
-        once.resume(nil)
-        task.cancel()
-      }
-    }
-  }
-
-  // The lock guards the continuation; exactly one caller takes and resumes it.
-  private final class Completion: @unchecked Sendable {
-    private let lock = NSLock()
-    private var continuation: CheckedContinuation<String?, Never>?
-    init(_ continuation: CheckedContinuation<String?, Never>) { self.continuation = continuation }
-    func resume(_ value: String?) {
-      lock.lock()
-      let pending = continuation
-      continuation = nil
-      lock.unlock()
-      pending?.resume(returning: value)
-    }
-  }
-
-  public static let instructions = """
-    Rewrite ONE planner action into a concise, natural title in the user's language. Understand the requested action and its \
-    purpose; do not merely truncate or remove words. Preserve names, objects, numbers, negation, conditions and meaningful \
-    urgency. You may put purpose into the title when it clarifies the action. Do not invent specifics, device capabilities, \
-    diagnoses or promised results. The full original request is retained separately as notes, so avoid repeating a long explanation.
-    Return only the title, no quotes, commentary or scheduling fields. Never create or claim to have created an item.
-    Example: 今天晚上9点的时候提醒我带上Apple Watch，我需要去测量今天晚上的睡眠分数 -> 佩戴Apple Watch记录睡眠.
-    Example: Remind me to bring my passport because I need it at the appointment -> Bring passport to the appointment.
-    Example: 提醒我一定不能再吃饭了 -> 不要再吃饭. Never turn a prohibition into a positive action.
-    Keep explicit user-specified title wording unchanged when they explicitly ask for that exact wording.
-    """
 }

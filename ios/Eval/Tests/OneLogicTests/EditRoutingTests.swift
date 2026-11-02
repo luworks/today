@@ -42,25 +42,10 @@ final class EditRoutingTests: XCTestCase {
 
   func testFirstSentenceIsNotAnEditEvenThoughAnEventStartsAt3pm() {
     XCTAssertFalse(isEdit(first))
-    XCTAssertEqual(
-      Editing.decide(text: first, plan: nil, items: items, now: now, calendar: cal).op, .none)
   }
 
   func testClarificationIsNotAnEdit() {
     XCTAssertFalse(isEdit(clarification))
-    XCTAssertEqual(
-      Editing.decide(text: clarification, plan: nil, items: items, now: now, calendar: cal).op,
-      .none)
-  }
-
-  func testClarificationIsNotAnAnswerToWhichOne() {
-    // "Marketplace" is also a word in one option's title: the old loose match took the reply as picking that option.
-    let titles = items.map(\.title)
-    XCTAssertEqual(
-      Dialogue.pick(clarification, from: titles), 3, "the loose match that caused the bug")
-    XCTAssertNil(Dialogue.answerToWhichOne(clarification, from: titles))
-    // Even without "提醒我", telling a story ("我想 ...") does not pick an option by one overlapping word.
-    XCTAssertNil(Dialogue.answerToWhichOne("我想把东西拿去 Marketplace 卖掉", from: titles))
   }
 
   func testClarificationBecomesAReminderToday3pm() {
@@ -114,10 +99,9 @@ final class EditRoutingTests: XCTestCase {
     XCTAssertTrue(isEdit("三点那个改到四点半"), "the time before the destination names the item")
     XCTAssertTrue(isEdit("Move the 3pm one to 4"))
     XCTAssertTrue(isEdit("move the 3pm to 4pm"))
-    let d = Editing.decide(text: "三点那个改到四点半", plan: nil, items: items, now: now, calendar: cal)
-    XCTAssertEqual(d.op, .move)
-    XCTAssertEqual(d.target, "e1")
-    XCTAssertEqual(d.newStart, at(17, 16, 30))
+    XCTAssertEqual(
+      Editing.newStart(for: items[0], text: "三点那个改到四点半", now: now, calendar: cal),
+      at(17, 16, 30))
   }
 
   func testNamingAnItemInAReminderRequestIsStillAnEdit() {
@@ -147,17 +131,6 @@ final class EditRoutingTests: XCTestCase {
   }
 
   // MARK: Answering "which one?" still works
-
-  func testRealAnswersStillPick() {
-    let t = ["Product sync", "Design review", "Lunch with Priya"]
-    XCTAssertEqual(Dialogue.answerToWhichOne("the first one", from: t), 0)
-    XCTAssertEqual(Dialogue.answerToWhichOne("第二个", from: t), 1)
-    XCTAssertEqual(Dialogue.answerToWhichOne("lunch", from: t), 2)
-    XCTAssertEqual(Dialogue.answerToWhichOne("I want the second one", from: t), 1)
-    XCTAssertEqual(Dialogue.answerToWhichOne("我想要 Design review", from: t), 1)
-    XCTAssertNil(
-      Dialogue.answerToWhichOne("remind me about lunch tomorrow", from: t), "a new request")
-  }
 
   func testStartsNewItem() {
     for s in [

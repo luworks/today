@@ -194,6 +194,10 @@ public enum FastLane {
   ) -> Dialogue.Refinement {
     Dialogue.refine(draft, with: answer, now: now, calendar: calendar)
   }
+  /// A question-shaped answer to the time FastLane's open preview asked about ("How about 5pm?").
+  public static func timeAnswer(_ text: String, hasTimeContext: Bool) -> String? {
+    ChatRouting.contextualTimeAnswer(text, hasTimeContext: hasTimeContext)
+  }
   public static func isOnlyWhen(_ text: String, now: Date, calendar: Calendar) -> Bool {
     Dialogue.isOnlyWhen(text, now: now, calendar: calendar)
   }
