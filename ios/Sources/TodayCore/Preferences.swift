@@ -15,7 +15,6 @@ public enum Preferences {
   public static let firstWeekdayKey = "today.setting.firstWeekday"
   public static let weekNumbersKey = "today.setting.weekNumbers"
   public static let calendarStartKey = "today.setting.calendarStart"
-  public static let showSettleKey = "today.setting.showSettle"
   public static let showFreeTimeKey = "today.setting.showFreeTime"
   public static let newReminderListKey = "today.setting.newReminderList"
   public static let newAlarmSnoozeKey = "today.setting.newAlarmSnooze"
@@ -26,7 +25,7 @@ public enum Preferences {
   static let allKeys = [
     compressEmptyHoursKey, dimPastDaysKey, firstWeekdayKey, weekNumbersKey, calendarStartKey,
     showFreeTimeKey, newReminderListKey, newAlarmSnoozeKey, newAlarmSoundKey,
-    askSuggestionsKey, showSettleKey, weatherSummaryKey,
+    askSuggestionsKey, weatherSummaryKey,
   ]
 
   // MARK: Defaults (the behaviour before these choices existed)
@@ -36,7 +35,6 @@ public enum Preferences {
   public static let firstWeekday = FirstWeekday.system
   public static let weekNumbers = false
   public static let calendarStart = CalendarStart.lastUsed
-  public static let showSettle = true
   public static let showFreeTime = true
   /// "" = Auto: the list the text clearly belongs to, else the Inbox (Ask), else the default list (quick add).
   public static let newReminderList = ""

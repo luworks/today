@@ -52,7 +52,6 @@
   }
 
   package struct ShellSettings: View {
-    @Environment(UndoToast.self) private var toast: UndoToast?
     @Environment(\.modelContext) private var context
     let diagnostics: LocalDiagnostics
     let composition: ShellComposition
@@ -93,13 +92,8 @@
         },
         shareDiagnostics: { AnyView(SystemFileSheet(url: $0)) },
         reset: {
-          if !DataReset.run(
-            $0, reminders: session.reminders, ledger: session.ledger, inbox: session.inbox,
-            focus: session.actions.focus)
-          {
-            toast?.showNotice(
-              "Couldn't clear saved Focus choices. Your local data was kept. Try again.")
-          }
+          DataReset.run(
+            $0, reminders: session.reminders, ledger: session.ledger, inbox: session.inbox)
         }, wheelLab: wheelLab)
     }
 

@@ -12,8 +12,7 @@
   import UIKit
 
   /// One day's view: active events, tasks and alarms stay directly visible in a single timeline.
-  /// On today a red "N overdue" line sits above the timeline (tap to show the rows, Tidy to reschedule them all);
-  /// a collapsed Settled disclosure follows the timeline.
+  /// On today a red "N overdue" line sits above the timeline (tap to show the rows, Tidy to reschedule them all).
   /// The Calendar tab adds the week strip to pick a day.
   package struct DayAgenda: View {
     private let actions: PlannerActions
@@ -58,9 +57,6 @@
       _showsWeather = AppStorage(
         wrappedValue: Preferences.weatherSummary, Preferences.weatherSummaryKey,
         store: presentation.defaults)
-      _showsSettle = AppStorage(
-        wrappedValue: Preferences.showSettle, Preferences.showSettleKey,
-        store: presentation.defaults)
       _showsFreeTime = AppStorage(
         wrappedValue: Preferences.showFreeTime, Preferences.showFreeTimeKey,
         store: presentation.defaults)
@@ -80,7 +76,6 @@
     @AppStorage(SettingsKey.jumpToNow) private var jumpsToNow = true
     @AppStorage(SettingsKey.healthSummary) private var showsHealth = true
     @AppStorage(Preferences.weatherSummaryKey) private var showsWeather = Preferences.weatherSummary
-    @AppStorage(Preferences.showSettleKey) private var showsSettle = Preferences.showSettle
     @AppStorage(Preferences.showFreeTimeKey) private var showsFreeTime = Preferences.showFreeTime
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -94,7 +89,6 @@
     @State private var now: Date
     /// A repeating system event whose Delete is waiting for "this event or the series?".
     @State private var pendingDelete: CalEntry?
-    @State private var settledExpanded = false
     @Environment(\.modelContext) private var context
     @Environment(UndoToast.self) private var toast: UndoToast?
 
@@ -205,11 +199,6 @@
             .listRowSeparator(.hidden)
           }
         }
-        if !showsWeekStrip {
-          if let error = actions.focus.errorMessage {
-            Text(error).font(.footnote).foregroundStyle(.secondary)
-          }
-        }
         // Overdue first: never moved silently, and one tap from a new date.
         if isTodayTab, !overdue.isEmpty { overdueSection }
         if !items.allDay.isEmpty || !items.externalAllDay.isEmpty {
@@ -224,14 +213,13 @@
               EventRow(
                 event: $0, pendingDelete: $pendingDelete, open: openEvent, calendar: calendar,
                 travel: travel,
-                attention: attention(
-                  target($0, start: $0.occurs(on: day, calendar: cal).first ?? $0.start))
+                attention: attention(canDelete: canDelete($0))
               )
             }
             ForEach(items.externalAllDay) {
               ExternalEventRow(
                 event: $0, pendingDelete: $pendingDelete, calendar: calendar, travel: travel,
-                attention: attention(target($0))
+                attention: attention(canDelete: canDelete($0))
               )
             }
           } header: {
@@ -250,7 +238,6 @@
         } else {
           Section { timelineContent(items) }
         }
-        if !showsWeekStrip, showsSettle { settledSection }
       }
       .listStyle(.plain)
       // Interactive rows own their 44pt targets. Today captions and gaps use their natural text height.
@@ -272,7 +259,7 @@
         ForEach(items.anytime) { task in
           TaskRow(
             task: task, compact: true, agendaDay: day, onDelete: { requestDelete(task) },
-            open: openTask, attention: attention(target(task))
+            open: openTask, attention: attention(canDelete: canDelete(task))
           )
         }
       }
@@ -285,23 +272,23 @@
         EventRow(
           event: event, start: start, pendingDelete: $pendingDelete, open: openEvent,
           calendar: calendar, travel: travel,
-          attention: attention(target(event, start: start), on: rowDay)
+          attention: attention(canDelete: canDelete(event))
         )
       case .external(let e):
         ExternalEventRow(
           event: e, pendingDelete: $pendingDelete, calendar: calendar, travel: travel,
-          attention: attention(target(e), on: rowDay)
+          attention: attention(canDelete: canDelete(e))
         )
       case .due(let task):
         TaskRow(
           task: task, showsTime: true, time: task.due, compact: true, agendaDay: rowDay,
           onDelete: { requestDelete(task) }, open: openTask,
-          attention: attention(target(task), on: rowDay)
+          attention: attention(canDelete: canDelete(task))
         )
       case .alarm(let alarm, let date):
         AlarmMarkRow(
           alarm: alarm, date: date, open: openAlarm,
-          attention: attention(target(alarm, fireDate: date), on: rowDay),
+          attention: attention(canDelete: true),
           onDelete: showsWeekStrip
             ? nil : { _ = actions.delete(alarm, context: context, toast: toast) })
       case .gap(let free): FreeRow(free: free)
@@ -357,17 +344,13 @@
         timeline.append(.nowMarker(now))
       }
       return DayItems(
-        allDay: events.filter {
-          $0.isAllDay && !$0.occurs(on: day, calendar: cal).isEmpty
-            && !isHidden(
-              target($0, start: $0.occurs(on: day, calendar: cal).first ?? $0.start), on: day)
-        },
-        externalAllDay: external.filter { $0.isAllDay && !isHidden(target($0), on: day) },
+        allDay: events.filter { $0.isAllDay && !$0.occurs(on: day, calendar: cal).isEmpty },
+        externalAllDay: external.filter(\.isAllDay),
         // At the same minute the Now line comes first, so free time from now sits under it.
-        timeline: timeline.filter { !isHidden($0, on: day) }.sorted {
+        timeline: timeline.sorted {
           ($0.start, $0.isNow ? 0 : 1) < ($1.start, $1.isNow ? 0 : 1)
         },
-        anytime: anytime.filter { !isHidden(target($0), on: day) })
+        anytime: anytime)
     }
 
     /// Deleting a reminder never asks: the Undo toast is the safety net.
@@ -382,113 +365,33 @@
       }
     }
 
-    // MARK: Local attention overlay
+    // MARK: Today row commands
 
-    private func target(_ task: OneTask) -> FocusTarget {
-      let ref = TodayFocus.reference(task.persistentModelID)
-      return FocusTarget(
-        identity: actions.focus.identity(
-          resolution: reminders.focusIdentity(task), localReference: ref, kind: "reminder",
-          occurrence: task.repeats == nil ? nil : task.due),
-        reference: ref, title: task.title, subject: AskSubject(task: task))
+    private func attention(canDelete: Bool) -> TodayRowAttention? {
+      showsWeekStrip ? nil : TodayRowAttention(canDelete: canDelete)
     }
 
-    private func target(_ event: OneEvent, start: Date) -> FocusTarget {
-      let ref = TodayFocus.reference(event.persistentModelID)
-      return FocusTarget(
-        identity: actions.focus.identity(
-          resolution: calendar.cachedFocusIdentity(externalID: event.externalID, occurrence: start),
-          localReference: ref, kind: "event", occurrence: event.repeats == nil ? nil : start),
-        reference: ref, title: event.title, subject: AskSubject(event: event, start: start))
-    }
-
-    private func target(_ event: ExternalEvent) -> FocusTarget {
-      let ref = "eventkit:" + event.eventIdentifier
-      return FocusTarget(
-        identity: actions.focus.identity(
-          resolution: calendar.cachedFocusIdentity(
-            externalID: event.eventIdentifier, occurrence: event.start),
-          localReference: ref, kind: "event", occurrence: event.repeats ? event.start : nil),
-        reference: ref, title: event.title, subject: AskSubject(event: event))
-    }
-
-    private func target(_ alarm: OneAlarm, fireDate: Date) -> FocusTarget {
-      let ref = TodayFocus.reference(alarm.persistentModelID)
-      return FocusTarget(
-        identity: actions.focus.identity(
-          resolution: .localOnly, localReference: ref, kind: "alarm", occurrence: fireDate),
-        reference: ref, title: alarm.label.isEmpty ? "Alarm" : alarm.label,
-        subject: AskSubject(alarm: alarm))
-    }
-
-    private func attention(_ target: FocusTarget, on rowDay: Date? = nil) -> TodayRowAttention? {
-      guard !showsWeekStrip else { return nil }
-      return TodayRowAttention(
-        settle: target.identity == nil || !showsSettle
-          || cal.startOfDay(for: rowDay ?? day) < cal.startOfDay(for: now)
-          ? nil : { _ = changeFocus(.settled, target: target, on: rowDay ?? day) },
-        canDelete: canDeleteAttention(target))
-    }
-
-    /// Settled items leave Today's timeline. (An older Snooze record no longer hides anything.)
-    private func isHidden(_ target: FocusTarget, on rowDay: Date? = nil) -> Bool {
-      !showsWeekStrip
-        && actions.focus.state(for: target.identity, now: now, on: rowDay ?? day) == .settled
-    }
-
-    private func isHidden(_ item: TimelineItem, on rowDay: Date) -> Bool {
-      switch item {
-      case .event(let event, let start): isHidden(target(event, start: start), on: rowDay)
-      case .external(let event): isHidden(target(event), on: rowDay)
-      case .due(let task): isHidden(target(task), on: rowDay)
-      case .alarm(let alarm, let date): isHidden(target(alarm, fireDate: date), on: rowDay)
-      case .gap, .nowMarker: false
+    /// Whether the source accepts a delete (a read-only calendar, or a reminder whose source can't be reached, does not).
+    private func canDelete(_ task: OneTask) -> Bool {
+      switch reminders.focusIdentity(task) {
+      case .available, .localOnly: true
+      default: false
       }
     }
 
-    @discardableResult
-    private func changeFocus(_ state: TodayFocusState?, target: FocusTarget, on rowDay: Date? = nil)
-      -> Bool
-    {
-      withAnimation(reduceMotion ? nil : .snappy) {
-        actions.focus.change(
-          state, identity: target.identity, localReference: target.reference,
-          title: target.title, context: context, toast: toast, on: rowDay ?? day)
-      }
+    private func canDelete(_ event: OneEvent) -> Bool {
+      event.externalID == nil || calendar.cachedCanDelete(externalID: event.externalID)
     }
 
-    private func focusHeader(
-      _ title: String, count: Int, id: String, expanded: Binding<Bool>
-    )
-      -> some View
-    {
-      Button {
-        withAnimation(reduceMotion ? nil : .snappy) { expanded.wrappedValue.toggle() }
-      } label: {
-        HStack {
-          Text("\(title) (\(count))").font(AgendaRowStyle.disclosure.weight(.medium))
-          Rectangle().fill(.quaternary).frame(height: 1)
-          Image(systemName: expanded.wrappedValue ? "chevron.down" : "chevron.right")
-            .font(.caption.weight(.semibold))
-        }
-        .foregroundStyle(.secondary)
-        .frame(minHeight: 44)
-        .contentShape(Rectangle())
-      }
-      .buttonStyle(.plain)
-      .listRowSeparator(.hidden)
-      .listRowInsets(EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 20))
-      .accessibilityIdentifier("focus." + id)
-      .accessibilityLabel("\(title) (\(count))")
-      .accessibilityValue(expanded.wrappedValue ? "Expanded" : "Collapsed")
-      .accessibilityHint("Changes visibility for this day in Today only")
+    private func canDelete(_ event: ExternalEvent) -> Bool {
+      calendar.cachedCanDelete(externalID: event.eventIdentifier)
     }
 
     private var overdueRows: some View {
       ForEach(overdue) { task in
         TaskRow(
           task: task, compact: true, agendaDay: day, onDelete: { requestDelete(task) },
-          open: openTask, attention: attention(target(task))
+          open: openTask, attention: attention(canDelete: canDelete(task))
         )
       }
     }
@@ -527,241 +430,9 @@
       if showsAllOverdue { overdueRows }
     }
 
-    private var settledRecords: [FocusRecord] {
-      actions.focus.records.filter {
-        cal.isDate($0.agendaDay(calendar: cal), inSameDayAs: day)
-          && actions.focus.state(for: $0.identity, now: now, on: day) == .settled
-      }
-    }
-
-    @ViewBuilder private var settledSection: some View {
-      let records = settledRecords
-      focusHeader("Settled", count: records.count, id: "settled", expanded: $settledExpanded)
-      if settledExpanded {
-        ForEach(records, id: \.identity) { record in
-          let source = resolved(record)
-          let restoreLabel = source == nil ? "Clear choice" : "Unsettle"
-          let target =
-            source
-            ?? FocusTarget(
-              identity: record.identity, reference: record.localReference, title: "Unavailable item"
-            )
-          HStack {
-            VStack(alignment: .leading, spacing: 3) {
-              Text(target.title).foregroundStyle(.primary)
-              Text("Hidden on this day in Today").font(.caption).foregroundStyle(.secondary)
-            }
-            Spacer()
-            Button {
-              changeFocus(source == nil ? nil : .active, target: target)
-            } label: {
-              Group {
-                if source != nil {
-                  Image(systemName: "arrow.uturn.backward")
-                    .font(ButtonConfiguration.Icon.actionFont)
-                    .frame(minWidth: ButtonConfiguration.minimumHitSize)
-                } else {
-                  Text(restoreLabel)
-                }
-              }
-              .frame(minHeight: ButtonConfiguration.minimumHitSize)
-              .contentShape(Rectangle())
-            }
-            .buttonStyle(.borderless)
-            .help(restoreLabel)
-            .accessibilityLabel(
-              source == nil ? "Clear unavailable Focus choice" : restoreLabel + " " + target.title)
-          }
-          .modifier(TodayItemSurface(enabled: true))
-          .modifier(
-            TodayFocusRowActions(
-              enabled: true, settle: {}, ask: source?.subject,
-              open: source == nil ? nil : { openAttentionItem(target) },
-              delete: source != nil && canDeleteAttention(target)
-                ? { requestDeleteAttention(target) } : nil,
-              restore: { _ = changeFocus(source == nil ? nil : .active, target: target) },
-              restoreLabel: restoreLabel)
-          )
-          .listRowSeparator(.hidden)
-        }
-      }
-    }
-
-    /// Resolve content from the current source, never from an overlay copy or a title match.
-    private func resolved(_ record: FocusRecord) -> FocusTarget? {
-      for task in tasks where !task.isDone {
-        let candidate = target(task)
-        if candidate.identity == record.identity { return candidate }
-      }
-      for event in events {
-        let start = record.identity.occurrence ?? event.start
-        if event.repeats != nil,
-          !event.occurrences(in: DateInterval(start: start, duration: 1)).contains(start)
-        {
-          continue
-        }
-        let candidate = target(event, start: start)
-        if candidate.identity == record.identity { return candidate }
-      }
-      if let alarm = alarms.first(where: {
-        TodayFocus.reference($0.persistentModelID) == record.localReference
-      }), let fireDate = record.identity.occurrence {
-        let candidate = target(alarm, fireDate: fireDate)
-        if candidate.identity == record.identity { return candidate }
-      }
-      if let event = calendar.cachedFocusEvent(
-        identity: record.identity, reference: record.localReference)
-      {
-        return FocusTarget(
-          identity: record.identity, reference: record.localReference, title: event.title)
-      }
-      return nil
-    }
-
-    private func openAttentionItem(_ target: FocusTarget) {
-      if let task = tasks.first(where: { self.target($0).identity == target.identity }) {
-        openTask(task)
-        return
-      }
-      if let alarm = alarms.first(where: {
-        self.target($0, fireDate: target.identity?.occurrence ?? now).identity == target.identity
-      }) {
-        openAlarm(alarm)
-        return
-      }
-      if let event = events.first(where: {
-        self.target($0, start: target.identity?.occurrence ?? $0.start).identity == target.identity
-      }) {
-        openEvent(event)
-        return
-      }
-      if let identity = target.identity,
-        let event = calendar.cachedFocusEvent(identity: identity, reference: target.reference),
-        let native = calendar as? any NativeCalendarService
-      {
-        native.edit(
-          identifier: event.eventIdentifier, start: event.start, end: nil,
-          fullOptions: false, onComplete: nil)
-      } else {
-        toast?.showNotice("This source is unavailable. Reconnect and try again.")
-      }
-    }
-
-    private func attentionEntry(_ target: FocusTarget) -> CalEntry? {
-      guard let identity = target.identity else { return nil }
-      // A local identity carries its model ID. Prefer that candidate, but decoded
-      // PersistentIdentifier equality can differ after migration: retain the full
-      // canonical identity lookup as a fallback, and always revalidate the candidate.
-      let localKind = identity.provider == "today.local" ? identity.calendar : nil
-      let localID: PersistentIdentifier? =
-        localKind == nil
-        ? nil
-        : identity.item.data(using: .utf8).flatMap {
-          try? JSONDecoder().decode(PersistentIdentifier.self, from: $0)
-        }
-      func matching<Model: PersistentModel>(
-        _ models: [Model], kind: String, matches: (Model) -> Bool
-      ) -> Model? {
-        guard localKind == nil || localKind == kind else { return nil }
-        if let localID, let candidate = models.first(where: { $0.persistentModelID == localID }),
-          matches(candidate)
-        {
-          return candidate
-        }
-        return models.first(where: matches)
-      }
-      if let task = matching(
-        tasks, kind: "reminder",
-        matches: {
-          self.target($0).identity == identity
-        })
-      {
-        let start = task.due ?? now
-        return CalEntry(
-          id: target.id, source: .task(task), title: task.title,
-          start: start, end: start.addingTimeInterval(Double(task.durationMinutes) * 60),
-          isAllDay: false, color: .accentColor, repeats: task.repeats != nil)
-      }
-      if let alarm = matching(
-        alarms, kind: "alarm",
-        matches: {
-          self.target($0, fireDate: identity.occurrence ?? now).identity == identity
-        })
-      {
-        let start = identity.occurrence ?? now
-        return CalEntry(
-          id: target.id, source: .alarm(alarm), title: target.title,
-          start: start, end: start.addingTimeInterval(60), isAllDay: false, color: .accentColor,
-          repeats: false)
-      }
-      if let event = matching(
-        events, kind: "event",
-        matches: {
-          self.target($0, start: identity.occurrence ?? $0.start).identity == identity
-        })
-      {
-        let start = identity.occurrence ?? event.start
-        return CalEntry(
-          id: "r\(event.persistentModelID.hashValue)@\(start.timeIntervalSince1970)",
-          source: .local(event), title: event.title, start: start,
-          end: start.addingTimeInterval(event.duration), isAllDay: event.isAllDay,
-          color: calendar.cachedEvent(
-            externalID: event.externalID ?? "", occurrence: start)?.color ?? .blue,
-          repeats: event.repeats != nil)
-      }
-      if let ref = target.reference, ref.hasPrefix("eventkit:"),
-        let event = calendar.cachedEvent(
-          externalID: String(ref.dropFirst("eventkit:".count)), occurrence: identity.occurrence),
-        self.target(event).identity == identity
-      {
-        return CalEntry(
-          id: event.id, source: .system(event.eventIdentifier), title: event.title,
-          location: event.location, start: event.start, end: event.end, isAllDay: event.isAllDay,
-          color: event.color, calendarTitle: event.calendarTitle, repeats: event.repeats)
-      }
-      return nil
-    }
-
-    private func canDeleteAttention(_ target: FocusTarget) -> Bool {
-      guard let entry = attentionEntry(target) else { return false }
-      return switch entry.source {
-      case .task(let task):
-        switch reminders.focusIdentity(task) {
-        case .available, .localOnly: true
-        default: false
-        }
-      case .alarm: true
-      case .local(let event):
-        event.externalID == nil || calendar.cachedCanDelete(externalID: event.externalID)
-      case .system(let id): calendar.cachedCanDelete(externalID: id)
-      }
-    }
-
-    /// A one-off event is deleted at once (Undo toast); only a repeating one asks "this event or the series?".
-    private func requestEventDelete(_ entry: CalEntry) {
-      if entry.repeats {
-        pendingDelete = entry
-      } else {
-        actions.delete(entry, span: .futureEvents, context: context, toast: toast)
-      }
-    }
-
-    private func requestDeleteAttention(_ target: FocusTarget) {
-      guard canDeleteAttention(target), let entry = attentionEntry(target) else {
-        toast?.showNotice("This source is unavailable or read-only. Its item was kept.")
-        return
-      }
-      switch entry.source {
-      case .task(let task): requestDelete(task)
-      case .alarm(let alarm): _ = actions.delete(alarm, context: context, toast: toast)
-      case .local, .system: requestEventDelete(entry)
-      }
-    }
-
     /// Oldest deadline first.
     private var overdue: [OneTask] {
-      tasks.filter { plannerIsOverdue($0, now: now, calendar: cal) && !isHidden(target($0)) }.sorted
-      {
+      tasks.filter { plannerIsOverdue($0, now: now, calendar: cal) }.sorted {
         ($0.due ?? .distantPast) < ($1.due ?? .distantPast)
       }
     }

@@ -1,6 +1,6 @@
 import XCTest
 
-/// Today supports week-strip navigation and the collapsed overdue and settled sections.
+/// Today supports week-strip navigation and the collapsed overdue line.
 /// Synthetic dates follow the device calendar; no Apple services or user data are used.
 @MainActor
 final class TodayTomorrowTests: XCTestCase {
@@ -105,19 +105,12 @@ final class TodayTomorrowTests: XCTestCase {
   func testMorningSectionsStartCollapsed() {
     let app = launch(at: "09:41")
     XCTAssertFalse(app.buttons["focus.active"].exists)
-    // Overdue sits above the timeline; the other disclosures follow it.
+    // Overdue sits above the timeline, collapsed; Today has no Settled section.
     let overdueLine = app.buttons["today.overdueShortcut"]
-    let headers = [
-      overdueLine, app.buttons["focus.settled"],
-    ]
-    for header in headers {
-      reveal(header, in: app)
-      XCTAssertEqual(header.value as? String, "Collapsed")
-    }
-    for (first, second) in zip(headers, headers.dropFirst()) {
-      XCTAssertLessThan(first.frame.minY, second.frame.minY, "Trailing section order")
-    }
-    XCTAssertEqual(headers[0].label, "1 overdue")
+    reveal(overdueLine, in: app)
+    XCTAssertEqual(overdueLine.value as? String, "Collapsed")
+    XCTAssertEqual(overdueLine.label, "1 overdue")
+    XCTAssertFalse(app.buttons["focus.settled"].exists)
     XCTAssertTrue(app.buttons["today.tidyOverdue"].exists, "Tidy sits beside the overdue line")
     XCTAssertFalse(app.staticTexts["Section overdue"].exists)
     screenshot("today-sections-collapsed")
@@ -135,9 +128,9 @@ final class TodayTomorrowTests: XCTestCase {
     XCTAssertEqual(
       chat.frame.minX - app.frame.minX, app.frame.maxX - plus.frame.maxX, accuracy: 2,
       "Bottom bar keeps equal side margins")
-    reveal(headers[0], in: app)
-    headers[0].tap()
-    XCTAssertEqual(headers[0].value as? String, "Expanded")
+    reveal(overdueLine, in: app)
+    overdueLine.tap()
+    XCTAssertEqual(overdueLine.value as? String, "Expanded")
     let overdue = app.staticTexts["Section overdue"].firstMatch
     XCTAssertTrue(overdue.waitForExistence(timeout: 3))
     XCTAssertEqual(
@@ -146,8 +139,8 @@ final class TodayTomorrowTests: XCTestCase {
     XCTAssertTrue(
       app.buttons["Complete Section overdue"].exists, "Opening Overdue never completes it")
     screenshot("today-overdue-section-expanded")
-    reveal(headers[0], in: app)
-    headers[0].tap()
+    reveal(overdueLine, in: app)
+    overdueLine.tap()
     XCTAssertFalse(overdue.exists)
     reveal(app.staticTexts["Section today"].firstMatch, in: app)
     XCTAssertTrue(
