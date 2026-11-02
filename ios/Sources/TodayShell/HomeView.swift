@@ -608,12 +608,9 @@
         }
         // Timers follow AlarmKit on every tab, so the Today row appears the moment one starts (also from Siri).
         .task { await session.timers.watch() }
-        .task(id: "\(session.calendar.version):\(session.actions.focus.revision):\(scenePhase)") {
-          guard scenePhase == .active else { return }
-          await session.calendar.hydrateFocus(session.actions.focus.records)
-        }
         // Store observation lives in a child so a save doesn't re-run this whole shell (and the sheet over it).
         .background { ReminderSignatureObserver(session: session) }
+        .background { FocusHydrationObserver(session: session) }
         .onChange(of: QuickAction.shared.pending, initial: true) { _, type in
           guard let type else { return }
           QuickAction.shared.pending = nil
