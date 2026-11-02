@@ -456,17 +456,13 @@ final class ActivityStoreTests: XCTestCase {
     XCTAssertNotNil(try s.event(uid: "old"), "the history line stays; only Undo is gone")
   }
 
-  func testClearKeepsTheDeviceAndMigrationMarkers() throws {
+  func testClearKeepsTheDevice() throws {
     let url = dir.appendingPathComponent("d.sqlite")
     let s = try ActivityStore(location: .file(url))
-    try s.setMeta(LedgerImport.migratedKey, "1")
     try s.insert([change("x")])
     let device = s.deviceID
     try s.clear()
     XCTAssertEqual(try s.count(), 0)
-    XCTAssertEqual(
-      try s.meta(LedgerImport.migratedKey), "1",
-      "Clear must not make the old ledger import run again")
     XCTAssertEqual(try ActivityStore(location: .file(url)).deviceID, device)
   }
 

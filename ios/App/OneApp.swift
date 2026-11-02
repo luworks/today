@@ -91,9 +91,6 @@ struct OneApp: App {
       {
         await calendar.seedDemo()
       }
-      LaunchTestConfiguration.seedLegacyLedgerForTests(
-        context: context, arguments: composition.arguments,
-        runtime: composition.session.runtime)
       if let path = DevImport.requestedPath {
         do {
           _ = try DevImport.run(path: path, into: context)

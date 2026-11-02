@@ -706,10 +706,8 @@
       #endif
       Self.seedUITestReminder(context)
       importShared()
-      // The old SwiftData ledger is copied into the Activity store once; then expired activity is dropped.
-      LedgerMigration.run(context: context, ledger: session.ledger)
       session.activity.importOutbox()
-      session.ledger.prune(context, now: session.runtime.now())
+      session.ledger.prune(now: session.runtime.now())
       await FirstRun.calendar(
         session.calendar, defaults: session.defaults, arguments: composition.arguments)
       if PerformanceTrace.enabled { PerformanceTrace.shared.finishBootstrap() }

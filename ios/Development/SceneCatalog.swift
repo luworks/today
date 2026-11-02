@@ -70,8 +70,8 @@
         .appendingPathComponent("TodayWorkbench", isDirectory: true)
         .appendingPathComponent(identity.uuidString, isDirectory: true)
       container = try ModelContainer(
-        for: OneTask.self, OneEvent.self, OneAlarm.self, OneList.self, Habit.self,
-        ChatThread.self, LedgerEntry.self, AIGrant.self, ShareImportReceipt.self,
+        for: OneTask.self, OneEvent.self, OneAlarm.self, OneList.self,
+        ChatThread.self, ShareImportReceipt.self,
         configurations: ModelConfiguration(isStoredInMemoryOnly: true))
       container.mainContext.autosaveEnabled = false
       if configuration.scenario != .empty || configuration.scene == .remindersList {
@@ -692,11 +692,8 @@
       ActivityDataView(
         activity: session.services.activity, exportDestination: session.exportDestination,
         summary: session.services.activity.summary,
-        clear: { session.services.activity.clear(context: session.container.mainContext) },
-        export: { format, url in try await session.services.activity.export(format, to: url) },
-        legacyRowCount: {
-          (try? session.container.mainContext.fetchCount(FetchDescriptor<LedgerEntry>())) ?? 0
-        })
+        clear: { session.services.activity.clear() },
+        export: { format, url in try await session.services.activity.export(format, to: url) })
     }
 
     private func settings(_ selection: SettingsView.Selection) -> some View {

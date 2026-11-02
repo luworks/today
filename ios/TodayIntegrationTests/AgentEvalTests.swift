@@ -135,8 +135,8 @@
         now: { now }, nextID: { UUID() }, calendar: calendar,
         locale: Locale(identifier: "en_US"))
       let schema = Schema([
-        OneTask.self, OneEvent.self, OneAlarm.self, OneList.self, Habit.self,
-        ChatThread.self, LedgerEntry.self, AIGrant.self, ShareImportReceipt.self,
+        OneTask.self, OneEvent.self, OneAlarm.self, OneList.self,
+        ChatThread.self, ShareImportReceipt.self,
       ])
       container = try ModelContainer(
         for: schema,

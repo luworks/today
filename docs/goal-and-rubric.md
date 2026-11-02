@@ -93,7 +93,7 @@ Re-scoped in round 19: the Alarms page lists real alarms only; reminders live on
 10. Clear permission prompt with a reason, and a recovery path if denied
 
 ### 4. Reminders parity (benchmark: Apple Reminders)
-Replaces "Habits (benchmark: Streaks)", retired in round 19: habits were removed from the product (no tab, chips or streaks; the `Habit` SwiftData model stays in the schema, unused, so existing installs migrate without data loss).
+Replaces "Habits (benchmark: Streaks)", retired in round 19: habits were removed from the product (no tab, chips or streaks; the `Habit` SwiftData model was deleted in November 2026).
 
 Status after round 21 (full UI suite run in the iOS simulator, see the log). "Demonstrated" = seen working on screen or covered by a UI test. "Built" = in the code, not yet demonstrated, so it does not count in a score yet.
 

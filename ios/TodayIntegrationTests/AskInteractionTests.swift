@@ -78,8 +78,8 @@
     init() throws {
       defaults = try #require(UserDefaults(suiteName: suite))
       let schema = Schema([
-        OneTask.self, OneEvent.self, OneAlarm.self, OneList.self, Habit.self,
-        ChatThread.self, LedgerEntry.self, AIGrant.self, ShareImportReceipt.self,
+        OneTask.self, OneEvent.self, OneAlarm.self, OneList.self,
+        ChatThread.self, ShareImportReceipt.self,
       ])
       container = try ModelContainer(
         for: schema,

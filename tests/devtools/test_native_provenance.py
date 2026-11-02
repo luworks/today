@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 from scripts.devtools import commands, core, xcode_tests  # noqa: E402 - standalone test import bootstrap
 
-METHOD = 'TodayTests/StoreUpgradeTests/baselineStorePreservesAllFieldsAcrossReopenAndMutation'
+METHOD = 'TodayTests/StoreUpgradeTests/oldStoreOpensWithCurrentSchema'
 CONTRACT = commands.testing_contract(ROOT)
 
 

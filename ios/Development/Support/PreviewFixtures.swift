@@ -20,8 +20,8 @@ import One
     static let reminders: ModelContainer = {
       do {
         let container = try ModelContainer(
-          for: OneTask.self, OneEvent.self, OneAlarm.self, OneList.self, Habit.self,
-          ChatThread.self, LedgerEntry.self, AIGrant.self, ShareImportReceipt.self,
+          for: OneTask.self, OneEvent.self, OneAlarm.self, OneList.self,
+          ChatThread.self, ShareImportReceipt.self,
           configurations: ModelConfiguration(isStoredInMemoryOnly: true))
         let context = container.mainContext
         for (index, name) in ["Work", "Home", "Travel"].enumerated() {

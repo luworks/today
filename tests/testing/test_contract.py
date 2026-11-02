@@ -351,7 +351,7 @@ class LaneAuthority(unittest.TestCase):
     def test_real_authorities_select_executable_methods(self):
         source = c.inventory()
         integration = c.plan(['integration'], source)
-        self.assertIn('TodayTests/StoreUpgradeTests/baselineStorePreservesAllFieldsAcrossReopenAndMutation',
+        self.assertIn('TodayTests/StoreUpgradeTests/oldStoreOpensWithCurrentSchema',
                       integration['selectors']['integration'])
         self.assertCountEqual(integration['selectors']['integration'], c.available(source, 'integration'))
         self.assertFalse(integration['selectors']['ui'])
@@ -387,7 +387,7 @@ class LaneAuthority(unittest.TestCase):
 
     def test_named_lane_parser_preserves_targets_and_rejects_wrong_target(self):
         for lane, identifier in [
-            ('integration', 'TodayTests/StoreUpgradeTests/baselineStorePreservesAllFieldsAcrossReopenAndMutation'),
+            ('integration', 'TodayTests/StoreUpgradeTests/oldStoreOpensWithCurrentSchema'),
             ('snapshot', 'TodaySnapshotTests/NativeSnapshotTests/testHealthStepsLight'),
             ('logic', 'SceneRegistryTests/SceneRegistryTests/persistedAutomationHandlesStayAvailable')]:
             attempts = c.xcresult_attempts(tree((identifier + '()', 'Passed', '')), lane)

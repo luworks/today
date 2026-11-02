@@ -28,11 +28,9 @@ Unmount/cancel view-owned tasks before disposing their session. Dispose ledger b
 
 ## Persistent and system identity
 
-The source identity of all nine persistent models remains module **One**: OneTask, OneEvent, OneAlarm, OneList, Habit, ChatThread, LedgerEntry, AIGrant and ShareImportReceipt. Preserve fields, defaults, encoded values and persistent references. Habit and LedgerEntry remain retired schema members. Preserve intent identities and explicitly shared AlarmActivity declarations; moving executable branding does not authorize renaming persisted types.
+The six persistent models live in module **One**: OneTask, OneEvent, OneAlarm, OneList, ChatThread and ShareImportReceipt. The retired `Habit`, `LedgerEntry`, `AIGrant` and `OneTask.plannedStart` were deleted in November 2026; SwiftData's lightweight migration drops them from an existing store (`StoreUpgradeTests`), and a store that still cannot be opened is deleted and started fresh (`OneStore`; local-only data loss is accepted, Apple Calendar and Apple Reminders sync back in). Preserve intent identities and explicitly shared AlarmActivity declarations; moving executable branding does not authorize renaming persisted types.
 
-Production identities remain `com.luworks.one`, `com.luworks.one.widgets`, `com.luworks.one.share`, App Group `group.com.luworks.one`, URL/preference/shortcut/background identifiers and existing database locations. The production executable module is TodayApp and product One.app. App Activity remains `Application Support/Activity/activity.sqlite`; extension snapshot/inbox/outbox files retain their formats. QA history under the primary checkout's `tests/results/` is separate from app Activity. Do not add a second ledger or delete stores on migration failure.
-
-[Storage compatibility](storage-compatibility.md) and [SwiftData upgrade characterization](swiftdata-upgrade.md) describe frozen writer/reader evidence and its limits. The One bridge exits only after real consumers no longer need model-bound helpers and an actual installed-data-compatible migration is proved. Host serialization or an old-writer reopen does not establish iOS upgrade acceptance.
+Production identities remain `com.luworks.one`, `com.luworks.one.widgets`, `com.luworks.one.share`, App Group `group.com.luworks.one`, URL/preference/shortcut/background identifiers and existing database locations. The production executable module is TodayApp and product One.app. App Activity remains `Application Support/Activity/activity.sqlite`; extension snapshot/inbox/outbox files retain their formats. QA history under the primary checkout's `tests/results/` is separate from app Activity. Do not add a second ledger.
 
 ## Live, Mock and Workbench
 
