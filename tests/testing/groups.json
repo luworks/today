@@ -9,7 +9,7 @@
     },
     "integration": {
       "integration": [
-        "StoreUpgradeTests/baselineStorePreservesAllFieldsAcrossReopenAndMutation",
+        "StoreUpgradeTests/oldStoreOpensWithCurrentSchema",
         "PlannerSessionTests",
         "AskInteractionTests",
         "AskWriteSnapshotTests",
@@ -233,10 +233,6 @@
             {
               "name": "testPausedRecordingStopsAutomaticChanges",
               "line": 114
-            },
-            {
-              "name": "testOldLedgerRowsAreImportedOnceAndRetiredInALaterLaunch",
-              "line": 137
             },
             {
               "name": "testExportOpensTheShareSheet",
@@ -1647,34 +1643,6 @@
             {
               "name": "testGrantsUseTheGrantKindAndEveryActionRoundTrips",
               "line": 37
-            },
-            {
-              "name": "testImportCopiesEverythingOnceAndNeverTwice",
-              "line": 48
-            },
-            {
-              "name": "testDryRunWritesNothingAndSaysWhatWouldHappen",
-              "line": 66
-            },
-            {
-              "name": "testAnInterruptedImportResumesWithoutDuplicates",
-              "line": 78
-            },
-            {
-              "name": "testAShortFetchDoesNotMarkTheImportDone",
-              "line": 88
-            },
-            {
-              "name": "testOldRowsMayBeRemovedOnlyInALaterLaunchAfterAVerifiedCopy",
-              "line": 97
-            },
-            {
-              "name": "testImportedRowsReadBackAsTheOriginalLedgerLines",
-              "line": 108
-            },
-            {
-              "name": "testUnknownLegacyStringsAreKeptAsTheyAre",
-              "line": 129
             }
           ]
         },
@@ -1823,7 +1791,7 @@
               "line": 310
             },
             {
-              "name": "testClearKeepsTheDeviceAndMigrationMarkers",
+              "name": "testClearKeepsTheDevice",
               "line": 323
             },
             {

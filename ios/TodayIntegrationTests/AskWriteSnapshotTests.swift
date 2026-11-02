@@ -524,8 +524,8 @@
         calendar: calendar, locale: Locale(identifier: "en_US_POSIX"))
       self.runtime = runtime
       let schema = Schema([
-        OneTask.self, OneEvent.self, OneAlarm.self, OneList.self, Habit.self,
-        ChatThread.self, LedgerEntry.self, AIGrant.self, ShareImportReceipt.self,
+        OneTask.self, OneEvent.self, OneAlarm.self, OneList.self,
+        ChatThread.self, ShareImportReceipt.self,
       ])
       let container = try ModelContainer(
         for: schema,

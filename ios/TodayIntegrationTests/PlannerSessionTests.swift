@@ -556,7 +556,6 @@
       #expect(a.services.actions.undo(created, context: a.context))
       #expect(!a.services.actions.undo(created, context: a.context))
       #expect(try a.tasks().isEmpty)
-      #expect(try a.context.fetchCount(FetchDescriptor<LedgerEntry>()) == 0)
       #expect(try b.tasks().isEmpty && b.rows().isEmpty)
       #expect(a.services.reminders.completionCalls.isEmpty)
     }
@@ -730,8 +729,8 @@
       self.runtime = runtime
       // Exact production schema, including unused legacy models. No surrogate test declarations.
       let schema = Schema([
-        OneTask.self, OneEvent.self, OneAlarm.self, OneList.self, Habit.self,
-        ChatThread.self, LedgerEntry.self, AIGrant.self, ShareImportReceipt.self,
+        OneTask.self, OneEvent.self, OneAlarm.self, OneList.self,
+        ChatThread.self, ShareImportReceipt.self,
       ])
       let container = try ModelContainer(
         for: schema,

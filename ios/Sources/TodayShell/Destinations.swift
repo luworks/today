@@ -52,7 +52,6 @@
   }
 
   package struct ShellSettings: View {
-    @Environment(\.modelContext) private var context
     let diagnostics: LocalDiagnostics
     let composition: ShellComposition
     var selection: SettingsView.Selection = .all
@@ -86,9 +85,8 @@
                     "activity-\(session.runtime.nextID().uuidString).\(format == .csv ? "csv" : "jsonl")"
                 )
               }, summary: { session.activity.summary() },
-              clear: { session.activity.clear(context: context) },
-              export: { try await session.activity.export($0, to: $1) },
-              legacyRowCount: { (try? context.fetchCount(FetchDescriptor<LedgerEntry>())) ?? 0 }))
+              clear: { session.activity.clear() },
+              export: { try await session.activity.export($0, to: $1) }))
         },
         shareDiagnostics: { AnyView(SystemFileSheet(url: $0)) },
         reset: {

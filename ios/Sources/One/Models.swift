@@ -13,9 +13,6 @@
     package var note: String
     package var isDone: Bool
     package var doneAt: Date?
-    /// Retired: Today no longer has a separate planned time. The column stays so existing installs migrate;
-    /// nothing reads or writes it.
-    package var plannedStart: Date?
     package var durationMinutes: Int
     /// The reminder's date (and time, when it has one).
     package var due: Date?

@@ -105,38 +105,6 @@ public enum LaunchTestConfiguration {
 #if os(iOS) && DEBUG
   @MainActor
   extension LaunchTestConfiguration {
-    /// UI tests only (`-uiTesting -uiTestingLegacyLedgerRows <n>`): writes n old-style `LedgerEntry` rows, as an install from
-    /// before the Activity store would have them, so the real import can be tested end to end. Only when there are none yet.
-    package static func seedLegacyLedgerForTests(
-      context: ModelContext, arguments: [String], runtime: PlannerRuntime
-    ) {
-      let args = arguments
-      guard args.contains("-uiTesting"), let i = args.firstIndex(of: "-uiTestingLegacyLedgerRows"),
-        i + 1 < args.count,
-        let n = Int(args[i + 1]), n >= 5,
-        ((try? context.fetchCount(FetchDescriptor<LedgerEntry>())) ?? 0) == 0
-      else { return }
-      func entry(
-        _ minutesAgo: Int, _ actor: LedgerActor, _ action: LedgerAction, _ title: String,
-        approval: LedgerApproval = .userMade
-      ) -> LedgerEntry {
-        LedgerEntry(
-          date: runtime.now().addingTimeInterval(-Double(minutesAgo) * 60), actor: actor,
-          channel: .app, action: action,
-          itemKind: "task", title: title, before: "Not planned", after: "Today 10:00",
-          approval: approval)
-      }
-      let plan = entry(1, .todayAI, .planned, "Legacy plan", approval: .asked)
-      let deleted = entry(2, .you, .deleted, "Legacy deleted")
-      deleted.snapshot = try? JSONEncoder().encode(TaskSnapshot(title: "Legacy deleted"))
-      let done = entry(3, .you, .completed, "Legacy done")
-      let undo = entry(4, .you, .undone, "Legacy done")
-      undo.undoOf = done.id
-      for e in [plan, deleted, done, undo] { context.insert(e) }
-      for k in 4..<n { context.insert(entry(5 + k, .siri, .created, "Legacy filler \(k)")) }
-      try? context.save()
-    }
-
     /// The AlarmKit id of the seeded "Morning alarm", so its recorded Stop matches its ring.
     package static let pastDayAlarmID = UUID(uuidString: "00000000-0000-4000-8000-0000000000A1")!
 
