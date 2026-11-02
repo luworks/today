@@ -254,6 +254,9 @@
             if messages.isEmpty { focused = true }
             refreshCardTitles()
             intelligence.prewarm()
+            #if DEBUG
+              registerEvalProbe()
+            #endif
           }
           .onChange(of: isPresented) { _, presented in
             if PerformanceTrace.enabled {
@@ -2525,4 +2528,48 @@
       start: event.start, duration: event.duration, rule: event.repeats, in: interval,
       calendar: calendar)
   }
+  #if DEBUG
+    // MARK: Evaluation probe (AskEvalProbe; docs/qa/agent-p3-eval-20261101.md)
+
+    extension AskView {
+      fileprivate func registerEvalProbe() {
+        guard let probe = AskEvalProbe.current else { return }
+        probe.send = { send($0) }
+        probe.snapshot = { evalSnapshot() }
+        probe.applyChange = {
+          if let agent, let open = agent.changes.last(where: { $0.status == .open }) {
+            await agent.apply(open.id)
+          }
+        }
+      }
+
+      /// What the chat shows: replies, capture cards (incl. FastLane receipts) and agent change cards.
+      fileprivate func evalSnapshot() -> JSONValue {
+        let cal = runtime.calendar
+        let shown: [JSONValue] = proposals.map { p in
+          var o = AskEvalProbe.capture(p.capture, calendar: cal)
+          o["id"] = .string(p.id.uuidString)
+          o["status"] = .string(p.status.rawValue)
+          o["batch"] = .string(p.batch.uuidString)
+          o["agent"] = .bool(p.agentID != nil)
+          if let ref = p.itemRef { o["item"] = .string(Ledger.comparisonKey(ref)) }
+          return .object(o)
+        }
+        return [
+          "thinking": .bool(thinking),
+          "messages": .array(
+            messages.map {
+              ["role": .string($0.role == .user ? "user" : "ai"), "text": .string($0.text)]
+            }),
+          "proposals": .array(shown),
+          "change": .null,
+          "agent_changes": .array(
+            (agent?.changes ?? []).map { AskEvalProbe.agentChange($0, calendar: cal) }),
+          "tidy": .number(Double(tidy.count)),
+          "followup": .null,
+          "draft": .string(draft),
+        ]
+      }
+    }
+  #endif
 #endif

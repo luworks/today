@@ -14,7 +14,8 @@
         "AskInteractionTests",
         "AskWriteSnapshotTests",
         "ToolRegistryTests",
-        "AgentPlannerToolsTests"
+        "AgentPlannerToolsTests",
+        "AgentEvalTests"
       ]
     },
     "ui": {

@@ -161,6 +161,9 @@
     }
 
     static func logRun(_ r: AgentRunResult, runID: String) {
+      #if DEBUG
+        AskEvalProbe.current?.runs.append(r)
+      #endif
       let input = r.usage.reduce(0) { $0 + $1.input }
       let cached = r.usage.reduce(0) { $0 + $1.cached }
       let output = r.usage.reduce(0) { $0 + $1.output }

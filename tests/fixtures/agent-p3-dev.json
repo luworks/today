@@ -1,0 +1,717 @@
+{
+ "version": 1,
+ "name": "agent-p3-dev",
+ "description": "Development set for P3: tests/fixtures/ai-chat-capability-eval.json with its labels translated into the holdout's gold schema (same world as its reference setup). The source fixture is unchanged.",
+ "source": "tests/fixtures/ai-chat-capability-eval.json",
+ "world": {
+  "timeZone": "America/Los_Angeles",
+  "localNow": "2026-10-28T09:00:00",
+  "weekday": "Wednesday",
+  "items": [
+   {
+    "key": "R1",
+    "kind": "reminder",
+    "title": "[QA] dentist",
+    "due": "2026-10-28T15:00"
+   },
+   {
+    "key": "R2",
+    "kind": "reminder",
+    "title": "[QA] dentist",
+    "due": "2026-10-28T16:00"
+   }
+  ]
+ },
+ "cases": [
+  {
+   "id": "zh-owner",
+   "category": "one-off",
+   "language": "zh-mixed",
+   "turns": [
+    {
+     "input": "增加一个 reminder，今天下午两点吧，我需要去学这个[QA]八段锦",
+     "expect": {
+      "outcome": "cards",
+      "tier": "direct",
+      "cards": [
+       {
+        "op": "create",
+        "kind": "reminder",
+        "title_any": [
+         "八段锦"
+        ],
+        "day": "2026-10-28",
+        "time": "14:00",
+        "repeat": null
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "zh-tomorrow",
+   "category": "one-off",
+   "language": "zh",
+   "turns": [
+    {
+     "input": "明天早上8点提醒我吃[QA]维生素",
+     "expect": {
+      "outcome": "cards",
+      "tier": "direct",
+      "cards": [
+       {
+        "op": "create",
+        "kind": "reminder",
+        "title_any": [
+         "维生素"
+        ],
+        "day": "2026-10-29",
+        "time": "08:00",
+        "repeat": null
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "zh-weekday",
+   "category": "one-off",
+   "language": "zh",
+   "turns": [
+    {
+     "input": "周五下午两点提醒我买[QA]牛奶",
+     "expect": {
+      "outcome": "cards",
+      "tier": "direct",
+      "cards": [
+       {
+        "op": "create",
+        "kind": "reminder",
+        "title_any": [
+         "牛奶"
+        ],
+        "day": "2026-10-30",
+        "time": "14:00",
+        "repeat": null
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "en-oneoff",
+   "category": "one-off",
+   "language": "en",
+   "turns": [
+    {
+     "input": "Remind me to water [QA] basil tomorrow at 9am",
+     "expect": {
+      "outcome": "cards",
+      "tier": "direct",
+      "cards": [
+       {
+        "op": "create",
+        "kind": "reminder",
+        "title_any": [
+         "basil"
+        ],
+        "day": "2026-10-29",
+        "time": "09:00",
+        "repeat": null
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "mixed-oneoff",
+   "category": "one-off",
+   "language": "mixed",
+   "turns": [
+    {
+     "input": "Add a reminder 明天下午3点给 [QA] Alex 发邮件",
+     "expect": {
+      "outcome": "cards",
+      "tier": "direct",
+      "cards": [
+       {
+        "op": "create",
+        "kind": "reminder",
+        "title_any": [
+         "alex"
+        ],
+        "day": "2026-10-29",
+        "time": "15:00",
+        "repeat": null
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "date-only",
+   "category": "date-only",
+   "language": "zh",
+   "turns": [
+    {
+     "input": "提醒我明天买[QA]咖啡",
+     "expect": {
+      "outcome": "cards",
+      "tier": "direct",
+      "cards": [
+       {
+        "op": "create",
+        "kind": "reminder",
+        "title_any": [
+         "咖啡"
+        ],
+        "day": "2026-10-29",
+        "time": "none",
+        "repeat": null
+       }
+      ],
+      "forbidden": [
+       "invented_time"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "no-time",
+   "category": "undated",
+   "language": "en",
+   "turns": [
+    {
+     "input": "Remind me to buy [QA] paper",
+     "expect": {
+      "outcome": "cards",
+      "tier": "direct",
+      "cards": [
+       {
+        "op": "create",
+        "kind": "reminder",
+        "title_any": [
+         "paper"
+        ],
+        "day": "none",
+        "time": "none",
+        "repeat": null
+       }
+      ],
+      "forbidden": [
+       "invented_time",
+       "invented_day"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "repeat-zh",
+   "category": "recurring",
+   "language": "zh",
+   "turns": [
+    {
+     "input": "每周一和周三晚上7点提醒我练[QA]吉他",
+     "expect": {
+      "outcome": "cards",
+      "tier": "preview",
+      "cards": [
+       {
+        "op": "create",
+        "kind": "reminder",
+        "title_any": [
+         "吉他"
+        ],
+        "time": "19:00",
+        "repeat": "weekly:2,4"
+       }
+      ],
+      "forbidden": [
+       "write"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "repeat-en",
+   "category": "recurring",
+   "language": "en",
+   "turns": [
+    {
+     "input": "Every Friday at 5pm remind me to take out [QA] recycling",
+     "expect": {
+      "outcome": "cards",
+      "tier": "preview",
+      "cards": [
+       {
+        "op": "create",
+        "kind": "reminder",
+        "title_any": [
+         "recycling"
+        ],
+        "time": "17:00",
+        "repeat": "weekly:6"
+       }
+      ],
+      "forbidden": [
+       "write"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "alarm",
+   "category": "alarm",
+   "language": "zh",
+   "turns": [
+    {
+     "input": "明天早上7点设置一个[QA]闹钟",
+     "expect": {
+      "outcome": "cards",
+      "tier": "preview",
+      "cards": [
+       {
+        "op": "create",
+        "kind": "alarm",
+        "time": "07:00",
+        "repeat": null
+       }
+      ],
+      "forbidden": [
+       "write"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "event",
+   "category": "event",
+   "language": "en",
+   "turns": [
+    {
+     "input": "Create a calendar event [QA] project review tomorrow from 2pm to 3pm",
+     "expect": {
+      "outcome": "cards",
+      "tier": "preview",
+      "cards": [
+       {
+        "op": "create",
+        "kind": "event",
+        "title_any": [
+         "project review"
+        ],
+        "day": "2026-10-29",
+        "time": "14:00",
+        "end": "15:00"
+       }
+      ],
+      "forbidden": [
+       "write"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "agenda",
+   "category": "question",
+   "language": "zh",
+   "turns": [
+    {
+     "input": "今天还剩什么？",
+     "expect": {
+      "outcome": "answer",
+      "must_mention": [
+       [
+        "dentist"
+       ]
+      ],
+      "forbidden": [
+       "write",
+       "card"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "capability-question",
+   "category": "question",
+   "language": "en",
+   "turns": [
+    {
+     "input": "Can you create reminders?",
+     "expect": {
+      "outcome": "answer",
+      "forbidden": [
+       "write",
+       "card"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "existing-edit",
+   "category": "edit",
+   "language": "zh",
+   "turns": [
+    {
+     "input": "把三点的[QA] dentist改到下午4点",
+     "expect": {
+      "outcome": "cards",
+      "tier": "preview",
+      "cards": [
+       {
+        "op": "move",
+        "kind": "reminder",
+        "target": "R1",
+        "day": "2026-10-28",
+        "time": "16:00"
+       }
+      ],
+      "forbidden": [
+       "write",
+       "create",
+       "change:R2"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "ambiguous-edit",
+   "category": "ambiguity",
+   "language": "en",
+   "turns": [
+    {
+     "input": "Move [QA] dentist to 5pm",
+     "expect": {
+      "outcome": "clarify",
+      "forbidden": [
+       "write",
+       "change:R1",
+       "change:R2"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "slot-followup",
+   "category": "follow-up",
+   "language": "zh",
+   "turns": [
+    {
+     "input": "每周五提醒我准备[QA]报告",
+     "expect": {
+      "outcome": "cards",
+      "tier": "preview",
+      "cards": [
+       {
+        "op": "create",
+        "kind": "reminder",
+        "title_any": [
+         "报告"
+        ],
+        "time": "none",
+        "repeat": "weekly:6"
+       }
+      ],
+      "forbidden": [
+       "write"
+      ]
+     }
+    },
+    {
+     "input": "下午四点",
+     "expect": {
+      "outcome": "cards",
+      "tier": "preview",
+      "cards": [
+       {
+        "op": "create",
+        "kind": "reminder",
+        "title_any": [
+         "报告"
+        ],
+        "time": "16:00",
+        "repeat": "weekly:6"
+       }
+      ],
+      "forbidden": [
+       "write",
+       "duplicate"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "followup-repeat",
+   "category": "follow-up",
+   "language": "mixed",
+   "turns": [
+    {
+     "input": "提醒我明天8点吃[QA]药",
+     "expect": {
+      "outcome": "cards",
+      "tier": "direct",
+      "cards": [
+       {
+        "op": "create",
+        "kind": "reminder",
+        "title_any": [
+         "药"
+        ],
+        "day": "2026-10-29",
+        "time": "08:00",
+        "repeat": null
+       }
+      ]
+     }
+    },
+    {
+     "input": "Actually make it every day",
+     "expect": {
+      "outcome": "cards",
+      "tier": "preview",
+      "cards": [
+       {
+        "op": "repeat",
+        "kind": "reminder",
+        "target": "new:1",
+        "repeat": "daily"
+       }
+      ],
+      "forbidden": [
+       "write",
+       "create"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "followup-correction",
+   "category": "follow-up",
+   "language": "en",
+   "turns": [
+    {
+     "input": "Set an alarm for [QA] tea at 3pm",
+     "expect": {
+      "outcome": "cards",
+      "tier": "preview",
+      "cards": [
+       {
+        "op": "create",
+        "kind": "alarm",
+        "title_any": [
+         "tea"
+        ],
+        "time": "15:00",
+        "repeat": null
+       }
+      ],
+      "forbidden": [
+       "write"
+      ]
+     }
+    },
+    {
+     "input": "Actually 4:30",
+     "expect": {
+      "outcome": "cards",
+      "tier": "preview",
+      "cards": [
+       {
+        "op": "create",
+        "kind": "alarm",
+        "title_any": [
+         "tea"
+        ],
+        "time": "16:30",
+        "repeat": null
+       }
+      ],
+      "forbidden": [
+       "write",
+       "duplicate"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "reported",
+   "category": "safety",
+   "language": "zh",
+   "turns": [
+    {
+     "input": "我朋友说他明天要提醒自己买[QA]茶",
+     "expect": {
+      "outcome": "none",
+      "forbidden": [
+       "write",
+       "card"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "negation",
+   "category": "safety",
+   "language": "en",
+   "turns": [
+    {
+     "input": "Don't add a reminder for [QA] laundry tomorrow",
+     "expect": {
+      "outcome": "none",
+      "forbidden": [
+       "write",
+       "create"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "question-not-action",
+   "category": "safety",
+   "language": "zh",
+   "turns": [
+    {
+     "input": "你能在明天下午两点提醒我做[QA]拉伸吗？",
+     "expect": {
+      "outcome": "clarify",
+      "forbidden": [
+       "write"
+      ],
+      "accept": [
+       {
+        "outcome": "cards",
+        "tier": "preview",
+        "cards": [
+         {
+          "op": "create",
+          "kind": "reminder",
+          "title_any": [
+           "拉伸"
+          ],
+          "day": "2026-10-29",
+          "time": "14:00",
+          "repeat": null
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "missing-alarm-time",
+   "category": "ambiguity",
+   "language": "zh",
+   "turns": [
+    {
+     "input": "帮我设一个[QA]闹钟",
+     "expect": {
+      "outcome": "clarify",
+      "forbidden": [
+       "write",
+       "invented_time"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "multi-item",
+   "category": "multi-item",
+   "language": "mixed",
+   "turns": [
+    {
+     "input": "Tomorrow remind me to buy [QA] milk at 9am and call [QA] Alex at 3pm",
+     "expect": {
+      "outcome": "cards",
+      "tier": "preview",
+      "cards": [
+       {
+        "op": "create",
+        "kind": "reminder",
+        "title_any": [
+         "milk"
+        ],
+        "day": "2026-10-29",
+        "time": "09:00",
+        "repeat": null
+       },
+       {
+        "op": "create",
+        "kind": "reminder",
+        "title_any": [
+         "alex"
+        ],
+        "day": "2026-10-29",
+        "time": "15:00",
+        "repeat": null
+       }
+      ],
+      "forbidden": [
+       "write"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "self-correction",
+   "category": "correction",
+   "language": "zh",
+   "turns": [
+    {
+     "input": "提醒我周四，不对，周五下午两点买[QA]面包",
+     "expect": {
+      "outcome": "cards",
+      "tier_any": [
+       "direct",
+       "preview"
+      ],
+      "cards": [
+       {
+        "op": "create",
+        "kind": "reminder",
+        "title_any": [
+         "面包"
+        ],
+        "day": "2026-10-30",
+        "time": "14:00",
+        "repeat": null
+       }
+      ],
+      "forbidden": [
+       "day:2026-10-29"
+      ],
+      "accept": [
+       {
+        "outcome": "clarify"
+       }
+      ]
+     }
+    }
+   ]
+  }
+ ]
+}

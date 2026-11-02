@@ -1,6 +1,6 @@
 # Today AI：Agent 架构（定稿 v3）
 
-日期 2026-10-31 · 状态：**设计定稿；P0（Worker agent 模式）已部署（2026-10-31）；P1 已合并；P2（手机上的 agent 循环，开关 `today.ai.agent` 默认关）已实现，模拟器实测见 `docs/qa/agent-p2-20261101.md`；P3 起尚未实现** · 迁移完成后取代 `docs/engineering/ai-architecture.md` 描述的"规则路由 + 多个零散 prompt"架构。那份文档在迁移期间保留，作为现状审计。
+日期 2026-10-31 · 状态：**设计定稿；P0（Worker agent 模式）已部署（2026-10-31）；P1 已合并；P2（手机上的 agent 循环，开关 `today.ai.agent` 默认关）已实现，模拟器实测见 `docs/qa/agent-p2-20261101.md`；P3 评测已完成，见 `docs/qa/agent-p3-eval-20261101.md`；P3 之后尚未实现** · 迁移完成后取代 `docs/engineering/ai-architecture.md` 描述的"规则路由 + 多个零散 prompt"架构。那份文档在迁移期间保留，作为现状审计。
 
 本文按四步写：§1 新框架（v1）→ §2 和竞品对比 → §3 根据对比优化（v2）→ §4 最终版本（v3），以及为什么选它。§5 记录独立审查发现的问题和修正位置。
 
@@ -140,14 +140,14 @@
 | O5 | **Siri 和 App 内 agent 共用 ToolRegistry** | Apple app schemas | App Intents 调用同一套 ToolRegistry 和 ActionPolicy；iOS 27 上采用官方的 calendar schema，有参会人的事件用 `OwnershipProvidingEntity` 标为 shared。哪些 intent 可以直接执行，见 §4.2 |
 | O6 | **延迟手段写成规定** | OpenAI 延迟指南 | 全程流式；固定前缀保证命中缓存；读类工具并行；**工具参数一完整就显示卡片**；不先输出铺垫文字（会推迟第一次工具调用）；effort 先用 `low`；`service_tier: fast`（价格 2 倍）要测过才决定用不用 |
 | O7 | **评测放在本地** | OpenAI 托管的 Evals 平台今天（10/31）起只读，11/30 关闭 | 两套：① `ScriptedModelClient` 回放录好的响应，作为单元测试进 CI，结果确定、不花钱；② 真实评测脚本经 Worker 跑开发集和**盲测集**，指标见 §4.3 |
-| O8 | **"少一跳"的小快照** | Todoist 把项目列表放进 prompt | 不做全量放入。只有问日程时，由代码在第一步附上今天的精简日程（≤20 条），省掉一次 `get_agenda` 往返。做不做由评测决定 |
+| O8 | **"少一跳"的小快照** | Todoist 把项目列表放进 prompt | 不做全量放入。只有问日程时，由代码在第一步附上今天的精简日程（≤20 条），省掉一次 `get_agenda` 往返。**P3 已评测，不采用**：开发集上改动类首卡从 3.25 s 降到 1.40 s，但盲测集完成率 78.6 %（不加时 84.8 %），并出现一次不安全提议（只看得到今天的那条"看牙医"，没追问就出了卡） |
 | O9 | **不做"长期规则"或自动执行** | Copilot、Motion 的教训 | v3 明确不做。以后要做，按 `ai-native-vision.md` §3.8 的自主权阶梯另行评审 |
 
 ---
 
 ## 4. 最终版本 v3
 
-v3 = v1 + O1–O7；O8 等评测决定；O9 明确不做；同时包含 §5 审查后的所有修正。
+v3 = v1 + O1–O7；O8 经 P3 评测不采用；O9 明确不做；同时包含 §5 审查后的所有修正。
 
 ### 4.1 最终结构
 
@@ -224,7 +224,7 @@ AgentRunner ─ModelClient─ Worker ─ Luna  │
 | **P0** ✅ | 扩展 Worker `/v1/responses` 支持 agent 模式：runs 表、缓存计价、SSE、白名单，加测试；用真实请求验证 §4.8 的未知项（`docs/qa/agent-p0-20261031.md`） | — |
 | **P1** | 抽出 `ToolRegistry`、`ActionPolicy`、`FastLane`，**行为不变**。① 先用内存 `ModelContainer` 加假的 `CalendarService`，给 `AskNativeActions.applyChange` 和 `applyTidy`（`AskView.swift` 约 2232–2470 行）以及系统事件改期的编排写**行为快照测试**，然后再抽取。② 把快车道要用的判定函数收进 `FastLane`：`ChatRouting.intent / requestsEvent / hasMultipleActions / hasMaterialCorrection`、`CaptureConversation.parse / referencesReminder / resolve / isOneOffAnswer`、`Editing.looksLikeEdit` | — |
 | **P2** ✅ | `AgentRunner`、`ModelClient`、`HostedLunaClient`、`ScriptedModelClient`、skills 文件，放在开关 `today.ai.agent` 后面（默认关） | — |
-| **P3** | 评测：开发集加**新写的盲测集**，新旧两套架构跑同一套题，量 §4.3 的全部指标。可选：在同一套题上测 Decisions 能否作为快车道的额外检查 | — |
+| **P3** ✅ | 评测：开发集加**新写的盲测集**（70 题，已冻结），新旧两套架构跑同一套题，量 §4.3 的全部指标（`docs/qa/agent-p3-eval-20261101.md`）。结论：模型侧 0 次不安全写入；21 次不安全写入全部来自快车道规则（#270 已修）；Worker 在 10 ms CPU 上限处中途被杀（#271 减半，需升级 Workers Paid）；完成率 84.8 %（旧架构 62.9 %），延迟、步数、成本达标。Decisions 额外检查未测 | — |
 | **P4** | 默认打开 agent，删除旧管线 | `ChatRouting` 和 `Dialogue` 里没被收进 `FastLane` 的部分、`Understanding`、`AICapture`、`ChatResponse`、`Editing`（`looksLikeEdit` 已移走）、`AskSuggestionRanker`、`SentenceRoute` 等路由规则、`EditingLogic` 的判断部分、`AskView` 的路由部分（目标是从 2492 行降到 1000 行以下）、约 20 个只测旧路由的测试文件、`ios/Eval/Understanding`、旧的 AI 文档 |
 | **P5** | Siri 接入 ToolRegistry，iOS 27 采用 app schemas；修改类 intent 加 `requestConfirmation` | `IntentLogic` 里和 ToolRegistry 重复的部分 |
 
