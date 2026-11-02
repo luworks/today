@@ -477,7 +477,7 @@
           ActivityEvent(kind: "change.settled", actor: "you", at: a.now)
         ])
         #expect(try a.services.activityStore.count() == 1)
-        a.services.activity.clear(context: a.context)
+        a.services.activity.clear()
         #expect(try a.services.activityStore.count() == 0)
         for format in ActivityExportFormat.allCases {
           let url = a.directory.appendingPathComponent("activity.\(format.fileExtension)")
