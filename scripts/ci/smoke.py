@@ -28,9 +28,7 @@ SCREENS = TEMP / 'screens'
 # launch/editor/tab/Chat journey and the Light/Dark dataset screenshots (uploaded to
 # smoke-screens-<sha>). Swift Testing identifiers keep their "()".
 TESTS = (
-    'TodayTests/PlannerSessionTests/populatedDayAgendaRenderUsesImportedSnapshotsWithoutNativeLookups()',
-    'TodayTests/PlannerSessionTests/importedFocusRenderingNeverOpensNativeStoreAndWritesStillRevalidate()',
-    'TodayTests/PlannerSessionTests/savedCalendarSnoozeHydratesOutsideOriginalDayAndRejectsStaleImports()',
+    'TodayTests/PlannerSessionTests/populatedDayAgendaRenderNeverOpensTheNativeStore()',
     'TodayUITests/TodayReminderCompletionTests/testPreconnectedImportedTimelineStaysResponsive',
     'TodayUITests/SmokeScreenshotTests/testTabsAndChatInBothModes',
 )
