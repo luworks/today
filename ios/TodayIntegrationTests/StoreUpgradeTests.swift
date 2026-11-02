@@ -44,25 +44,32 @@
         let lists = try c.fetch(FetchDescriptor<OneList>())
         let threads = try c.fetch(FetchDescriptor<ChatThread>())
         let receipts = try c.fetch(FetchDescriptor<ShareImportReceipt>())
-        #expect(
-          [tasks.count, events.count, alarms.count, lists.count, threads.count, receipts.count]
-            == [3, 2, 2, 2, 1, 1])
+        let counts: [Int] = [
+          tasks.count, events.count, alarms.count, lists.count, threads.count, receipts.count,
+        ]
+        #expect(counts == [3, 2, 2, 2, 1, 1])
 
         let task = try #require(tasks.first { $0.title == "Synthetic recurring work" })
         let meeting = try #require(events.first { $0.title == "Synthetic meeting" })
         let wake = try #require(alarms.first { $0.label == "Synthetic wake" })
         let thread = try #require(threads.first)
-        #expect(task.listName == "Synthetic Work" && lists.contains { $0.name == task.listName })
-        #expect(task.checklist.map(\.id) == [Self.uid(10), Self.uid(11)])
+        let listNames: [String] = lists.map(\.name)
+        #expect(task.listName == "Synthetic Work")
+        #expect(listNames.contains(task.listName))
+        let checklistIDs: [UUID] = task.checklist.map(\.id)
+        #expect(checklistIDs == [Self.uid(10), Self.uid(11)])
         #expect(task.due != nil)
-        #expect(
-          thread.items.map { Self.encoded($0) }
-            == ([task, meeting, wake] as [any PersistentModel]).map {
-              Self.encoded($0.persistentModelID)
-            })
-        #expect(thread.messages.map(\.id) == [Self.uid(60), Self.uid(61)])
+        let itemIDs: [Data] = thread.items.map(Self.encoded)
+        let expectedIDs: [Data] = [
+          Self.encoded(task.persistentModelID), Self.encoded(meeting.persistentModelID),
+          Self.encoded(wake.persistentModelID),
+        ]
+        #expect(itemIDs == expectedIDs)
+        let messageIDs: [UUID] = thread.messages.map(\.id)
+        #expect(messageIDs == [Self.uid(60), Self.uid(61)])
         #expect(thread.cards.count == 1)
-        #expect(receipts.first?.sharedID == Self.uid(50))
+        let sharedID: UUID? = receipts.first?.sharedID
+        #expect(sharedID == Self.uid(50))
       }
     }
 
