@@ -118,7 +118,7 @@ final class AskRouterTests: XCTestCase {
     let cases: [(String, String, String?, Bool, Int?)] = [
       ("Call Alex tomorrow at 3pm", "Call Alex", "New reminder", true, 15),
       ("周五晚上7点和朋友聚餐", "和朋友聚餐", nil, false, 19),
-      ("明早7点叫我起床", "Alarm", "New alarm", false, 7),
+      ("明早7点叫我起床", "起床", "New alarm", false, 7),
       ("提醒我下周一交报销单", "交报销单", "New reminder", true, nil),
       ("30分钟后关烤箱", "关烤箱", "New reminder", true, 9),
     ]
