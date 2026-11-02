@@ -517,9 +517,8 @@ def main(argv=None):
     p.add_argument('--team', default='')
     p.add_argument('--archive', type=Path)
     p.add_argument('--ipa', type=Path)
-    p.add_argument('--for-install', action='store_true', help='require exact-main merge gate, install smoke and matching device build; installs nothing')
+    p.add_argument('--for-install', action='store_true', help='require exact-main merge gate and matching device build; installs nothing')
     p.add_argument('--main-run', default='', help='push run of current main (default: looked up for the SHA)')
-    p.add_argument('--smoke-run', default='', help='run with a green install-smoke on the same SHA (default: the push run)')
     p.add_argument('--build-receipt', type=Path)
     args = p.parse_args(argv)
     if args.for_install and args.action != 'preflight-local':

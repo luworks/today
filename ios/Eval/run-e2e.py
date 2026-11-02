@@ -69,15 +69,6 @@ def selectors(args, source):
     return contract.expand(args.only, source, "ui")
 
 
-def grant_preconnected_access(selected, simulator, journal):
-    # This journey skips Settings; match the hosted smoke's real EventKit grants.
-    method = "TodayUITests/TodayReminderCompletionTests/testPreconnectedImportedTimelineStaysResponsive"
-    if method in selected:
-        for service in ("reminders", "calendar"):
-            journal.action(["xcrun", "simctl", "privacy", simulator, "grant", service,
-                            "com.luworks.today"], subprocess.run, check=True)
-
-
 def ui_command(selected, simulator, derived, output, test_products=None):
     # Preserve project signing, including simulated App Group entitlements for Share.
     target = (["test-without-building", "-xctestrun", str(test_products)] if test_products else
@@ -396,7 +387,6 @@ def main(argv=None):
         summary["mock_product"] = {**mock, "installed_app": installed,
                                    "source_fingerprint": identity["sha256"]}
         (output / "mock-product.json").write_text(json.dumps(summary["mock_product"], indent=2) + "\n")
-        grant_preconnected_access(selected, simulator, journal)
         command = ui_command(selected, simulator, derived, output, args.test_products)
         summary["commands"].append(command)
         summary["attempts"]["ui"] = []

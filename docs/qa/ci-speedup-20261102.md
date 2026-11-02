@@ -1,5 +1,9 @@
 # CI speed-up, 2026-11-02
 
+> Later the same day the owner removed install-smoke entirely ("install smoke 没有任何意义"); the
+> install-smoke rows below are history. The phone install gate now needs only the green `main`
+> push run (`checks` + `today-required`) on the exact SHA plus the device build receipt.
+
 Owner's request: fully automatic CI, no pointless work, faster. Measured on hosted `xcode-27`
 runners (3 CPU, public repo, free minutes) over the last 80 `today.yml` runs before the change
 (2026-11-02 01:59–18:40 UTC). Times are job times (start → completion); runner queue was a

@@ -68,10 +68,10 @@ def generate(root, timeout=600, *, _locked=False):
 
 
 def build(root, configuration='Debug', *, scheme='Today', timeout=600, testing=False, device=None,
-          install=False, provisioning_updates=False, main_run=None, smoke_run=None):
+          install=False, provisioning_updates=False, main_run=None):
     if (device and (scheme != 'Today' or testing or configuration != 'Debug')) or (
-            (install or provisioning_updates) and not device) or ((main_run or smoke_run) and not install):
-        raise ValueError('Device install requires Debug Live Today and a device; CI run IDs only with --install')
+            (install or provisioning_updates) and not device) or (main_run and not install):
+        raise ValueError('Device install requires Debug Live Today and a device; a CI run ID only with --install')
     if timeout <= 0:
         raise ValueError('Positive build timeout required')
     sdk = 'iphoneos' if device else 'iphonesimulator'
@@ -140,7 +140,7 @@ def build(root, configuration='Debug', *, scheme='Today', timeout=600, testing=F
                                   'build_log': str(result.log)})
             print(json.dumps({'device_build_receipt': str(receipt)}))
             if install:
-                args = SimpleNamespace(commit=source, main_run=main_run, smoke_run=smoke_run,
+                args = SimpleNamespace(commit=source, main_run=main_run,
                                        build_receipt=receipt, allow_provisioning_updates=provisioning_updates)
                 check_install(root, args, run)
                 return execute(root, ['xcrun', 'devicectl', 'device', 'install', 'app', '--device', device,

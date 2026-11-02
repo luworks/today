@@ -1,7 +1,6 @@
 """Failure-only CI evidence, using the existing process owner and QA journal.
 
-Only redacted logs/allowlisted metadata and a confirmed closed synthetic xcresult
-are uploadable. Verbatim command bytes stay private in primary tests/results;
+Only redacted logs and allowlisted metadata are uploadable. Verbatim command bytes stay private in primary tests/results;
 GitHub runner-local private bytes disappear with the runner (not an off-host backup).
 No environment dump, DerivedData, simulator store or signing material is exported.
 """
@@ -10,16 +9,13 @@ import json
 import os
 from pathlib import Path
 import subprocess
-import shutil
-import tarfile
 import uuid
 
 from scripts.devtools.core import canonical_root
 from scripts.devtools.process import Evidence, Redactor, run_process
 
-# Export at most 32 MiB of command logs and a 256 MiB uncompressed result bundle.
+# Export at most 32 MiB of command logs.
 LOG_LIMIT = 32 * 1024 * 1024
-RESULT_LIMIT = 256 * 1024 * 1024
 
 
 def probe(root, *argv):
@@ -42,9 +38,8 @@ class FailureEvidence:
         self.commands = []
         self.first_failure = None
         self.data = {'diagnostic_only': True, 'lane': lane, 'status': 'running',
-                     'xcresult': 'not_created', 'commands': self.commands,
+                     'commands': self.commands,
                      'privacy': 'Redacted export; raw logs runner-local/private, indexed by QA journal. '
-                                'Closed xcresult is raw synthetic test data, not redacted. '
                                 'Redaction is best effort; restrict artifact access. No environment dump.',
                      'source': probe(root, 'git', 'rev-parse', 'HEAD'),
                      'tree': probe(root, 'git', 'rev-parse', 'HEAD^{tree}'),
@@ -115,41 +110,8 @@ class FailureEvidence:
             evidence.journal.artifact(self.session, self.export / 'metadata.json')
             evidence.close()
 
-    def finish(self, code, result, *, closed=False):
-        self.data.update(status='passed' if code == 0 else 'failed', exit=code,
-                         xcresult='closed' if closed else 'unconfirmed_not_uploaded' if result.exists() else 'not_created')
-        if code and closed:
-            # Never stage a live/partial bundle. Preserve every byte of a closed bundle
-            # privately first; a tar retains layout/permissions unlike loose upload files.
-            files = sorted(result.rglob('*'))
-            if any(p.is_symlink() for p in files):
-                self.data['xcresult_export'] = 'symlink_rejected'
-            else:
-                evidence = Evidence(self.root, self.session, self.redact)
-                pending = self.private / 'smoke.xcresult.tar.pending'
-                try:
-                    evidence.journal.archive_files(result, self.session)
-                    if sum(p.stat().st_size for p in files if p.is_file()) > RESULT_LIMIT:
-                        self.data['xcresult_export'] = 'size_limit_not_uploaded'
-                    else:
-                        with tarfile.open(pending, 'w:gz') as archive:
-                            archive.add(result, arcname='smoke.xcresult')
-                        destination = self.export / 'smoke.xcresult.tar.gz'
-                        # The private/archive and export roots may be on different volumes.
-                        # Copy outside the upload glob, then atomically publish the complete tar.
-                        staged = self.export.parent.parent / (self.session + '.tar.pending')
-                        try:
-                            shutil.copyfile(pending, staged)
-                            staged.replace(destination)
-                        finally:
-                            staged.unlink(missing_ok=True)
-                        evidence.journal.artifact(self.session, destination)
-                        self.data['xcresult_export'] = 'complete_raw_synthetic_bundle'
-                except Exception as error:
-                    self.data['xcresult_export'] = 'archive_failed: ' + self.redact(repr(error))
-                finally:
-                    pending.unlink(missing_ok=True)
-                    evidence.close()
+    def finish(self, code):
+        self.data.update(status='passed' if code == 0 else 'failed', exit=code)
         remaining = LOG_LIMIT
         first_log = (self.first_failure or {}).get('log')
         logs = sorted(self.export.glob('*.log'), key=lambda log: (log.name != first_log, log.name))
@@ -177,8 +139,7 @@ class FailureEvidence:
         summary = os.environ.get('GITHUB_STEP_SUMMARY')
         if summary:
             with open(summary, 'a') as stream:
-                stream.write(f'\nCI evidence: `{self.data["lane"]}` exit `{code}`; '
-                             f'xcresult `{self.data["xcresult"]}`. '
+                stream.write(f'\nCI evidence: `{self.data["lane"]}` exit `{code}`. '
                              'Diagnostics are not an install/device acceptance receipt. '
                              'Failure/cancellation artifacts contain redacted logs; checkout/provider failures '
                              'before the recorder starts have Actions logs only.\n')
