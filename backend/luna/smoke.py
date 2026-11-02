@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""One bounded real HTTPS account→Luna→revocation smoke; synthetic data only.
+"""One bounded real HTTPS account→Luna agent step→revocation smoke; synthetic data only.
 The server enforces the cumulative evaluation cap. Never prints tokens/passwords.
 """
 import argparse
@@ -51,19 +51,17 @@ def main():
         assert status == 200, (status, login.get('error'))
         second = login['token']
         assert second != cleanup_token and len(second) == 64
-        payload = {'instructions': 'Return a concise reminder title preserving [QA]. Remove date/time words. Do not claim to create anything.',
-                   'input': 'Remind me to buy [QA] milk tomorrow at 9am',
-                   'text': {'format': {'type': 'json_schema', 'name': 'title', 'strict': True,
-                                       'schema': {'type': 'object', 'properties': {'title': {'type': 'string'}},
-                                                  'required': ['title'], 'additionalProperties': False}}}}
+        # One agent step (agent mode is the only mode): one new run, plain-text reply, no tools.
+        payload = {'tools_version': 'v1', 'run_id': 'qa-smoke-' + secrets.token_hex(8),
+                   'input': [{'role': 'user', 'content': '[QA] smoke test: reply with the single word OK. Do not call any tools.'}]}
         status, response = request('/v1/responses', payload, cleanup_token)
         assert status == 200, (status, response.get('error'))
         assert response['status'] == 'completed' and response['model'] == 'gpt-6-luna'
-        assert request('/auth/session', token=cleanup_token, method='GET')[1]['used'] == 1
+        assert request('/auth/session', token=cleanup_token, method='GET')[1]['runsUsed'] == 1
         assert request('/auth/logout', token=cleanup_token)[0] == 200
         assert request('/auth/session', token=cleanup_token, method='GET')[0] == 401
         cleanup_token = second
-        result.update(response=response, distinct_sessions=True, model='gpt-6-luna', effort='medium')
+        result.update(response=response, distinct_sessions=True, model='gpt-6-luna', effort='low')
     finally:
         if cleanup_token:
             status, _ = request('/auth/account', token=cleanup_token, method='DELETE')
