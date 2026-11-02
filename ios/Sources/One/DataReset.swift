@@ -12,13 +12,15 @@
 
   @MainActor
   package enum DataReset {
-    @discardableResult
     package static func run(
       _ context: ModelContext, reminders: any ReminderService, ledger: Ledger,
-      inbox: any ShareInboxReading, focus: TodayFocus
-    ) -> Bool {
-      // Clear the independent overlay before any model deletion. A failed write keeps all local data.
-      do { try focus.clear() } catch { return false }
+      inbox: any ShareInboxReading
+    ) {
+      // Settle (removed November 2026) kept its choices in a small file next to the Activity store.
+      if case .file(let url)? = ledger.activity.store?.location {
+        try? FileManager.default.removeItem(
+          at: url.deletingPathExtension().appendingPathExtension("focus-v1.json"))
+      }
       // Forget the link first so a local wipe is never mirrored to Apple Reminders.
       reminders.forgetLink()
       try? context.delete(model: OneTask.self)
@@ -37,7 +39,6 @@
       }
       ledger.clearAll(context)
       try? context.save()
-      return true
     }
   }
 

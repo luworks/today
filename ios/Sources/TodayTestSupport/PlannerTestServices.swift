@@ -135,12 +135,6 @@
       guard let id = externalID else { return .localOnly }
       return focusResolutions[id] ?? .unavailable
     }
-    package func cachedFocusIdentity(externalID: String?, occurrence: Date?)
-      -> FocusIdentityResolution
-    {
-      focusIdentity(externalID: externalID, occurrence: occurrence)
-    }
-    package func hydrateFocus(_ records: [FocusRecord]) async {}
     package func cachedEvent(externalID: String, occurrence: Date?) -> ExternalEvent? {
       queryEvents.first {
         $0.eventIdentifier == externalID && (occurrence == nil || $0.start == occurrence)

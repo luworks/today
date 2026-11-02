@@ -31,9 +31,7 @@
     func loadEvents(in interval: DateInterval, excluding: Set<String>) async -> [ExternalEvent]
     func events(on day: Date, excluding: Set<String>) -> [ExternalEvent]
     func focusIdentity(externalID: String?, occurrence: Date?) -> FocusIdentityResolution
-    /// Display-only import snapshots. These never query EventKit and never authorize a write.
-    func cachedFocusIdentity(externalID: String?, occurrence: Date?) -> FocusIdentityResolution
-    func hydrateFocus(_ records: [FocusRecord]) async
+    /// Display-only snapshots of events already read. These never query EventKit and never authorize a write.
     func cachedEvent(externalID: String, occurrence: Date?) -> ExternalEvent?
     func cachedCanDelete(externalID: String?) -> Bool
     func calendar(forExternalID id: String?) -> SystemCalendar?
@@ -153,16 +151,6 @@
 
   // Convenience arguments preserve call semantics while always dispatching to the injected instance.
   extension CalendarService {
-    /// The shared display/Open lookup; an opaque anchor alone never identifies a source item.
-    package func cachedFocusEvent(identity: FocusIdentity, reference: String?) -> ExternalEvent? {
-      guard let reference, reference.hasPrefix("eventkit:") else { return nil }
-      let id = String(reference.dropFirst("eventkit:".count))
-      guard
-        cachedFocusIdentity(externalID: id, occurrence: identity.occurrence)
-          == .available(identity)
-      else { return nil }
-      return cachedEvent(externalID: id, occurrence: identity.occurrence)
-    }
     package func events(in interval: DateInterval) -> [ExternalEvent] {
       events(in: interval, excluding: [])
     }

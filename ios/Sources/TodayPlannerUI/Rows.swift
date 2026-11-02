@@ -6,31 +6,17 @@
   import TodayPlatform
   import TodayDesignSystem
 
-  /// Optional Today-only attention commands; source deletion stays with the existing row owner.
+  /// Set on the Today tab: rows use Today's layout, and `canDelete` says whether the source accepts a delete.
   package struct TodayRowAttention {
-    package var settle: (() -> Void)?
     package var canDelete = true
 
-    package init(settle: (() -> Void)?, canDelete: Bool = true) {
-      self.settle = settle
+    package init(canDelete: Bool = true) {
       self.canDelete = canDelete
     }
 
     @ViewBuilder package func swipeButtons(delete: @escaping () -> Void) -> some View {
-      // SwiftUI lays trailing actions out from the outside edge: Delete stays rightmost.
       if canDelete {
         Button(action: delete) { Label("Delete", systemImage: "trash") }.tint(.red)
-      }
-      if let settle {
-        Button(action: settle) { Label("Settle", systemImage: "checkmark.circle.fill") }.tint(
-          .indigo)
-      }
-    }
-
-    @ViewBuilder package var menu: some View {
-      if let settle {
-        Button(action: settle) { Label("Settle", systemImage: "checkmark.circle.fill") }
-          .accessibilityHint("Hides this item in Today only. Alerts stay unchanged.")
       }
     }
   }
@@ -287,7 +273,6 @@
         } label: {
           Label("Show Details", systemImage: "info.circle")
         }
-        // Today adds Settle to the same date commands every list has; it never replaces them.
         Button {
           task.flagged.toggle()
         } label: {
@@ -313,7 +298,6 @@
             Label("Unschedule", systemImage: "calendar.badge.minus")
           }
         }
-        if let attention { Section { attention.menu } }
         if attention?.canDelete ?? true {
           Section {
             Button(role: .destructive, action: deleteTask) {
@@ -431,7 +415,6 @@
       .contextMenu {
         AskAIMenuButton(AskSubject(alarm: alarm))
         Button("Edit Alarm", systemImage: "pencil") { open(alarm) }
-        if let attention { Section { attention.menu } }
         Section {
           Button("Delete Alarm", systemImage: "trash", role: .destructive) { deleteAlarm() }
         }

@@ -35,14 +35,15 @@ final class EntryActionsTests: XCTestCase {
     XCTAssertTrue(app.buttons["Undo"].waitForExistence(timeout: 3), "with an Undo")
   }
 
-  /// Today's reminder menu keeps the usual date commands next to Settle, so a reminder is postponed in place.
+  /// Today's reminder menu has the usual date commands, so a reminder is postponed in place.
   func testTodayReminderMenuMovesItToTomorrow() {
     let title = app.staticTexts["Write up design review notes"]
     XCTAssertTrue(title.waitForExistence(timeout: 8), "a planned task is on Today")
     title.press(forDuration: 1.0)
-    for name in ["Show Details", "Flag", "Tomorrow", "Unschedule", "Settle", "Delete"] {
+    for name in ["Show Details", "Flag", "Tomorrow", "Unschedule", "Delete"] {
       XCTAssertTrue(app.buttons[name].waitForExistence(timeout: 3), "the menu has \(name)")
     }
+    XCTAssertFalse(app.buttons["Settle"].exists, "Settle was removed")
     app.buttons["Tomorrow"].tap()
     XCTAssertTrue(title.waitForNonExistence(timeout: 5), "it leaves today for tomorrow")
   }
