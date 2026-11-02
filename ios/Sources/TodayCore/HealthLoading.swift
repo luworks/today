@@ -7,7 +7,7 @@ import os
 // every call is raced against a timer (`HealthTimeout.race`), each metric is fetched on its own, and a stalled call
 // is abandoned (and, if it answers late, used for a refresh). Foundation only, so it runs under `swift test`.
 
-private let healthLog = Logger(subsystem: "com.luworks.one", category: "health")
+private let healthLog = Logger(subsystem: "com.luworks.today", category: "health")
 
 // MARK: - Source
 

@@ -4,7 +4,7 @@ The native app (formerly "one."). It puts calendar, reminders and alarms in one 
 
 ## Development entry
 
-Run `./dev` from the repository root for all local/CI engineering operations. The executable parser in [cli.py](../scripts/devtools/cli.py) is the command authority; underlying scripts are adapters, not alternative workflows. The generated project is `ios/Today.xcodeproj`, specified by [project.yml](project.yml) and `Config/*.xcconfig`; do not hand-edit generated project files. The display name remains **Today**. Production identity remains `com.luworks.one`, model/intent module `One`, products `One.app`, `TodayWidgets.appex` and `ShareExtension.appex`.
+Run `./dev` from the repository root for all local/CI engineering operations. The executable parser in [cli.py](../scripts/devtools/cli.py) is the command authority; underlying scripts are adapters, not alternative workflows. The generated project is `ios/Today.xcodeproj`, specified by [project.yml](project.yml) and `Config/*.xcconfig`; do not hand-edit generated project files. The display name remains **Today**. Production identity remains `com.luworks.today`, model/intent module `One`, products `One.app`, `TodayWidgets.appex` and `ShareExtension.appex`.
 
 ```sh
 ./dev help
@@ -143,7 +143,7 @@ circular (next time in a ring of how much of today is done) and inline (above th
 "in 2 hr") and medium (next three, each row opens Today on its day via `today://today?day=YYYY-MM-DD`).
 
 - The app writes `widget-snapshot.json` (today, tomorrow and the day after, so "Tomorrow" still has data after midnight)
-  into the App Group `group.com.luworks.one` (`WidgetFeed.swift`, called after data changes, when Apple Calendar changes
+  into the App Group `group.com.luworks.today` (`WidgetFeed.swift`, called after data changes, when Apple Calendar changes
   and when the app goes to the background), then reloads timelines. It waits until the EventKit store is warm, so the
   first write after launch never drops system events. The snapshot also carries the Apple Calendar on/off switch and
   the hidden calendars.
@@ -151,7 +151,7 @@ circular (next time in a ring of how much of today is done) and inline (above th
   (inherited from the app), it reads Apple Calendar itself on every timeline and replaces the snapshot's Apple Calendar
   events (including Today's mirrored ones) with the live ones (`NextItems.merge`); otherwise it shows the snapshot as is.
   Timelines reload hourly and at midnight.
-- Background refresh (`com.luworks.one.widgetRefresh`, a `BGAppRefreshTask` booked when the app goes to the background and
+- Background refresh (`com.luworks.today.widgetRefresh`, a `BGAppRefreshTask` booked when the app goes to the background and
   re-booked by each run, about every three hours and never later than just after midnight): pulls Apple Reminders and rewrites the snapshot without the app being opened. iOS decides
   when it actually runs.
 - `Sources/TodayShared/WidgetSnapshot.swift` is compiled into both targets (and tested through `./dev test unit` as `TodayShared`): the snapshot model,

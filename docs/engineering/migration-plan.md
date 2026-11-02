@@ -6,7 +6,7 @@ Baseline: `e022a7a46a4aa0d0a604886c139a7dd2c050fed1`. This is an implementation 
 
 The integration lead alone edits project generation, xcconfig, package manifests, production sources, persistent models and app assembly. The parent coordinator retains final manifest, persistent-model and signing decisions. Independent isolated lanes may edit only their named research, tooling or test files. Integration cherry-picks completed commits after inspecting their changes. No signing, account, identity or external user-data changes are authorized.
 
-Preserve `com.luworks.one`, widget/share bundle IDs, `group.com.luworks.one`, URL and system identifiers, preference keys, database locations, `Habit` and `LedgerEntry`. Model declarations remain in module `One` until an old-writer/new-reader disk test proves a replacement compatible. No migration failure deletes a store. App Activity, extension outbox and QA Activity remain separate.
+Superseded November 2026 (owner decision: losing existing local data is accepted): identifiers were renamed to `com.luworks.today*` / `group.com.luworks.today`, `Habit`/`LedgerEntry`/`AIGrant` were deleted, and a store that cannot be opened is reset. Model declarations remain in module `One`. App Activity, extension outbox and QA Activity remain separate.
 
 Generated developer targets use Today names while compatibility-sensitive module/product identities stay explicit. Debug/Release is optimization; Mock/Live is dependency selection. Test-only dependencies, fixtures and Workbench must be absent from the Release graph.
 

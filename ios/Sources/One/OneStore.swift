@@ -88,7 +88,7 @@
       do {
         return (try ModelContainer(for: schema, configurations: configuration), false)
       } catch {
-        Logger(subsystem: "com.luworks.one", category: "store").error(
+        Logger(subsystem: "com.luworks.today", category: "store").error(
           "Store could not be opened, starting fresh: \(String(describing: error), privacy: .public)"
         )
         let path = configuration.url.path

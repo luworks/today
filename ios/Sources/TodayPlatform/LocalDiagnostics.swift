@@ -87,7 +87,7 @@
   public final class LocalDiagnostics: NSObject, MXMetricManagerSubscriber {
     private var started = false
     private var report = DiagnosticReport()
-    private let log = OSLog(subsystem: "com.luworks.one", category: "LocalDiagnostics")
+    private let log = OSLog(subsystem: "com.luworks.today", category: "LocalDiagnostics")
 
     public override init() { super.init() }
 

@@ -2,7 +2,7 @@
   import Foundation
   import TodayCore
   import os
-  private let healthLog = Logger(subsystem: "com.luworks.one", category: "health")
+  private let healthLog = Logger(subsystem: "com.luworks.today", category: "health")
   import HealthKit
 
   /// Apple Health through HealthKit. Totals (steps, energy, distance, minutes) are daily sums from HealthKit's own

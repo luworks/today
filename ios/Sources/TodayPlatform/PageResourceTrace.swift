@@ -12,7 +12,7 @@
         return ["-performanceResources", "-performanceTrace", "-uiTesting"].allSatisfy(
           arguments.contains)
       }()
-      private let queue = DispatchQueue(label: "com.luworks.one.page-resources", qos: .utility)
+      private let queue = DispatchQueue(label: "com.luworks.today.page-resources", qos: .utility)
       private let interval: UInt64 = 100_000_000
       private let dwell: UInt64 = 1_000_000_000
       private struct Sample: Encodable {

@@ -91,7 +91,7 @@ def distribute_release(options)
   out, _err, status = Open3.capture3('plutil', '-convert', 'json', '-o', '-', export_file.to_s)
   UI.user_error!('Invalid export options') unless status.success?
   export = JSON.parse(out)
-  expected_ids = %w[com.luworks.one com.luworks.one.widgets com.luworks.one.share]
+  expected_ids = %w[com.luworks.today com.luworks.today.widgets com.luworks.today.share]
   profiles = export['provisioningProfiles'] || {}
   UI.user_error!('Manual App Store export options required') unless
     export['method'] == 'app-store-connect' && export['signingStyle'] == 'manual' &&
@@ -116,7 +116,7 @@ def distribute_release(options)
     UI.user_error!('Export did not produce an IPA') unless ipa && File.file?(ipa)
     release_check('validate-export', options.merge(archive: path, ipa: ipa))
     # Internal TestFlight processing only: no external tester release or App Store submission.
-    upload_to_testflight(ipa: ipa, api_key_path: api_key, app_identifier: 'com.luworks.one',
+    upload_to_testflight(ipa: ipa, api_key_path: api_key, app_identifier: 'com.luworks.today',
                          distribute_external: false, skip_submission: true,
                          skip_waiting_for_build_processing: true)
   end

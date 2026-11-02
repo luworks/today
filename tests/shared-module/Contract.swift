@@ -29,7 +29,7 @@ struct Contract {
             print("PASS baseline disk writer")
             return
         }
-        try require(WidgetSnapshot.appGroup == "group.com.luworks.one", "App Group identity")
+        try require(WidgetSnapshot.appGroup == "group.com.luworks.today", "App Group identity")
         try require(WidgetSnapshot.days == 3 && ActivityOutbox.maxFiles == 500, "format limits")
         let shareData = try Data(contentsOf: shareURL)
         let read = try ShareInbox.read(at: shareURL)

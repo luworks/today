@@ -8,7 +8,7 @@ or changed here. The generated entry point is `ios/Today.xcodeproj`, shared sche
 `Today`, Release, generic iOS device. Compatibility products remain `One.app`,
 `TodayWidgets.appex`, `ShareExtension.appex`, executable module `TodayApp`,
 model/intent module `One`, bundle identifiers
-`com.luworks.one`, `.widgets`, `.share`, app group `group.com.luworks.one`.
+`com.luworks.today`, `.widgets`, `.share`, app group `group.com.luworks.today`.
 
 ## Tool installation and locks
 

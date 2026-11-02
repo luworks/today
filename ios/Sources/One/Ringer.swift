@@ -243,7 +243,7 @@
     package enum AlarmScheduler {
       typealias Meta = AlarmMeta
 
-      package static let log = Logger(subsystem: "com.luworks.one", category: "alarms")
+      package static let log = Logger(subsystem: "com.luworks.today", category: "alarms")
 
       /// A task or event that rings as an alarm.
       private struct ItemAlarm {

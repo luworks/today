@@ -614,10 +614,10 @@
           guard let type else { return }
           QuickAction.shared.pending = nil
           switch type {
-          case "com.luworks.one.ask": openAsk(nil)
-          case "com.luworks.one.newTask": presentNewItem(.task)
-          case "com.luworks.one.newAlarm": presentNewItem(.alarm)
-          case "com.luworks.one.newEvent": newEvent()
+          case "com.luworks.today.ask": openAsk(nil)
+          case "com.luworks.today.newTask": presentNewItem(.task)
+          case "com.luworks.today.newAlarm": presentNewItem(.alarm)
+          case "com.luworks.today.newEvent": newEvent()
           default: break
           }
         }

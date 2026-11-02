@@ -22,7 +22,7 @@
   @Observable
   package final class RemindersSync: ReminderService {
     @ObservationIgnored private let log = Logger(
-      subsystem: "com.luworks.one", category: "reminders-sync")
+      subsystem: "com.luworks.today", category: "reminders-sync")
 
     private static let enabledKey = "today.remindersSync.enabled"
     // ids known on both sides after the last pass

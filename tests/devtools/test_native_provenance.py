@@ -72,7 +72,7 @@ class NativeProvenanceTests(unittest.TestCase):
             app = directory / (name + '.app')
             app.mkdir(exist_ok=True)
             (app / 'Info.plist').write_bytes(plistlib.dumps({
-                'CFBundleIdentifier': 'com.luworks.one', 'CFBundleExecutable': name}))
+                'CFBundleIdentifier': 'com.luworks.today', 'CFBundleExecutable': name}))
             (app / name).write_bytes(b'Live' if name == 'One' else b'TodayMockApp MockAppComposition')
         runner = directory / 'OneUITests-Runner.app'
         bundle = runner / 'PlugIns/OneUITests.xctest'
@@ -128,7 +128,7 @@ class NativeProvenanceTests(unittest.TestCase):
         host.mkdir()
         (host / 'Info.plist').write_bytes(plistlib.dumps({
             'CFBundleExecutable': 'TodayTestHost',
-            'CFBundleIdentifier': 'com.luworks.one.development.todaytesthost'}))
+            'CFBundleIdentifier': 'com.luworks.today.development.todaytesthost'}))
         (host / 'TodayTestHost').write_text('native host')
         target['DependentProductPaths'].append(prefix + 'TodayTestHost.app')
         native = {'BlueprintName': 'TodayTests', 'TestHostPath': prefix + 'TodayTestHost.app'}

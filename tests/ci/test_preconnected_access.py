@@ -17,7 +17,7 @@ class PreconnectedAccessTests(unittest.TestCase):
         method = "TodayUITests/TodayReminderCompletionTests/testPreconnectedImportedTimelineStaysResponsive"
         e2e.grant_preconnected_access([method], "owned-id", journal)
         self.assertEqual([call.args[0] for call in journal.action.call_args_list], [
-            ["xcrun", "simctl", "privacy", "owned-id", "grant", service, "com.luworks.one"]
+            ["xcrun", "simctl", "privacy", "owned-id", "grant", service, "com.luworks.today"]
             for service in ("reminders", "calendar")])
         self.assertTrue(all(call.kwargs["check"] for call in journal.action.call_args_list))
         journal.reset_mock()
