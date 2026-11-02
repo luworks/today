@@ -1,6 +1,7 @@
 import XCTest
 
-/// Not signed in to Luna AI (TodayMock's default): the rules' local previews and native write gates.
+/// Not signed in to Luna AI (TodayMock's default): the rules read a clear request and add it right after the reply,
+/// with Undo (owner decision 2026-11-02); reports and questions write nothing.
 @MainActor
 final class AIAnnualCheckTests: XCTestCase {
   private var app: XCUIApplication!
@@ -24,26 +25,26 @@ final class AIAnnualCheckTests: XCTestCase {
     XCTAssertTrue(app.staticTexts["Thinking…"].waitForNonExistence(timeout: 15))
   }
 
-  private func assertBookingPreview(_ action: String) {
-    XCTAssertTrue(app.buttons["Add"].waitForExistence(timeout: 15))
+  /// Added at once as an undated reminder whose title keeps the action and the year.
+  private func assertBookingAdded(_ action: String) {
+    XCTAssertTrue(app.descendants(matching: .any)["capture-added"].waitForExistence(timeout: 15))
     let title = app.buttons["capture-title"].label
     XCTAssertTrue(title.contains(action), title)
     let year = Calendar.current.component(.year, from: Date()) + 1
     XCTAssertTrue(title.contains(String(year)), title)
     XCTAssertTrue(app.staticTexts["No date"].exists)
-    XCTAssertTrue(app.buttons["capture.kind.task"].isSelected)
-    XCTAssertFalse(app.descendants(matching: .any)["capture-added"].exists)
-    XCTAssertFalse(app.buttons["capture-undo"].exists)
+    XCTAssertTrue(app.staticTexts["New reminder"].exists)
+    XCTAssertTrue(app.buttons["capture-undo"].exists)
+    XCTAssertFalse(app.buttons["Add"].exists, "nothing waits for Add")
   }
 
   func testExactBookingMonthRequiresAddAndSupportsUndo() {
     send("明年8月 预约医生做 annual check")
-    assertBookingPreview("预约医生做 annual check")
+    assertBookingAdded("预约医生做 annual check")
     let attachment = XCTAttachment(screenshot: app.screenshot())
-    attachment.name = "Exact annual check - rules preview before Add"
+    attachment.name = "Exact annual check - rules added it with Undo"
     attachment.lifetime = .keepAlways
     add(attachment)
-    app.buttons["Add"].tap()
     XCTAssertTrue(app.buttons["capture-open"].waitForExistence(timeout: 5))
     app.buttons["capture-open"].tap()
     XCTAssertTrue(app.textFields["task.title"].waitForExistence(timeout: 5))

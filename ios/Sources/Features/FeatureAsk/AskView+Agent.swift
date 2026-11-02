@@ -138,7 +138,8 @@
         }
       }
       for change in session.changes where change.anchor == anchor && change.status == .open {
-        guard session.tools.cards[change.id]?.tier == .direct, case .change(let c) = change.card.body
+        guard session.tools.cards[change.id]?.tier == .direct,
+          case .change(let c) = change.card.body
         else {
           receipt.waiting += 1
           continue
@@ -159,7 +160,8 @@
         if session.tools.cards[id]?.tier == .direct {
           let n = tidy.filter { $0.choice != .keep }.count
           if applyTidyNow() {
-            receipt.changed.append(chinese ? "\(n) 条逾期提醒的日期" : "the dates of \(n) overdue reminders")
+            receipt.changed.append(
+              chinese ? "\(n) 条逾期提醒的日期" : "the dates of \(n) overdue reminders")
           } else {
             receipt.failed.append(chinese ? "整理逾期" : "Tidy overdue")
           }

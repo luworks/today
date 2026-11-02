@@ -1,8 +1,9 @@
 import XCTest
 
-/// The preview card stays in the conversation after Add and Cancel: Added (Undo, Open), Undone (Add again) and Dropped,
-/// and the final state is there when the chat is reopened from the sidebar. Runs on the test dataset, not signed in to
-/// Luna AI, so FastLane reads the sentence (a clear one-off is added directly, anything else is a local preview).
+/// The capture card stays in the conversation: Added (Undo, Open), Undone (Add again) and Dropped, and the final state
+/// is there when the chat is reopened from the sidebar. Runs on the test dataset, not signed in to Luna AI, so FastLane
+/// reads the sentence; a clear request is added right after the reply (owner decision 2026-11-02), and only an alarm
+/// without a time waits on an open card.
 @MainActor
 final class AskCardStaysTests: XCTestCase {
   var app: XCUIApplication!
@@ -77,10 +78,11 @@ final class AskCardStaysTests: XCTestCase {
     shot("capture-reported-title-time")
   }
 
+  /// The title of an added reminder is editable on its card: Cancel keeps it, Save renames the saved reminder.
   func testPendingTitleSaveAndCancelStillRequireAdd() {
-    // Explicit recurrence retains the editable Add preview.
     send("Remind me to review the draft tomorrow at 3pm every week")
-    XCTAssertTrue(app.buttons["capture-title"].waitForExistence(timeout: 20))
+    XCTAssertTrue(any("capture-added").waitForExistence(timeout: 20))
+    XCTAssertTrue(app.buttons["capture-title"].waitForExistence(timeout: 5))
     let original = app.buttons["capture-title"].label
     app.buttons["capture-title"].tap()
     replaceTitle(with: "Cancelled draft")
@@ -90,19 +92,23 @@ final class AskCardStaysTests: XCTestCase {
     replaceTitle(with: "Review the final draft")
     app.buttons["capture-title-save"].tap()
     XCTAssertEqual(app.buttons["capture-title"].label, "Review the final draft")
-    XCTAssertTrue(app.buttons["Add"].exists)
-    XCTAssertFalse(any("capture-added").exists)
-    app.buttons["Add"].tap()
+    XCTAssertFalse(app.buttons["Add"].exists, "nothing waits for Add")
+    XCTAssertTrue(any("capture-added").exists)
     app.buttons["capture-open"].tap()
-    XCTAssertEqual(app.textFields["task.title"].value as? String, "Review the final draft")
+    XCTAssertTrue(app.textFields["task.title"].waitForExistence(timeout: 5))
+    XCTAssertEqual(
+      app.textFields["task.title"].value as? String, "Review the final draft",
+      "the real saved reminder changed")
   }
 
   func testAddedAlarmTitleSaveCancelReopenAndUndo() {
+    // The Alarm kind above the composer makes this an alarm; the clear request is added at once.
+    let alarm = app.buttons["ask-kind-alarm"]
+    XCTAssertTrue(alarm.waitForExistence(timeout: 10))
+    alarm.tap()
     send("今天晚上11点的时候提醒我，必须要睡觉，每天")
-    XCTAssertTrue(app.buttons["capture.kind.alarm"].waitForExistence(timeout: 20))
-    app.buttons["capture.kind.alarm"].tap()
-    app.buttons["Add"].tap()
-    XCTAssertTrue(any("capture-added").waitForExistence(timeout: 5))
+    XCTAssertTrue(any("capture-added").waitForExistence(timeout: 20))
+    XCTAssertTrue(app.staticTexts["New alarm"].exists, "added as an alarm")
     let original = app.buttons["capture-title"].label
     app.buttons["capture-title"].tap()
     replaceTitle(with: "Cancelled alarm")
@@ -211,29 +217,34 @@ final class AskCardStaysTests: XCTestCase {
     XCTAssertTrue(any("capture-undone").waitForExistence(timeout: 5))
   }
 
+  /// Only an alarm without a time is left open; Cancel on it leaves a dimmed Dropped card.
   func testCancelLeavesADimmedDroppedCard() {
-    send("Order printer paper tomorrow at 3pm every week")
+    send("make a alarm")
     XCTAssertTrue(app.buttons["Cancel"].waitForExistence(timeout: 90))
     app.buttons["Cancel"].tap()
     XCTAssertTrue(any("capture-dropped").waitForExistence(timeout: 5), "the card stays, Dropped")
-    XCTAssertTrue(app.staticTexts["Order printer paper"].exists)
+    XCTAssertTrue(any("capture-stack").staticTexts["Alarm"].exists)
     XCTAssertFalse(
       app.buttons["Add"].exists || app.buttons["Cancel"].exists
         || app.buttons["capture-undo"].exists, "no actions")
     shot("card-dropped")
 
-    reopenFromSidebar(containing: "printer")
+    reopenFromSidebar(containing: "alarm")
     XCTAssertTrue(
       any("capture-dropped").waitForExistence(timeout: 5), "the saved chat shows Dropped")
-    XCTAssertTrue(app.staticTexts["Order printer paper"].exists)
+    XCTAssertTrue(any("capture-stack").staticTexts["Alarm"].exists)
   }
 
+  /// An open card (an alarm still waiting for its time) is dropped when the next line asks for something else.
   func testNewLineAfterAnOpenCardDropsIt() {
-    send("Order printer paper tomorrow at 3pm every week")
+    send("make a alarm")
     XCTAssertTrue(app.buttons["Add"].waitForExistence(timeout: 90))
     send("Water the office plants friday at 9am every week")
     XCTAssertTrue(
       any("capture-dropped").waitForExistence(timeout: 90), "the earlier card is Dropped")
-    XCTAssertEqual(app.buttons.matching(identifier: "Add").count, 1, "one open card")
+    XCTAssertTrue(any("capture-added").waitForExistence(timeout: 10), "the new line is added")
+    XCTAssertFalse(app.buttons["Add"].exists, "no open card is left")
+    XCTAssertEqual(
+      app.descendants(matching: .any).matching(identifier: "capture-added").count, 1)
   }
 }

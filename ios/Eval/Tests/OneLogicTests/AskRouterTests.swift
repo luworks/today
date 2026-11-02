@@ -82,10 +82,9 @@ final class AskRouterTests: XCTestCase {
       "make it an alarm", context: ConversationContext(turns: []), pending: draft,
       savedDraft: false, agentHasOpenCards: false, hasLocalTimeContext: true,
       editItems: { [] }, now: now, calendar: calendar)
-    guard case .continuation(let alarm, let direct) = route.decision else {
+    guard case .continuation(let alarm) = route.decision else {
       return XCTFail("The router must resolve the existing preview as a continuation")
     }
-    XCTAssertFalse(direct)
     XCTAssertFalse(route.useAgent)
     XCTAssertNil(route.previewAnswer)
     XCTAssertTrue(alarm.ringsAsAlarm)
@@ -101,8 +100,7 @@ final class AskRouterTests: XCTestCase {
       text, context: ConversationContext(turns: []), pending: draft, savedDraft: false,
       agentHasOpenCards: false, hasLocalTimeContext: true, editItems: { [] },
       now: now, calendar: calendar)
-    if case .continuation(let result, let direct) = route.decision {
-      XCTAssertFalse(direct, text)
+    if case .continuation(let result) = route.decision {
       XCTAssertFalse(route.useAgent, text)
       return result
     }

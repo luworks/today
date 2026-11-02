@@ -326,7 +326,8 @@
       if asksTime {
         followup = .alarmTime
         return AgentReply.receipt(receipt, chinese: chinese)
-          + (chinese ? "闹钟要设在几点？" : (receipt.isEmpty ? "" : " ") + "What time should the alarm ring?")
+          + (chinese
+            ? "闹钟要设在几点？" : (receipt.isEmpty ? "" : " ") + "What time should the alarm ring?")
       }
       return AgentReply.receipt(receipt, chinese: chinese)
     }

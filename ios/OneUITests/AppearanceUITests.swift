@@ -148,7 +148,8 @@ final class AppearanceUITests: XCTestCase {
       if field.waitForExistence(timeout: 5) {
         shot("7-ask", mode)
         field.typeText("Call Alex tomorrow at 3pm every week\n")
-        _ = app.buttons["Add"].waitForExistence(timeout: 5)
+        // Not signed in, the rules add it right after the reply: the shot shows the Added card.
+        _ = app.descendants(matching: .any)["capture-added"].waitForExistence(timeout: 5)
         shot("8-ask-preview", mode)
       }
     }

@@ -95,13 +95,11 @@ final class EventSaveTests: XCTestCase {
     input.tap()
     input.typeText("Move it to tomorrow at 11am")
     app.buttons["ask-send"].tap()
-    let card = app.descendants(matching: .any)["change-card"].firstMatch
-    XCTAssertTrue(card.waitForExistence(timeout: 15))
-    XCTAssertTrue(card.staticTexts["The timed event will last 1 hour."].exists)
-    XCTAssertTrue(card.staticTexts["Only this occurrence changes."].exists)
-    XCTAssertFalse(app.staticTexts["Which item do you mean?"].exists)
-    card.buttons["Apply"].tap()
+    // No attendees: the move is applied right after the reply, with Undo (owner decision 2026-11-02).
     XCTAssertTrue(app.staticTexts["The calendar event was moved."].waitForExistence(timeout: 15))
+    XCTAssertFalse(app.staticTexts["Which item do you mean?"].exists)
+    XCTAssertFalse(
+      app.descendants(matching: .any)["change-card"].exists, "nothing waits for Apply")
     let undo = app.buttons["ask-undo"]
     XCTAssertTrue(undo.waitForExistence(timeout: 5))
     undo.tap()

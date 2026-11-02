@@ -89,10 +89,16 @@ public enum AgentReply {
     var parts: [String] = []
     let sep = zh ? "、" : ", "
     if !r.added.isEmpty {
-      parts.append(zh ? "已添加" + r.added.joined(separator: sep) + "。" : "Added " + r.added.joined(separator: sep) + ".")
+      parts.append(
+        zh
+          ? "已添加" + r.added.joined(separator: sep) + "。"
+          : "Added " + r.added.joined(separator: sep) + ".")
     }
     if !r.changed.isEmpty {
-      parts.append(zh ? "已修改" + r.changed.joined(separator: sep) + "。" : "Changed " + r.changed.joined(separator: sep) + ".")
+      parts.append(
+        zh
+          ? "已修改" + r.changed.joined(separator: sep) + "。"
+          : "Changed " + r.changed.joined(separator: sep) + ".")
     }
     if !r.added.isEmpty || !r.changed.isEmpty {
       parts.append(zh ? "不需要的话点撤销。" : "Tap Undo if you don't want it.")
