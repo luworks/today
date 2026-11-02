@@ -811,11 +811,9 @@
               ["role": .string($0.role == .user ? "user" : "ai"), "text": .string($0.text)]
             }),
           "proposals": .array(shown),
-          "change": .null,
           "agent_changes": .array(
             (agent?.changes ?? []).map { AskEvalProbe.agentChange($0, calendar: cal) }),
           "tidy": .number(Double(tidy.count)),
-          "followup": .null,
           "draft": .string(draft),
         ]
       }

@@ -22,8 +22,6 @@
 
     struct Config: Decodable {
       var fixture: String
-      /// A label for the run (the app has one AI pipeline: the agent).
-      var pipeline: String
       var reps: Int
       var cases: [String]?
       var out: String
@@ -59,7 +57,7 @@
         for item in fixture["cases"]?.array ?? [] {
           guard let id = item["id"]?.string, wanted?.contains(id) ?? true else { continue }
           let harness = try EvalHarness(
-            world: world, pipeline: config.pipeline,
+            world: world,
             model: AgentModel(
               client: HostedLunaClient(configuration: { account.configuration }),
               isAvailable: { true }))
@@ -79,8 +77,6 @@
                   settle: config.settleMilliseconds ?? 1500)
               }
             }
-            record["gpt_calls"] = []
-            record["pipeline"] = .string(config.pipeline)
             record["case"] = .string(id)
             record["rep"] = .number(Double(rep))
             record["turn"] = .number(Double(n + 1))
@@ -129,10 +125,9 @@
 
     let model: AgentModel
 
-    init(world: JSONValue, pipeline: String, model: AgentModel) throws {
+    init(world: JSONValue, model: AgentModel) throws {
       defaults = try #require(UserDefaults(suiteName: suite))
       self.model = model
-      _ = pipeline
       var calendar = Calendar(identifier: .gregorian)
       calendar.timeZone = try #require(TimeZone(identifier: world["timeZone"]?.string ?? ""))
       let now = try #require(Self.date(world["localNow"]?.string, calendar))
