@@ -15,6 +15,12 @@ Two parallel hosted jobs, no simulator:
 `today-required` also uploads `TodayMock-sim-<sha>` (7 days): the arm64 simulator `TodayMock.app`,
 zipped. Simulator only (never a phone, never next to `One.app`); launch it with `-uiTesting -dataset <path>`.
 
+On a pull request that only changes prose, images or the prototype (`*.md`, `docs/**` images
+and HTML/CSS, `src/**`, `backend/luna/**`, which has its own workflow), `scripts/ci/scope.py`
+makes both jobs skip their steps and report green under the same names (~20 s instead of
+~3 min). Any other file, a list of 300+ files or an API error runs everything. Pushes to
+`main` always run everything.
+
 Merge elapsed time is the time for both jobs to turn green. The measured numbers are in
 [the measurements](../qa/ci-under-five-minutes-20261020.md). A green merge gate does **not**
 mean the app opens or stays responsive.
