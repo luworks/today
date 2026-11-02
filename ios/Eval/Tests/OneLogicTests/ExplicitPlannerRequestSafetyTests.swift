@@ -13,7 +13,7 @@ final class ExplicitPlannerRequestSafetyTests: XCTestCase {
     calendar.date(from: DateComponents(year: 2026, month: 10, day: 29, hour: 9))!
   }
 
-  func testAmbiguousDatedEditHasNoNewReminderAuthorityAndAsksWhichItem() {
+  func testAmbiguousDatedEditHasNoNewReminderAuthorityOrLocalPreview() {
     let items = [15, 16].map { hour in
       EditItem(
         id: "dentist-\(hour)", type: "task", title: "visit [QA] dentist",
@@ -24,17 +24,8 @@ final class ExplicitPlannerRequestSafetyTests: XCTestCase {
     XCTAssertEqual(FastLane.intent(request), .unsure)
     XCTAssertNil(FastLane.oneOffReminder(request, now: now, calendar: calendar))
     XCTAssertTrue(FastLane.looksLikeEdit(request, items: items, now: now, calendar: calendar))
-    let result = Editing.decide(
-      text: request, plan: nil, items: items, now: now, calendar: calendar)
-    XCTAssertEqual(result.op, .clarify)
-    XCTAssertNil(result.target)
-    XCTAssertNil(result.newStart)
-    // A model pick cannot bypass the ambiguity in the user's words.
-    XCTAssertEqual(
-      Editing.decide(
-        text: request, plan: EditPick(target: items[0].id), items: items,
-        now: now, calendar: calendar
-      ).op, .clarify)
+    // Without the agent, an edit never becomes a new-item preview either (§4.7 #3).
+    XCTAssertNil(FastLane.localPreview(request, items: items, now: now, calendar: calendar))
   }
 
   func testLeadingEditsDoNotAcquireCreationAuthorityWithoutAStoredCandidate() {

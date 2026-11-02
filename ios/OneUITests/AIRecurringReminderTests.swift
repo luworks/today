@@ -1,6 +1,6 @@
 import XCTest
 
-/// Three production fallback journeys. No Foundation Models result is injected or claimed.
+/// Three journeys not signed in to Luna AI (TodayMock): FastLane previews and continuations, no scripted model.
 @MainActor
 final class AIRecurringReminderTests: XCTestCase {
   private var app: XCUIApplication!
@@ -40,15 +40,6 @@ final class AIRecurringReminderTests: XCTestCase {
     open.tap()
     assertSavedEditor()
     app.buttons["Cancel"].tap()
-  }
-
-  func testEnglishRecurrenceFollowupAndTimeCorrectionKeepSubjectAndDays() {
-    send("Remind me to brush the dog today at 4pm")
-    send("Make that repeat every Thursday and Sunday, keeping 4pm.")
-    assertPreview("brush the dog", repeatLabel: "Every Thu, Sun", hour: 16)
-    send("Actually, 6pm.")
-    assertPreview("brush the dog", repeatLabel: "Every Thu, Sun", hour: 18)
-    assertNoPlannerWrites()
   }
 
   private var preview: XCUIElement {

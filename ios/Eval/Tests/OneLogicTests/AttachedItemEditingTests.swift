@@ -34,9 +34,10 @@ final class AttachedItemEditingTests: XCTestCase {
   func testOwnerSentenceMovesAttachedItemTomorrowAtEleven() {
     let text = "请把这个改成明天上午 11 点，我需要去审核一下的吧"
     let expected = calendar.date(from: DateComponents(year: 2026, month: 10, day: 31, hour: 11))!
-    let route = SentenceRoute.route(
-      text, items: items, now: now, calendar: calendar, attachedItemID: "a")
-    guard case .attachedEdit(let edit) = route else { return XCTFail("Expected attached edit") }
+    guard
+      let edit = FastLane.attachedEdit(
+        text, attachedItemID: "a", items: items, now: now, calendar: calendar)
+    else { return XCTFail("Expected attached edit") }
     XCTAssertEqual(edit.target, "a")
     XCTAssertEqual(edit.operation, .move(expected))
   }
@@ -69,22 +70,6 @@ final class AttachedItemEditingTests: XCTestCase {
     XCTAssertNil(parse("Delete Milk"))
     XCTAssertNil(parse("Delete it and then call Sam")?.operation)
     XCTAssertNil(parse("把它改到明天然后删除它")?.operation)
-  }
-
-  func testSentenceRoutePassesAttachmentAndKeepsOrdinaryRoute() {
-    let route = SentenceRoute.route(
-      "Delete it", items: items, now: now, calendar: calendar, attachedItemID: "b")
-    guard case .attachedEdit(let edit) = route else { return XCTFail("Expected attached edit") }
-    XCTAssertEqual(edit.target, "b")
-    XCTAssertEqual(edit.operation, .delete)
-    XCTAssertFalse(route.isActionable, "The app must integrate the preview before suggesting it")
-    if case .edit(let edit) = SentenceRoute.route(
-      "Delete it", items: items, now: now, calendar: calendar)
-    {
-      XCTAssertEqual(edit.op, .clarify)
-    } else {
-      XCTFail("Ordinary chat must retain its existing route")
-    }
   }
 
   func testAttachedEventMoveAndDeleteUseIdentityRatherThanDuplicateTitle() {

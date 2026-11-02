@@ -14,29 +14,25 @@
     package let presentation: PlannerPresentation
     package let world: WorldClockStore
     package let stopwatch: StopwatchModel
-    package let intelligence: AskIntelligence
     package let agentModel: AgentModel
     package let voice: VoiceInput
-    package let suggestionMemory: AskSuggestionMemory
     package let arguments: [String]
     package let openSettings: @MainActor () -> Void
 
     package init(
       session: PlannerSession, world: WorldClockStore, stopwatch: StopwatchModel,
-      intelligence: AskIntelligence, agentModel: AgentModel, voice: VoiceInput,
+      agentModel: AgentModel, voice: VoiceInput,
       arguments: [String],
       openSettings: @escaping @MainActor () -> Void
     ) {
       self.session = session
       self.world = world
       self.stopwatch = stopwatch
-      self.intelligence = intelligence
       self.agentModel = agentModel
       self.voice = voice
       self.arguments = arguments
       self.openSettings = openSettings
       presentation = PlannerPresentation(runtime: session.runtime, defaults: session.defaults)
-      suggestionMemory = AskSuggestionMemory()
     }
 
     package func recordCreatedAlarm(_ alarm: OneAlarm, context: ModelContext) {
@@ -47,7 +43,6 @@
 
     package func dispose() {
       voice.stop()
-      suggestionMemory.dispose()
       session.dispose()
     }
   }

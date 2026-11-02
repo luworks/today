@@ -1,43 +1,11 @@
 import Foundation
 
-/// Multi-turn rules for the AI page, as plain functions so they can be tested without a model or a UI.
-/// A turn can leave something open (a preview card, a "which one?" question, a "when?" question); the next message
-/// is first read as an answer to that, and only becomes a new item when it is not one.
-/// Nothing here writes data: it only edits the preview that is already on screen.
+/// Multi-turn rules for FastLane's own preview card, as plain functions so they can be tested without a
+/// model or a UI: the next message is first read as an answer to the open preview, and only becomes a new
+/// item when it is not one. Nothing here writes data: it only edits the preview that is already on screen.
 public enum Dialogue {
-  // MARK: Answering "which one?"
-
   private static func has(_ text: String, _ pattern: String) -> Bool {
     text.range(of: pattern, options: [.regularExpression, .caseInsensitive]) != nil
-  }
-
-  private static let ordinals: [(pattern: String, index: Int)] = [
-    (#"第?(?:一|1)个|^\s*1\s*$|\bfirst\b|\b1st\b"#, 0),
-    (#"第?(?:二|两|2)个|^\s*2\s*$|\bsecond\b|\b2nd\b"#, 1),
-    (#"第?(?:三|3)个|^\s*3\s*$|\bthird\b|\b3rd\b"#, 2),
-    (#"第?(?:四|4)个|^\s*4\s*$|\bfourth\b|\b4th\b"#, 3),
-  ]
-
-  /// Which of `titles` the answer points at: "the second one", "第一个", "2", or words from the title.
-  /// Nil when it names none or more than one (the caller then treats the message as something new, or asks again).
-  public static func pick(_ answer: String, from titles: [String]) -> Int? {
-    let text = answer.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !text.isEmpty, !titles.isEmpty else { return nil }
-    if has(text, #"最后(?:一个)?|\blast\b"#) { return titles.count - 1 }
-    for (pattern, index) in ordinals where index < titles.count && has(text, pattern) {
-      return index
-    }
-    // Words from the title, either way round ("the product one", "产品周会").
-    let lower = text.lowercased()
-    let hits = titles.indices.filter { i in
-      let title = titles[i].lowercased()
-      if title.contains(lower) || (lower.count >= 2 && lower.contains(title)) { return true }
-      let words = title.split { !$0.isLetter && !$0.isNumber }.map(String.init).filter {
-        $0.count >= 3
-      }
-      return words.contains { lower.contains($0) }
-    }
-    return hits.count == 1 ? hits[0] : nil
   }
 
   /// A sentence that asks for something NEW ("remind me to ...", "提醒我 ...", "don't forget ..."). It is never the answer to a
@@ -47,23 +15,6 @@ public enum Dialogue {
       text,
       #"提醒我|提醒一下|提醒(?=\s+\S)|记得|别忘了|帮我记|新建|添加|(?:增加|新增)\s*(?:一?个|一条)?\s*(?:reminder|提醒事项|提醒|待办事项|待办|任务)|加一个|加个|\bremind me\b|\bdon'?t forget\b|\bnew (?:reminder|task|event)\b|\badd (?:a |an )?(?:reminder|task|event|to-?do)\b|\bset (?:a |an )?reminder\b"#
     )
-  }
-
-  /// The answer to a "which one?" question, or nil when the message is something else. Like `pick`, but a message that
-  /// asks for something new is never an answer, even if one of its words happens to appear in an item's title.
-  /// "I want to ..." / "我想 ..." tells a story of its own: it counts as an answer only when it points at an option by number
-  /// ("我想要第二个") or names a whole title, not when a single word of it overlaps one.
-  public static func answerToWhichOne(_ answer: String, from titles: [String]) -> Int? {
-    if startsNewItem(answer) { return nil }
-    guard let i = pick(answer, from: titles) else { return nil }
-    let telling = has(answer, #"我想|我要|我打算|我得|\bi (?:want|need|wanna|plan)\b|\bi'?d like\b"#)
-    if telling {
-      let byNumber = has(
-        answer, #"最后|\blast\b|\b(?:first|second|third|fourth|1st|2nd|3rd|4th)\b|第?[一二两三四1-4]个"#)
-      let byTitle = answer.lowercased().contains(titles[i].lowercased())
-      if !byNumber && !byTitle { return nil }
-    }
-    return i
   }
 
   // MARK: Changing the preview card
@@ -254,11 +205,6 @@ public enum Dialogue {
 
   // MARK: Context for the model
 
-  /// The last few messages, short, for the model's instructions. Only text: the 4096-token window is small, so each line is cut.
-  public static func recap(_ lines: [(isUser: Bool, text: String)], limit: Int = 4) -> String {
-    lines.suffix(limit).map { ($0.isUser ? "User: " : "Assistant: ") + String($0.text.prefix(120)) }
-      .joined(separator: "\n")
-  }
 }
 
 /// Shared by the send path, deterministic fallback and model classifier. Resolves references only;

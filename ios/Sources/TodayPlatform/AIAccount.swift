@@ -158,17 +158,18 @@
         return
       }
       do {
+        // Today's agent runs (one per message that reaches the agent), UTC day.
         struct Usage: Decodable {
           let username: String
-          let used: Int
-          let dailyLimit: Int
+          let runsUsed: Int
+          let dailyRunLimit: Int
         }
         let usage = try JSONDecoder().decode(
           Usage.self, from: await AIService.request(path: "auth/session", method: "GET"))
         guard AIService.credentials?.token == requestedToken else { return }
         username = usage.username
-        used = usage.used
-        dailyLimit = usage.dailyLimit
+        used = usage.runsUsed
+        dailyLimit = usage.dailyRunLimit
         error = nil
       } catch {
         guard AIService.credentials?.token == requestedToken else { return }

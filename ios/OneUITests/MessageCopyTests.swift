@@ -1,7 +1,7 @@
 import XCTest
 
-/// Your messages and AI answers with content have a copy button (it confirms with a check mark); the app's own status
-/// sentences ("Here's what I understood…") do not.
+/// Your messages have a copy button (it confirms with a check mark); the app's own status sentences (a preview's
+/// heading, "Added.") do not.
 @MainActor
 final class MessageCopyTests: XCTestCase {
   func testEachMessageHasACopyButtonThatConfirms() {
@@ -17,9 +17,8 @@ final class MessageCopyTests: XCTestCase {
     field.typeText("What's on today?\n")
 
     let copy = app.buttons.matching(identifier: "message.copy")
-    let twoMessages = NSPredicate(format: "count >= 2")
-    expectation(for: twoMessages, evaluatedWith: copy)
-    waitForExpectations(timeout: 60)
+    expectation(for: NSPredicate(format: "count >= 1"), evaluatedWith: copy)
+    waitForExpectations(timeout: 10)
 
     copy.element(boundBy: 0).tap()
     XCTAssertTrue(app.buttons["Copied"].waitForExistence(timeout: 3))
@@ -36,11 +35,14 @@ final class MessageCopyTests: XCTestCase {
     let field = f.exists ? f : app.textViews.firstMatch
     XCTAssertTrue(field.waitForExistence(timeout: 10))
     field.tap()
-    field.typeText("Buy milk tomorrow\n")
+    // Explicit recurrence keeps the Add preview (not signed in: the rules' local preview).
+    field.typeText("Order printer paper tomorrow at 3pm every week\n")
 
-    XCTAssertTrue(app.buttons["Add"].waitForExistence(timeout: 90), "the preview card is up")
+    XCTAssertTrue(app.buttons["Add"].waitForExistence(timeout: 10), "the preview card is up")
     XCTAssertTrue(
-      app.staticTexts["Here's what I understood. Nothing is added until you confirm."].exists)
+      app.staticTexts[
+        "Not signed in to Luna AI, so this preview comes from the rules. Nothing is added until you tap Add."
+      ].exists)
     XCTAssertEqual(
       app.buttons.matching(identifier: "message.copy").count, 1, "only your own message has Copy")
   }

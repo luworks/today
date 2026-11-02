@@ -37,67 +37,25 @@
     }
   }
 
-  /// Every optional model route is explicitly scripted here, outside production features.
+  /// The agent's model, scripted per scenario, outside production features.
   @MainActor
   final class SceneAskCapabilities {
     let scenario: SceneScenario
-    private(set) var prewarmCount = 0
-    private(set) var calls: [String] = []
     private(set) var disposed = false
     init(scenario: SceneScenario) { self.scenario = scenario }
 
-    var intelligence: AskIntelligence {
-      AskIntelligence(
-        backend: { .scripted },
-        parse: { [self] text, _, now, calendar in
-          calls.append("parse")
-          return CaptureConversation.parse(text, now: now, calendar: calendar)
-        },
-        propose: { [self] text, _, now, calendar in
-          calls.append("propose")
-          guard !disposed, scenario != .unavailable, scenario != .error else { return nil }
-          // A batch is explicit input; uncertain conversation never becomes a fixture capture.
-          let parts = text.components(separatedBy: ";").map {
-            $0.trimmingCharacters(in: .whitespacesAndNewlines)
-          }
-          guard parts.count > 1,
-            parts.allSatisfy({ !$0.isEmpty && ChatRouting.intent($0) == .capture })
-          else { return nil }
-          return parts.map { CaptureConversation.parse($0, now: now, calendar: calendar) }
-        },
-        refineTitle: { [self] capture, _, _ in
-          calls.append("refineTitle")
-          return capture
-        },
-        respond: { [self] _, _, _ in
-          calls.append("respond")
-          return .reply(
-            scenario == .error
-              ? "The scripted response could not be loaded. Please try again."
-              : "This is a local scripted conversation. Tell me what you would like to prepare; Add or Apply confirms any change."
+    var agentModel: AgentModel {
+      guard !disposed else { return .unavailable }
+      switch scenario {
+      case .unavailable, .denied, .revoked: return .unavailable
+      case .error: return .scripted([.fail(.rejected("scripted_failure"))])
+      default:
+        return .scripted([
+          ScriptedModelClient.reply(
+            "This is a local scripted conversation. Tell me what you would like to prepare; Add or Apply confirms any change."
           )
-        },
-        plan: { [self] text, items, now, calendar, _ in
-          calls.append("plan")
-          guard !disposed, scenario != .error else { throw SceneCapabilityError.scriptedFailure }
-          let decision = Editing.decide(
-            text: text, plan: nil, items: items, now: now, calendar: calendar)
-          return EditPlan(
-            op: EditOp(rawValue: decision.op.rawValue) ?? .clarify, target: decision.target)
-        },
-        rank: { [self] _, _, _, _ in
-          calls.append("rank")
-          return nil
-        },
-        prewarm: { [self] in if !disposed { prewarmCount += 1 } },
-        isAvailable: { [self] in
-          !disposed && scenario != .unavailable && scenario != .denied && scenario != .revoked
-        },
-        unavailableReason: { [self] _ in
-          disposed || scenario == .unavailable || scenario == .denied || scenario == .revoked
-            ? "Scripted intelligence is unavailable in this scene. Rule-based capture is still available."
-            : nil
-        })
+        ])
+      }
     }
     func dispose() { disposed = true }
   }
@@ -136,12 +94,5 @@
   struct SceneEmptyInbox: ShareInboxReading {
     func read() throws -> [SharedReminder] { [] }
     func acknowledge(_ ids: Set<UUID>) -> Bool { ids.isEmpty }
-  }
-
-  enum SceneCapabilityError: LocalizedError {
-    case scriptedFailure
-    var errorDescription: String? {
-      "The local scripted operation failed. Try again in the Normal scenario."
-    }
   }
 #endif

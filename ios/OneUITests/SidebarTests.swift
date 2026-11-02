@@ -15,7 +15,8 @@ final class SidebarTests: XCTestCase {
     }
   }
 
-  /// Talks to the AI once and returns to the main page. A question gets a local answer, so no model or preview is involved.
+  /// Talks to the AI once and returns to the main page. Not signed in to Luna AI (TodayMock), a question gets the
+  /// "sign in" answer, so no model or preview is involved; Close drops the draft it puts back.
   private func haveAConversation(_ text: String = "Anything left today?") {
     let bar = app.buttons["Ask AI or add anything"]
     XCTAssertTrue(bar.waitForExistence(timeout: 5))
@@ -32,7 +33,8 @@ final class SidebarTests: XCTestCase {
   }
 
   private var reply: XCUIElement {
-    app.staticTexts.containing(NSPredicate(format: "label BEGINSWITH 'Today:'")).firstMatch
+    app.staticTexts.containing(NSPredicate(format: "label BEGINSWITH 'Sign in to Luna AI'"))
+      .firstMatch
   }
 
   func testConversationAppearsInSidebarAndReopens() {

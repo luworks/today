@@ -62,23 +62,6 @@ public enum ActivityEvents {
     return e
   }
 
-  /// The suggestion chips that were on screen. `ids` are in rank order.
-  public static func chipsShown(ids: [String], source: String, hour: Int, at date: Date = .now)
-    -> ActivityEvent
-  {
-    ActivityEvent(
-      kind: ActivityKind.aiChipsShown, actor: "ai", channel: "ask", at: date,
-      props: ActivityProps.json(["ranked_ids": ids, "source": source, "hour": hour]))
-  }
-
-  public static func chipTapped(id: String, rank: Int, source: String, at date: Date = .now)
-    -> ActivityEvent
-  {
-    ActivityEvent(
-      kind: ActivityKind.aiChipTapped, actor: "you", channel: "ask", at: date,
-      props: ActivityProps.json(["id": id, "rank": rank, "source": source]))
-  }
-
   /// The user tapped Undo on the Ask page's toast for an AI change.
   public static func aiUndo(card: String, thread: UUID?, at date: Date = .now) -> ActivityEvent {
     var e = ActivityEvent(

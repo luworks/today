@@ -14,7 +14,7 @@
 ## 0. 结论（先看这个）
 
 1. **最值得做的是“账本”，不是更聪明的模型。** 把 Today 做成个人 agent 的控制平面，核心是一本只追加的账本，每条记录写清：谁（你 / Today AI / 哪个 agent），经由什么通道，在什么时候，对哪个提醒、事件或闹钟，做了什么，改前和改后，是否批准，能否撤销。T3 Code、Conductor、Claude Code 桌面版、GitHub Agent HQ 这些编码 agent 面板，本质上都是同一个结构：任务列表 → 状态 → 日志 → diff → 批准或合并。Today 把 diff 换成“改前 → 改后”，把 merge 换成 Apply 就行。
-2. **持续规划 = 确定性的排程器 + 端侧模型写理由 + 用户逐条批准。** 时间由 `DayPlanner`（代码）算，模型只决定“排哪些”和“为什么”。每次规划都是一张 diff 卡，逐行勾选，每行标明写到哪里。这条路线和已有的 `docs/apple-intelligence.md` 一致，也是对 Motion 式“AI 偷偷挪东西”的反面回应。研究里抱怨最多的正是这一点。
+2. **持续规划 = 确定性的排程器 + 端侧模型写理由 + 用户逐条批准。** 时间由 `DayPlanner`（代码）算，模型只决定“排哪些”和“为什么”。每次规划都是一张 diff 卡，逐行勾选，每行标明写到哪里。这条路线和现在的 agent 架构（`docs/engineering/ai-agent-architecture.md`）一致，也是对 Motion 式“AI 偷偷挪东西”的反面回应。研究里抱怨最多的正是这一点。
 3. **“agent 自己行动”和原则 1 的冲突，用四级自主权来解。**
 
    | 级别 | 内容 | 是否需要询问 |
@@ -98,7 +98,7 @@
 - **用户评价：**
   - 夸：4.7 分、约 12.2 万条评分。
   - 骂：改成订阅后，原本免费的功能收费；iOS 更新后重开慢。
-- **对 Today：** “截图 → 事件”是值得做的捕获入口。iOS 27 的端侧模型支持图片 prompt（见 `apple-intelligence.md`，仅 iOS 27）。
+- **对 Today：** “截图 → 事件”是值得做的捕获入口。iOS 27 的端侧模型支持图片 prompt（仅 iOS 27）。
 - 来源：[官网](https://readdle.com/calendars) · [App Store](https://apps.apple.com/us/app/calendars-planner-reminders/id608834326) · [新闻稿](https://readdle.com/press/release/2803)
 
 #### Fantastical
@@ -364,7 +364,7 @@ iPhone 不允许 App 常驻后台，所以“持续规划”实际是在下面�
 | 校验（代码） | 强制原则 2–6；给每行标出级别和写入目标 | — |
 | 用户 | 勾选、Apply、Undo；在复盘里决定没做完的去处 | — |
 
-`docs/apple-intelligence.md` 已经定下“模型只理解、不执行”，本方案沿用。新增的是 **diff 卡的数据结构**：
+`docs/engineering/ai-agent-architecture.md` 已经定下“模型只提议、不执行”，本方案沿用。新增的是 **diff 卡的数据结构**：
 
 ```swift
 struct PlanChange {            // one row on the card
@@ -408,7 +408,7 @@ struct PlanChange {            // one row on the card
    - 导出给开发者是单独的明确操作，默认关闭。
 4. **分级使用模型：**
    - 端侧模型做日常小决定。
-   - 要长上下文的（周计划、整理 50 条过期项），先用代码切块，或者以后再考虑 PCC（需要申请 entitlement，见 `apple-intelligence.md`）。
+   - 要长上下文的（周计划、整理 50 条过期项），先用代码切块，或者以后再考虑 PCC（需要申请 entitlement）。
    - 外部 agent 自带模型，通过 §4 接入。
 
 ### 3.8 什么能自己做、什么要批准（自主权阶梯）
@@ -602,9 +602,9 @@ Today 天然适合当这个地方，因为“时间”是所有 agent 动作的�
 | iOS 限制 | 没有常驻后台，`BGAppRefreshTask` 不准时 | 按 §3.4 的触发点设计，文案说“下次打开时已更新” |
 | iOS 限制 | App 读不到当前专注模式 | 用 Focus Filter |
 | iOS 限制 | AlarmKit 读不到“时钟”里的闹钟 | 已知（README 写明），不承诺 |
-| iOS 限制 | 被邀请人修改会议的行为没有验证 | `apple-intelligence.md` §2.6 已记，第 3 级卡片写明 |
+| iOS 限制 | 被邀请人修改会议的行为没有验证 | `docs/engineering/ai-agent-architecture.md` §6.1 已记，第 3 级卡片写明 |
 | 账号 | WeatherKit、CloudKit / iCloud 需要付费 Developer Program；HealthKit 在免费账号下是否可用 **未核实** | 天气和跨设备账本列为“需付费账号”；先做单机 |
-| 端侧模型 | 4096 token、约 3B、随系统换版本、中文质量未知（详见 `apple-intelligence.md` §3） | 模型只选和写理由；prompt 版本化；规划评测守不变量；每个 iOS beta 跑一次 |
+| 端侧模型 | 4096 token、约 3B、随系统换版本、中文质量未知 | 模型只选和写理由；prompt 版本化；规划评测守不变量；每个 iOS beta 跑一次 |
 | 信任 | 像 Motion 那样挪太多次、排太满 | 锁定手动项；每项 24 小时只自动提议挪一次；工作量预测；问题箱；默认不勾选可选项 |
 | 安全 | 提示注入（邮件里藏指令） | 提议是数据；显示来源；第 3 级永远问；agent 不能给自己授权 |
 | 打扰 | 提议太多，变成另一个收件箱 | 按意图合并；过期自动作废；专注时攒着；“全部批准第 1–2 级”按钮；每日摘要 |
@@ -625,7 +625,7 @@ Today 天然适合当这个地方，因为“时间”是所有 agent 动作的�
 ## 来源汇总
 
 App 部分的来源见 §2 各节。平台与协议：
-- Apple：[WeatherKit](https://developer.apple.com/weatherkit/) · [BGTaskScheduler](https://developer.apple.com/documentation/backgroundtasks/bgtaskscheduler) · [IntentDonationManager](https://developer.apple.com/documentation/appintents/intentdonationmanager) · Foundation Models 见 `docs/apple-intelligence.md`
+- Apple：[WeatherKit](https://developer.apple.com/weatherkit/) · [BGTaskScheduler](https://developer.apple.com/documentation/backgroundtasks/bgtaskscheduler) · [IntentDonationManager](https://developer.apple.com/documentation/appintents/intentdonationmanager)
 - MCP：[Authorization 规范](https://modelcontextprotocol.io/specification/2025-06-18/basic/authorization)
 - 账本格式：[Activity Streams 2.0](https://www.w3.org/TR/activitystreams-core/) · [OpenTelemetry GenAI agent spans](https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-agent-spans/)
 - 编码 agent 面板：

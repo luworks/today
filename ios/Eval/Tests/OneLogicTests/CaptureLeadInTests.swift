@@ -103,11 +103,4 @@ final class CaptureLeadInTests: XCTestCase {
 
   // MARK: The model's title
 
-  func testModelTitleWithTheInstructionStillInIt() {
-    let draft = CaptureDraft(
-      kind: "task", title: "增加一个 reminder 吧：我需要去扩充我们这个 token factory 工厂的 token",
-      date: nil, time: "22:00")
-    let c = CaptureDraftMapper.capture(from: draft, now: .now, calendar: cal)
-    XCTAssertEqual(c?.title, "我需要去扩充我们这个 token factory 工厂的 token")
-  }
 }

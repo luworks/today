@@ -40,7 +40,7 @@ Native XCTest metrics target the app, not the runner. Three measured fast-upward
 - P1: Year native peak median226.768MiB is the highest measured app-state resource value in this batch; a51% target is111.116MiB, not an achieved or proven feasible reduction. Source diagnosis should identify a removable allocation/lifetime cost before an optimization. Risk is retained state/render correctness; acceptance needs matched fixture/gesture/config and unchanged functional assertions. Do not compare it as the exclusive cost of Year against the different Health/Clock processes.
 - P1: Health/Clock revisit increases are measurable but allocation/lifetime attribution is absent. Complete Settings/Activity and shared root-anchor windows using the same protocol before choosing a retention candidate. Expected benefit is closing coverage/attribution gaps, not promised byte savings. Reuse the existing build; one narrow resource batch, no broad suite.
 - P2: Native hitch provider is missing. Preserve the capability gap; no FPS/real-device/real-touch or battery claim and no phone work assigned to the owner. An alternative simulator instrument must prove actual frame/hitch semantics before being used.
-- AI source/CPU diagnosis remains in [AI profile report](ai-profile-diagnosis-v3.md); no new safe production candidate was established there. Existing accepted full-layout gain remains2.024x, below3x, independent of this resource cohort.
+- The AI source/CPU diagnosis covered the old AI pipeline, which P4 (2026-11-01) removed; its report is in git history. Existing accepted full-layout gain remains2.024x, below3x, independent of this resource cohort.
 
 ## Reproduction and evidence
 

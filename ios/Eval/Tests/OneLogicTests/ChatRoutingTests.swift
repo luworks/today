@@ -29,12 +29,6 @@ final class ChatRoutingTests: XCTestCase {
       XCTAssertTrue(capture.isReadyToAdd)
       let action = try XCTUnwrap(
         CaptureParser.leadingMonth(text, now: now, calendar: calendar)?.action)
-      let refined = await CaptureTitleRefinement.refine(capture, source: text, available: true) {
-        _ in action
-      }
-      XCTAssertEqual(refined.title, title, "Title generation cannot discard the anchored month")
-      XCTAssertEqual(refined.kind, .task)
-      XCTAssertNil(refined.taskTiming(calendar: calendar).due)
       // A follow-up changes the preview only, retaining the requested month and original subject.
       guard
         case .updated(let renamed) = Dialogue.refine(
@@ -146,7 +140,6 @@ final class ChatRoutingTests: XCTestCase {
     ] {
       XCTAssertEqual(ChatRouting.intent(text), .conversation, text)
       XCTAssertNil(ChatRouting.contextualTimeAnswer(text, hasTimeContext: true), text)
-      XCTAssertFalse(ChatRouting.isAgendaQuestion(text), text)
     }
   }
 
@@ -310,47 +303,6 @@ final class ChatRoutingTests: XCTestCase {
     }
   }
 
-  func testCanonicalRemainingTodayQuestionUsesAgendaRoute() {
-    for text in ["What's left today?", "What’s left today?", "What is left today?"] {
-      XCTAssertEqual(ChatRouting.intent(text), .conversation, text)
-      XCTAssertTrue(ChatRouting.isAgendaQuestion(text), text)
-      XCTAssertNil(ChatRouting.contextualTimeAnswer(text, hasTimeContext: true), text)
-    }
-    for text in [
-      "How are you today?", "What's left of my story today?",
-      "What's left today in Activity?", "What's your favorite movie?",
-    ] {
-      XCTAssertFalse(ChatRouting.isAgendaQuestion(text), text)
-    }
-  }
-
-  func testAnythingLeftTodayUsesReadOnlyAgendaRoute() {
-    let text = "Anything left today?"
-    XCTAssertEqual(ChatRouting.intent(text), .conversation)
-    XCTAssertTrue(ChatRouting.isAgendaQuestion(text))
-    XCTAssertEqual(
-      ChatRouting.isAgendaQuestion(text), ChatRouting.isAgendaQuestion("What's left today?"))
-    XCTAssertNil(ChatRouting.contextualTimeAnswer(text, hasTimeContext: true))
-
-    for question in ["Anything left today in my fridge?", "Anything left?", "Anything today?"] {
-      XCTAssertEqual(ChatRouting.intent(question), .conversation, question)
-      XCTAssertFalse(ChatRouting.isAgendaQuestion(question), question)
-    }
-  }
-
-  func testWhatsOnTodayUsesReadOnlyAgendaRoute() {
-    for text in ["What's on today?", "What’s on today?", "What is on today?"] {
-      XCTAssertEqual(ChatRouting.intent(text), .conversation, text)
-      XCTAssertTrue(ChatRouting.isAgendaQuestion(text), text)
-      XCTAssertNil(ChatRouting.contextualTimeAnswer(text, hasTimeContext: true), text)
-    }
-    for text in ["What's on today's menu?", "What's on today on TV?", "What's on your mind today?"]
-    {
-      XCTAssertEqual(ChatRouting.intent(text), .conversation, text)
-      XCTAssertFalse(ChatRouting.isAgendaQuestion(text), text)
-    }
-  }
-
   func testPoliteContentGenerationStaysConversation() {
     for prefix in ["", "Please ", "Can you ", "Could you "] {
       for request in [
@@ -473,7 +425,6 @@ final class ChatRoutingTests: XCTestCase {
       "Perhaps a new hobby", "2026-10-20", "tomorrow at 3pm",
     ] {
       XCTAssertEqual(ChatRouting.intent(text), .unsure, text)
-      XCTAssertFalse(ChatRouting.fallbackReply(text).isEmpty)
     }
   }
 
@@ -519,11 +470,4 @@ final class ChatRoutingTests: XCTestCase {
     }
   }
 
-  func testOnlyAgendaQuestionsGetTodaySummary() {
-    XCTAssertTrue(ChatRouting.isAgendaQuestion("What's on my schedule today?"))
-    XCTAssertTrue(ChatRouting.isAgendaQuestion("今天有什么安排？"))
-    XCTAssertFalse(ChatRouting.isAgendaQuestion("How are you?"))
-    XCTAssertFalse(ChatRouting.isAgendaQuestion("How are you today?"))
-    XCTAssertFalse(ChatRouting.isAgendaQuestion("今天的聊天会出现在 Activity 吗？"))
-  }
 }

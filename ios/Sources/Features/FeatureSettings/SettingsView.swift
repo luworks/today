@@ -304,7 +304,6 @@
     private var aiSection: some View {
       Section {
         NavigationLink("Luna AI") { AIAccountView() }
-        AskSuggestionsSettingRow()
         explainedToggle(
           "Archive finished chats", isOn: $autoArchiveChats,
           caption:

@@ -1,35 +1,25 @@
-import TodayTestSupport
 import XCTest
 
 @testable import TodayCore
-@testable import TodayData
 
 final class MessageCopyLogicTests: XCTestCase {
   func testYourOwnWordsAlwaysCopy() {
+    XCTAssertFalse(MessageCopy.isTemplate(isUser: true, content: false))
+    XCTAssertFalse(ChatMessage(role: .user, text: "Call Alex tomorrow").isTemplate)
+  }
+
+  func testTheAppsOwnSentencesAreTemplatesAndTheModelsAnswersAreNot() {
+    XCTAssertTrue(ChatMessage(role: .ai, text: "Here's what I understood.").isTemplate)
+    XCTAssertTrue(ChatMessage(role: .ai, text: "卡片准备好了，点了才会生效。").isTemplate)
     XCTAssertFalse(
-      MessageCopy.isTemplate(
-        isUser: true, text: "Here's what I understood. Nothing is added until you confirm."))
-    XCTAssertFalse(MessageCopy.isTemplate(isUser: true, text: "Call Alex tomorrow"))
+      ChatMessage(role: .ai, text: "明天 10:00 项目周会，12:00 午餐。", carriesContent: true).isTemplate)
   }
 
-  func testStatusSentencesAreTemplates() {
-    for text in [
-      "Here's what I understood. Nothing is added until you confirm.",
-      "I found 3 items. Add them one by one or all at once; nothing is added until you confirm.",
-      "Here's the change. Nothing changes until you apply it.",
-      "Updated. Nothing is added until you confirm.", "OK, dropped it.",
-      "What time should it ring?",
-      "Added “Call Alex” · Tomorrow 3:00 PM · alerts you · Reminders.",
-      "Moved “Dentist” to Tomorrow 4:00 PM.",
-      "Nothing is overdue.", "Planned 3 tasks for today.", "Which one do you mean?",
-    ] {
-      XCTAssertTrue(MessageCopy.isTemplate(isUser: false, text: text), text)
-    }
-  }
-
-  func testTodaySummaryCarriesContent() {
-    let text = "Today: 2 open tasks and 1 upcoming event.\n· Buy milk\n· 15:00 Dentist"
-    XCTAssertTrue(MessageCopy.carriesContent(text))
-    XCTAssertFalse(MessageCopy.isTemplate(isUser: false, text: text))
+  func testOlderChatsWithoutTheFlagDecodeAsTemplates() throws {
+    let old =
+      #"{"id":"6F1C2A50-0000-4000-8000-000000000001","role":"ai","text":"Today: 1 open task."}"#
+    let message = try JSONDecoder().decode(ChatMessage.self, from: Data(old.utf8))
+    XCTAssertNil(message.carriesContent)
+    XCTAssertTrue(message.isTemplate)
   }
 }

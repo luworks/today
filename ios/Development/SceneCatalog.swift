@@ -43,7 +43,6 @@
     let askCapabilities: SceneAskCapabilities
     let speech: SceneSpeechDriver
     let voice: VoiceInput
-    let suggestionMemory = AskSuggestionMemory()
     let diagnostics = LocalDiagnostics()
     let exportDirectory: URL
     private let suiteName: String
@@ -274,7 +273,6 @@
       disposed = true
       voice.stop()
       askCapabilities.dispose()
-      suggestionMemory.dispose()
       toast.dispose()
       undoManager.removeAllActions()
       services.dispose()
@@ -600,10 +598,8 @@
             thread: chats.first, calendar: session.services.calendar, now: session.runtime.now,
             actions: session.services.actions, ledger: session.services.ledger,
             activity: session.services.activity,
-            intelligence: session.askCapabilities.intelligence, agentModel: .unavailable,
-            voice: session.voice,
+            agentModel: session.askCapabilities.agentModel, voice: session.voice,
             presentation: session.presentation,
-            travel: session.services.travel, suggestionMemory: session.suggestionMemory,
             onBack: { _ in askClosed = true }, onAdded: session.captureAdded,
             onOpenDay: {
               day = $0

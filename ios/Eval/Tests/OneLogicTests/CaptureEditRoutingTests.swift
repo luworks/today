@@ -22,14 +22,12 @@ struct CaptureEditRoutingTests {
       id: "t1", type: "task", title: "Call Alex",
       start: calendar.date(bySettingHour: 15, minute: 0, second: 0, of: recovered.day),
       minutes: 30, attendees: 0)
-    let decision = Editing.decide(
-      text: "move it to 5pm", plan: nil, items: [item], now: now, calendar: calendar, focus: item)
-    #expect(decision.op == .move && decision.target == item.id)
-    #expect(decision.newStart == recovered.clockTime(calendar: calendar))
-    #expect(item.start != decision.newStart)
+    // "it" is an edit: it never becomes a new item, and its new time comes from the words.
+    #expect(FastLane.looksLikeEdit("move it to 5pm", items: [item], now: now, calendar: calendar))
     #expect(
-      Editing.decide(
-        text: "move it to 5pm", plan: nil, items: [item], now: now, calendar: calendar
-      ).op == .clarify)
+      FastLane.localPreview("move it to 5pm", items: [item], now: now, calendar: calendar) == nil)
+    let start = Editing.newStart(for: item, text: "move it to 5pm", now: now, calendar: calendar)
+    #expect(start == recovered.clockTime(calendar: calendar))
+    #expect(item.start != start)
   }
 }

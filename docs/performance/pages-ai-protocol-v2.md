@@ -33,7 +33,7 @@ available; automation duration is not FPS/hitch rate. Memory delta alone is not 
 
 ## AI stages
 
-See [AI source audit](ai-response-baseline-v2.md). Track send→feedback layout, response ready→layout,
+The AI source audit covered the old pipeline (removed in P4, 2026-11-01; see git history). Track send→feedback layout, response ready→layout,
 and full turn→response/card layout independently with monotonic per-turn tokens. Superseded or
 cancelled turns do not complete successful samples. Explicit capture, clarification, conversation,
 plan preview and confirmed Add/Apply have different cohorts. Preserve title/type/day/time, no-write

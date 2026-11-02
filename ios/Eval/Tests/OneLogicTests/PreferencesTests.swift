@@ -36,7 +36,6 @@ final class PreferencesTests: XCTestCase {
     XCTAssertEqual(Preferences.newReminderList, "", "Auto: nothing was filed by a chosen list")
     XCTAssertEqual(Preferences.newAlarmSnooze, 9, "Clock's nine minutes")
     XCTAssertEqual(Preferences.newAlarmSound, "", "the system alarm sound")
-    XCTAssertTrue(Preferences.askSuggestions)
     XCTAssertFalse(Preferences.weatherSummary)
   }
 

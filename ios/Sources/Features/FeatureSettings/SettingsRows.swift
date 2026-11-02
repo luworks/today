@@ -131,20 +131,6 @@
     }
   }
 
-  // MARK: - AI
-
-  /// Settings > AI: the ideas on the Ask page.
-  package struct AskSuggestionsSettingRow: View {
-    package init() {}
-    @AppStorage(Preferences.askSuggestionsKey) private var shows = Preferences.askSuggestions
-
-    package var body: some View {
-      ExplainedToggle(
-        title: "Suggestions on the Ask page", isOn: $shows,
-        caption:
-          "The few ideas under “What do you want to plan?”. They are made on this iPhone from your own plans."
-      )
-    }
-  }
+// MARK: - AI
 
 #endif

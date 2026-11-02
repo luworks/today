@@ -91,6 +91,6 @@ final class ConversationJourneyTests: XCTestCase {
       (0..<30).map { (true, String(repeating: "x", count: 600) + "\($0)") })
     XCTAssertLessThanOrEqual(context.turns.count, 8)
     XCTAssertLessThanOrEqual(context.turns.reduce(0) { $0 + $1.text.count }, 1600)
-    XCTAssertTrue(ConversationContext([]).prompt.isEmpty)
+    XCTAssertTrue(ConversationContext([]).turns.isEmpty)
   }
 }

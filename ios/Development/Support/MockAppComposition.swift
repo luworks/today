@@ -120,31 +120,11 @@
         ?? (arguments.contains("-uiTesting") ? .analog : nil)
       let stopwatch = StopwatchModel(
         defaults: defaults, now: runtime.now, initialState: initialState, initialPage: page)
-      let multiCapture = arguments.contains("-uiTestingMultiCapture")
-      let askReplyDelay = arguments.contains("-uiTestingAskReplyDelay")
-      let intelligence = AskIntelligence(
-        backend: { multiCapture || askReplyDelay ? .scripted : .rules },
-        parse: { text, _, now, calendar in
-          if askReplyDelay { try? await Task.sleep(for: .seconds(12)) }
-          return AskIntelligence.ruleCapture(text, now: now, calendar: calendar)
-        },
-        propose: { text, _, now, calendar in
-          guard multiCapture, text.contains(";") else { return nil }
-          return text.split(separator: ";").map {
-            CaptureParser.parse(
-              String($0).trimmingCharacters(in: .whitespaces), now: now, calendar: calendar)
-          }
-        }, refineTitle: { capture, _, _ in capture },
-        respond: { text, _, intent in
-          if askReplyDelay, intent != .capture { try? await Task.sleep(for: .seconds(12)) }
-          return intent == .capture ? .capture : .reply(ChatRouting.fallbackReply(text))
-        },
-        plan: { _, _, _, _, _ in EditPlan(op: .none, target: nil) },
-        rank: { _, _, _, _ in nil }, prewarm: {}, isAvailable: { multiCapture || askReplyDelay },
-        unavailableReason: { _ in "Unavailable on Simulator" })
       shell = ShellComposition(
-        session: session, world: world, stopwatch: stopwatch, intelligence: intelligence,
-        agentModel: AgentScripts.model(Self.value("-uiTestingAgentScript", arguments)),
+        session: session, world: world, stopwatch: stopwatch,
+        // QA only: -agentLive talks to the deployed Luna Worker (sign in under Settings → AI → Luna AI).
+        agentModel: arguments.contains("-agentLive")
+          ? .live : AgentScripts.model(Self.value("-uiTestingAgentScript", arguments)),
         voice: VoiceInput(driver: MockSpeechDriver()), arguments: arguments, openSettings: {})
     }
 

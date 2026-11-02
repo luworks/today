@@ -166,19 +166,4 @@ final class RecurringReminderTests: XCTestCase {
     }
   }
 
-  func testModelMappingRetainsAllExplicitDaysAndRejectsMalformedSets() throws {
-    var draft = CaptureDraft(
-      kind: "task", title: "Take out trash", time: "17:00", repeatRule: "weekly",
-      repeatWeekdays: [6, 1, 6])
-    let c = try XCTUnwrap(CaptureDraftMapper.capture(from: draft, now: now, calendar: cal))
-    XCTAssertEqual(c.repeatRule, "weekly:1,6")
-    XCTAssertEqual(cal.component(.weekday, from: c.day), 1)
-    draft.date = "2026-10-30"
-    draft.repeatWeekdays = [6]
-    let future = try XCTUnwrap(CaptureDraftMapper.capture(from: draft, now: now, calendar: cal))
-    XCTAssertEqual(
-      cal.component(.day, from: future.day), 30, "An explicit start date is a lower bound")
-    draft.repeatWeekdays = [0, 6]
-    XCTAssertNil(CaptureDraftMapper.capture(from: draft, now: now, calendar: cal))
-  }
 }

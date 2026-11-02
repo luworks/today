@@ -318,14 +318,12 @@ final class SettingsChoicesTests: XCTestCase {
 
   // MARK: Reminders, alarms, AI
 
-  func testNewReminderListAlarmDefaultsAndAskSuggestionsAreInSettings() {
+  func testNewReminderListAndAlarmDefaultsAreInSettings() {
     launch()
     openSettings()
     XCTAssertTrue(reveal(element("settings.newReminderList")).exists)
     XCTAssertTrue(reveal(element("settings.newAlarmSnooze")).exists)
     XCTAssertTrue(reveal(element("settings.newAlarmSound")).exists)
-    let suggestions = reveal(app.switches["Suggestions on the Ask page"])
-    XCTAssertEqual(suggestions.value as? String, "1", "on by default")
   }
 
   func testDefaultReminderListChosenInSettingsContainsTheSavedQuickAdd() {
@@ -414,23 +412,6 @@ final class SettingsChoicesTests: XCTestCase {
     XCTAssertTrue(chimes.isSelected, "the saved tone is selected in the sound picker")
     XCTAssertFalse(
       app.buttons["Glass"].isSelected, "the new default does not replace the saved tone")
-  }
-
-  func testAskPageHidesItsSuggestionsWhenSwitchedOff() {
-    launch(prefs: "askSuggestions=0")
-    app.buttons["Ask AI or add anything"].firstMatch.tap()
-    XCTAssertTrue(app.staticTexts["What do you want to plan?"].waitForExistence(timeout: 5))
-    XCTAssertFalse(
-      app.buttons.matching(identifier: "ask-suggestion").firstMatch.waitForExistence(timeout: 2),
-      "no suggestion chips")
-  }
-
-  func testAskPageShowsSuggestionsByDefault() {
-    launch()
-    app.buttons["Ask AI or add anything"].firstMatch.tap()
-    XCTAssertTrue(app.staticTexts["What do you want to plan?"].waitForExistence(timeout: 5))
-    XCTAssertTrue(
-      app.buttons.matching(identifier: "ask-suggestion").firstMatch.waitForExistence(timeout: 5))
   }
 
   func testNewAlarmStartsWithTheChosenSnoozeLength() {

@@ -74,18 +74,6 @@ final class AskCardTests: XCTestCase {
     XCTAssertEqual(alarm.taskTiming.due, alarm.clockTime, "an alarm keeps its time")
   }
 
-  func testAIDraftWithLengthIsATimedReminder() throws {
-    let work = try XCTUnwrap(
-      CaptureDraftMapper.capture(
-        from: .init(kind: "task", title: "Write report", time: "14:00", durationMinutes: 120),
-        now: now, calendar: cal))
-    XCTAssertTrue(work.alertsAtTime)
-    let plain = try XCTUnwrap(
-      CaptureDraftMapper.capture(
-        from: .init(kind: "task", title: "Call mom", time: "09:00"), now: now, calendar: cal))
-    XCTAssertTrue(plain.alertsAtTime)
-  }
-
   func testListLabelUsesRemindersForTheDefault() {
     var c = parse("buy milk")
     XCTAssertEqual(c.listLabel, "Reminders")

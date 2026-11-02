@@ -291,15 +291,6 @@ public enum ChatRouting {
     has(text, #"[?？]|什么|怎么|吗|多少|几|是不是|^(?:what|how|when|which|why|do |is |am |any)"#)
   }
 
-  public static func isAgendaQuestion(_ text: String) -> Bool {
-    isQuestion(text)
-      && has(
-        text,
-        #"^(?:(?:what(?:['’]s| is)|anything) left|what(?:['’]s| is) on) today\s*[?？]*$|\b(?:my (?:schedule|agenda|tasks|events|meetings)|what(?:'s| is) (?:on my|next)|free time)\b|(?:今天|今日).*(?:安排|日程|待办|任务|会议|(?:还)?剩(?:下)?什么)|接下来.*(?:安排|什么)|空闲"#
-      )
-      && !has(text, #"activity|活动记录"#)
-  }
-
   static func isContextQuestion(_ text: String) -> Bool {
     has(
       text,
@@ -307,41 +298,4 @@ public enum ChatRouting {
     )
   }
 
-  /// Answer from the actual request context, including on the fast unavailable-model path.
-  /// Quoting an earlier USER turn reports visibility; it never authorizes a planner change.
-  public static func contextReply(_ text: String, context: ConversationContext) -> String? {
-    guard isContextQuestion(text) else { return nil }
-    let chinese = has(text, #"\p{Han}"#)
-    let subject = context.userTurns.map(\.text).last {
-      !isContextQuestion($0) && !CaptureConversation.referencesAlarm($0)
-        && !CaptureConversation.referencesReminder($0)
-    }
-    let quoted = subject.map { chinese ? "其中你说过：“\($0)”。" : " You said: “\($0)”." } ?? ""
-    if chinese {
-      return "我能读取当前聊天已保存的消息，并从中恢复相关请求。GPT 服务收到的是最近历史的精简内容；我不能读取其他聊天。" + quoted
-        + "这只是回答你的问题，不会添加或更改任何事项；预览仍需要你点 Add 或 Apply。"
-    }
-    return
-      "I can read the saved messages in this chat and recover relevant requests from them. The GPT service receives a shortened recent history. I cannot read other chats."
-      + quoted
-      + " This answer creates or changes nothing. Previews still need your Add or Apply tap."
-  }
-
-  public static func fallbackReply(_ text: String) -> String {
-    let chinese = has(text, #"\p{Han}"#)
-    if has(text, #"activity|活动记录"#) {
-      return chinese
-        ? "可以，普通聊天不会创建任务、日程或闹钟，也不会产生变更记录。确认添加或应用修改后，才会留下对应的变更记录。聊天也会按 Activity 数据设置记录 AI 交互；是否保留消息文字可在设置中更改。"
-        : "Chatting doesn't create a task, event or alarm, or a change in Activity. Confirming Add or Apply records the corresponding change. Activity data also records AI interactions according to your settings, including message text when enabled."
-    }
-    if has(text, #"^(?:thanks|thank you|谢谢)"#) {
-      return chinese ? "不客气，随时聊。" : "You're welcome. I'm here if you'd like to chat."
-    }
-    if has(text, #"^(?:hi|hello|hey|你好|嗨|早上好)"#) {
-      return chinese ? "你好！今天想聊些什么？" : "Hello! What's on your mind?"
-    }
-    return chinese
-      ? "我们可以直接聊聊。你想继续说说吗？如果想记录待办、日程或闹钟，也可以明确告诉我。"
-      : "We can just chat. Tell me more about what's on your mind. If you'd like to save a task, event or alarm, you can ask me explicitly."
-  }
 }

@@ -26,7 +26,7 @@
             LabeledContent("Signed in as", value: name)
             Toggle("Use cloud AI", isOn: $account.enabled)
             if let used = account.used, let limit = account.dailyLimit {
-              LabeledContent("Daily AI calls (UTC)", value: "\(used) / \(limit)")
+              LabeledContent("AI requests today (UTC)", value: "\(used) / \(limit)")
             }
             Button("Sign out") { Task { await account.signOut() } }
               .disabled(account.busy)

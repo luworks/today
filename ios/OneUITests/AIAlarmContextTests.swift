@@ -1,11 +1,10 @@
 import XCTest
 
-/// Production rule fallback, never scripted model output or physical-device evidence.
+/// Not signed in to Luna AI (TodayMock): FastLane previews and continuations only, no scripted model.
 @MainActor
 final class AIAlarmContextTests: XCTestCase {
   private var app: XCUIApplication!
   private var loadedAt: Date!
-  private let question = "... 你可以看到我上面的 context 吗"
 
   override func setUp() async throws {
     await MainActor.run {
@@ -18,18 +17,14 @@ final class AIAlarmContextTests: XCTestCase {
     }
   }
 
-  func testMixedRelativeAlarmPreviewContextQuestionAddAndUndo() {
+  func testMixedRelativeAlarmPreviewAddAndUndo() {
     open("New chat")
     let sentAt = Date()
     send("提醒 烘干衣服 45min 后 alarm")
     assertAlarm(minutesFrom: sentAt, offset: 45)
-    let originalTime = preview.staticTexts.allElementsBoundByIndex.map({ $0.label })
     send("make a alarm")
     assertAlarm(minutesFrom: sentAt, offset: 45)
-    send(question)
-    assertContextAnswer()
-    XCTAssertEqual(preview.staticTexts.allElementsBoundByIndex.map({ $0.label }), originalTime)
-    keepScreenshot("IMG6815 three turns - complete alarm preview and truthful context answer")
+    keepScreenshot("IMG6815 two turns - complete alarm preview")
     // Only the real Add creates the alarm; Undo remains available afterwards.
     preview.buttons["Add"].tap()
     XCTAssertTrue(app.buttons["capture-open"].firstMatch.waitForExistence(timeout: 5))
@@ -45,10 +40,6 @@ final class AIAlarmContextTests: XCTestCase {
     open("Dryer full wrong chat")
     send("make a alarm")
     assertAlarm(minutesFrom: loadedAt, offset: 35)
-    let originalTime = preview.staticTexts.allElementsBoundByIndex.map({ $0.label })
-    send(question)
-    assertContextAnswer()
-    XCTAssertEqual(preview.staticTexts.allElementsBoundByIndex.map({ $0.label }), originalTime)
     app.buttons["Close"].firstMatch.tap()
     app.buttons["Activity"].tap()
     XCTAssertTrue(
@@ -60,12 +51,6 @@ final class AIAlarmContextTests: XCTestCase {
     assertAlarm(minutesFrom: loadedAt, offset: 35)
     app.buttons["Close"].firstMatch.tap()
     open("New chat")
-    send("Can you see the above context?")
-    XCTAssertTrue(
-      app.staticTexts.containing(
-        NSPredicate(format: "label CONTAINS %@", "saved messages in this chat")
-      ).firstMatch.waitForExistence(timeout: 5))
-    XCTAssertFalse(preview.exists)
     send("make a alarm")
     XCTAssertTrue(preview.buttons["Add"].waitForExistence(timeout: 5))
     XCTAssertFalse(preview.buttons["Add"].isEnabled)
@@ -107,12 +92,6 @@ final class AIAlarmContextTests: XCTestCase {
         candidates.contains { label.label.contains($0) }
       }, app.debugDescription)
     XCTAssertFalse(app.buttons["capture-undo"].exists)
-  }
-  private func assertContextAnswer() {
-    XCTAssertTrue(
-      app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "我能读取当前聊天已保存的消息"))
-        .firstMatch.waitForExistence(timeout: 5))
-    XCTAssertTrue(preview.buttons["Add"].isEnabled)
   }
   private func keepScreenshot(_ name: String) {
     let attachment = XCTAttachment(screenshot: app.screenshot())

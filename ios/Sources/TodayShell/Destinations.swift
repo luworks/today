@@ -127,10 +127,9 @@
         onMenu: onMenu,
         calendar: session.calendar, now: session.runtime.now,
         actions: session.actions, ledger: session.ledger, activity: session.activity,
-        intelligence: composition.intelligence, agentModel: composition.agentModel,
+        agentModel: composition.agentModel,
         voice: composition.voice,
         presentation: composition.presentation,
-        travel: session.travel, suggestionMemory: composition.suggestionMemory,
         onBack: onBack, onAdded: onAdded, onOpenDay: onOpenDay,
         onOpenTask: { task, completion in
           didDismissEditor = completion

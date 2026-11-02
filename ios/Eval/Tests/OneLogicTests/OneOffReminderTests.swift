@@ -62,7 +62,6 @@ final class OneOffReminderTests: XCTestCase {
     XCTAssertNil(FastLane.oneOffReminder("每周五下午两点提醒我买牛奶", now: now, calendar: calendar))
     XCTAssertNil(FastLane.oneOffReminder("增加一个闹钟，明天早上8点", now: now, calendar: calendar))
     XCTAssertNil(FastLane.oneOffReminder("今天还剩什么", now: now, calendar: calendar))
-    XCTAssertTrue(ChatRouting.isAgendaQuestion("今天还剩什么"))
   }
 
   func testMixedLanguageFollowupsKeepOriginalSubjectAndTime() throws {

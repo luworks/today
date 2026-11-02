@@ -1,6 +1,6 @@
 import XCTest
 
-/// Submitted one-off requests through production rules; no Foundation Models execution is claimed.
+/// Submitted one-off requests through FastLane, not signed in to Luna AI.
 @MainActor
 final class AIReminderRecoveryTests: XCTestCase {
   private var app: XCUIApplication!
@@ -97,9 +97,19 @@ final class AIReminderRecoveryTests: XCTestCase {
   func testOrdinaryChatStaysChatAndFailedCreationCanRetry() {
     launch(failOnce: true)
     open("New chat")
-    send("What happens if I set a reminder?")
+    // Not signed in, a question gets no preview: the AI is unavailable and the draft goes back.
+    let field = app.textViews["Ask AI or add anything"].firstMatch
+    field.tap()
+    field.typeText("What happens if I set a reminder?")
+    app.buttons["ask-send"].tap()
+    XCTAssertTrue(
+      app.staticTexts.containing(NSPredicate(format: "label BEGINSWITH 'Sign in to Luna AI'"))
+        .firstMatch.waitForExistence(timeout: 5))
     XCTAssertFalse(app.buttons["capture-open"].exists)
     XCTAssertFalse(app.buttons["capture-title"].exists)
+    // Close drops the returned draft; the reminder is asked for in a new chat.
+    app.buttons["Close"].firstMatch.tap()
+    open("New chat")
     send("11点去 costco 加油 买 粒粒")
     XCTAssertTrue(app.buttons["Add"].firstMatch.waitForExistence(timeout: 5))
     XCTAssertFalse(app.buttons["capture-open"].exists, "A failed save is never Added")

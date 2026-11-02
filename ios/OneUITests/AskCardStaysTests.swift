@@ -1,8 +1,8 @@
 import XCTest
 
 /// The preview card stays in the conversation after Add and Cancel: Added (Undo, Open), Undone (Add again) and Dropped,
-/// and the final state is there when the chat is reopened from the sidebar. Runs on the test dataset; the simulator has no
-/// on-device model, so the rule parser reads the sentence.
+/// and the final state is there when the chat is reopened from the sidebar. Runs on the test dataset, not signed in to
+/// Luna AI, so FastLane reads the sentence (a clear one-off is added directly, anything else is a local preview).
 @MainActor
 final class AskCardStaysTests: XCTestCase {
   var app: XCUIApplication!
