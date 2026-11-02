@@ -12,9 +12,9 @@ median 2–3 s in every lane.
 | PR gate, `checks` | 2.2 / 2.7 min | 4/32, all real (format 1, helpers 1, unit 2) | unchanged for code PRs; docs-only PRs skip (see below) |
 | PR gate, `today-required` | 3.0 / 4.4 min | 3/32, all real compile errors | same |
 | Push gate, `checks` / `today-required` | 2.4 / 2.7 and 3.2 / 4.7 min | 0 (4–5 cancelled by newer pushes) | unchanged |
-| install-smoke | 11.6 / 14.8 min, **started by hand** after each merge | 10/29 (34%) | runs by itself in every `main` push run: first run 11.7 min, green (#300) |
+| install-smoke | 11.6 / 14.8 min, **started by hand** after each merge | 10/29 (34%) | runs by itself in every `main` push run: first run 11.7 min, green, run 41505221613 (#300) |
 | Install readiness after a merge | merge + a person dispatching + 11.6 min + 34% reruns | | merge + ~12 min, no human step; `./dev build Debug --device <UDID> --install` finds the runs |
-| Docs/prototype-only PR gate (23% of `main` commits) | ~3 min | | DOCS_AFTER (#301) |
+| Docs/prototype-only PR gate (23% of `main` commits) | ~3 min | | `checks` 17 s, `today-required` 17 s, 31 s from push to green (#301, measured on #302) |
 
 ## Where install-smoke's 11.6 min go (median warm run)
 
