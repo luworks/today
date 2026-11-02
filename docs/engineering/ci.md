@@ -26,9 +26,9 @@ mean the app opens or stays responsive.
 `scripts/ci/smoke.py`: the same build, then one simulator booted after the build and one
 `test-without-building` run of:
 
-- `PlannerSessionTests` ×3. The populated Day agenda and Focus render use imported
-  snapshots and never query EventKit on the main thread (the PR120 freeze). Saved
-  Calendar snooze hydration.
+- `PlannerSessionTests/populatedDayAgendaRenderNeverOpensTheNativeStore`. The populated Day
+  agenda renders with connected Calendar and Reminders sync and never opens EventKit on the
+  main thread (the PR120 freeze).
 - `TodayReminderCompletionTests/testPreconnectedImportedTimelineStaysResponsive`. The
   script grants Reminders and Calendar with `simctl privacy`. The app launches populated with
   a real EventKit event and both syncs on, opens and cancels the editor within 10 s, taps
@@ -46,7 +46,7 @@ mean the app opens or stays responsive.
   gh run download "$run" -n "smoke-screens-$sha" -D "tests/results/ci-screens/$sha"
   ```
 
-The run fails unless exactly those five leaves are in the completed xcresult and all of them
+The run fails unless exactly those three leaves are in the completed xcresult and all of them
 passed. The xcresult is uploaded only on failure. Simulator devices are cached after their
 first boot for each runner image (~1.3 GB, synthetic data only). A simulator booting during
 the build made the build 4–5× slower on the 3-CPU runner, so boot always follows the build.
