@@ -292,10 +292,6 @@
           "buildPhase": "resources"
         },
         {
-          "path": "Eval/Tests/OneLogicTests/conversation-journeys.json",
-          "buildPhase": "resources"
-        },
-        {
           "path": "../tests/fixtures/swiftdata-upgrade",
           "type": "folder",
           "buildPhase": "resources"

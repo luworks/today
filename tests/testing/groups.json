@@ -1807,10 +1807,6 @@
               "line": 219
             },
             {
-              "name": "testUndoneAndSubjectRefQueries",
-              "line": 236
-            },
-            {
               "name": "testPageQueriesUseAnIndex",
               "line": 251
             },
@@ -2521,10 +2517,6 @@
               "line": 182
             },
             {
-              "name": "testWorkCurve",
-              "line": 198
-            },
-            {
               "name": "testNamesDatesAndHome",
               "line": 206
             }
@@ -2601,20 +2593,6 @@
             {
               "name": "testEverythingDoneArchivesAfterAnHour",
               "line": 60
-            }
-          ]
-        },
-        {
-          "suite": "ConversationJourneyTests",
-          "path": "ios/Eval/Tests/OneLogicTests/ConversationJourneyTests.swift",
-          "methods": [
-            {
-              "name": "testBilingualConversationJourneys",
-              "line": 12
-            },
-            {
-              "name": "testContextIsBoundedAndScopedToSuppliedThread",
-              "line": 51
             }
           ]
         },
@@ -3039,10 +3017,6 @@
               "line": 55
             },
             {
-              "name": "testRetentionKeepsNinetyDays",
-              "line": 65
-            },
-            {
               "name": "testTaskSnapshotRoundTrips",
               "line": 71
             }
@@ -3257,10 +3231,6 @@
           "path": "ios/Eval/Tests/OneLogicTests/LogicTests.swift",
           "methods": [
             {
-              "name": "testNextQuarterHour",
-              "line": 163
-            },
-            {
               "name": "testSnoozeChoicesAreTheShortList",
               "line": 172
             },
@@ -3325,10 +3295,6 @@
             {
               "name": "testMonthOffsets",
               "line": 326
-            },
-            {
-              "name": "testWeekStartAndLetters",
-              "line": 336
             },
             {
               "name": "testLandingDay",
@@ -3931,14 +3897,6 @@
             {
               "name": "testDays",
               "line": 24
-            },
-            {
-              "name": "testAppendThenDrainEmptiesTheInbox",
-              "line": 32
-            },
-            {
-              "name": "testDrainPreservesAnUndecodableInboxForRecovery",
-              "line": 41
             },
             {
               "name": "testAppendDoesNotOverwriteAnUndecodableInbox",

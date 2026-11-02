@@ -337,21 +337,6 @@ extension WorldClock {
     return common.sorted { $0.start < $1.start }
   }
 
-  /// How many of the cities (home included) are working at each step of the home day: the wave behind the overlap chart.
-  public static func workCurve(
-    _ zones: [TimeZone], home: TimeZone, on date: Date, stepMinutes: Int = 30
-  ) -> [(date: Date, count: Int)] {
-    let window = day(containing: date, in: home)
-    let all = [home] + zones
-    return stride(
-      from: window.start.timeIntervalSince1970, through: window.end.timeIntervalSince1970,
-      by: Double(stepMinutes * 60)
-    ).map {
-      let t = Date(timeIntervalSince1970: $0)
-      return (t, all.filter { isWorking($0, at: t) }.count)
-    }
-  }
-
   /// "Dallas", "Dallas and Boston", "Dallas, Boston and 1 more".
   public static func nameList(_ names: [String]) -> String {
     switch names.count {

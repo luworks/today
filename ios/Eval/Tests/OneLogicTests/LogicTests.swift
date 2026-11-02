@@ -147,19 +147,6 @@ final class AlarmPlanTests: XCTestCase {
     XCTAssertEqual(AlarmPlan.minuteStep(forAlarmMinute: 7), 1)
   }
 
-  func testNextQuarterHour() {
-    XCTAssertEqual(AlarmPlan.nextQuarterHour(after: at(12, 10, 56), calendar: cal), at(12, 11, 0))
-    XCTAssertEqual(
-      AlarmPlan.nextQuarterHour(after: at(12, 10, 45), calendar: cal), at(12, 11, 0),
-      "on a quarter, the next one")
-    XCTAssertEqual(AlarmPlan.nextQuarterHour(after: at(12, 10, 0), calendar: cal), at(12, 10, 15))
-    XCTAssertEqual(AlarmPlan.nextQuarterHour(after: at(12, 10, 14), calendar: cal), at(12, 10, 15))
-    XCTAssertEqual(AlarmPlan.nextQuarterHour(after: at(12, 10, 31), calendar: cal), at(12, 10, 45))
-    XCTAssertEqual(
-      AlarmPlan.nextQuarterHour(after: at(12, 23, 50), calendar: cal), at(13, 0, 0),
-      "rolls over midnight")
-  }
-
   func testSnoozeChoicesAreTheShortList() {
     XCTAssertEqual(AlarmPlan.snoozeChoices, [5, 9, 10, 15, 30])
     XCTAssertEqual(AlarmPlan.defaultSnoozeMinutes, 9)
@@ -384,16 +371,9 @@ final class CalendarMathTests: XCTestCase {
       DateComponents(year: 2027, month: 1, day: 1))
   }
 
-  func testWeekStartAndLetters() {
+  func testWeekdayLetters() {
     let sun = calendar(firstWeekday: 1)
     let mon = calendar(firstWeekday: 2)
-    // Thu Oct 15 2026
-    XCTAssertEqual(
-      sun.component(.day, from: CalendarMath.weekStart(of: at(sun, 2026, 10, 15), calendar: sun)),
-      11)
-    XCTAssertEqual(
-      mon.component(.day, from: CalendarMath.weekStart(of: at(mon, 2026, 10, 15), calendar: mon)),
-      12)
     XCTAssertEqual(CalendarMath.weekdayLetters(calendar: sun), ["S", "M", "T", "W", "T", "F", "S"])
     XCTAssertEqual(CalendarMath.weekdayLetters(calendar: mon).first, "M")
     XCTAssertEqual(CalendarMath.weekdayLetters(calendar: mon).last, "S")

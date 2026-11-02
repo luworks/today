@@ -124,20 +124,6 @@ final class ActionPolicyTests: XCTestCase {
     XCTAssertEqual(ActionPolicy.tier(reminderDelete), .preview)
   }
 
-  // MARK: Principle 3: one date per reminder
-
-  func testThePlannedTimeIsRetired() {
-    for source in [ActionPolicy.Source.fastLane, .agent] {
-      XCTAssertEqual(
-        ActionPolicy.tier(
-          R(tool: .proposeEdit, source: source, kind: .reminder, fields: [.plannedStart])),
-        .refuse(.plannedTimeRetired))
-    }
-    XCTAssertEqual(
-      ActionPolicy.tier(R(tool: .proposeEdit, source: .agent, kind: .reminder, fields: [.due])),
-      .preview)
-  }
-
   // MARK: Principle 4: stopping an alarm ≠ finishing a task
 
   func testStoppingAnAlarmNeverCompletesATask() {

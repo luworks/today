@@ -486,21 +486,6 @@ public final class ActivityStore: ActivityStoring, @unchecked Sendable {
     return out
   }
 
-  /// The subjects (reminder refs) an actor changed since a time, optionally only by some kinds. Two of these answer the
-  /// autonomy policy's "AI changed it recently" and "you chose its time" (`Ledger.protectedRefs`).
-  public func subjectRefs(actor: String, kinds: [String] = [], sinceMs: Int64) throws -> Set<String>
-  {
-    var sql =
-      "SELECT DISTINCT subject_ref FROM event WHERE tier = 1 AND actor = ? AND ts >= ? AND subject_ref IS NOT NULL"
-    var args: [Any?] = [actor, sinceMs]
-    if !kinds.isEmpty {
-      sql +=
-        " AND kind IN (" + Array(repeating: "?", count: kinds.count).joined(separator: ",") + ")"
-      args += kinds
-    }
-    return Set(try rows(sql, args) { $0.text(0) }.compactMap { $0 })
-  }
-
   /// How many of these uids are stored (used to check an import).
   public func existingCount(uids: [String]) throws -> Int {
     var n = 0

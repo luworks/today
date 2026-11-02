@@ -88,4 +88,12 @@ final class AutoArchiveTests: XCTestCase {
         updatedAt: now.addingTimeInterval(-3_600), settled: [], now: now),
       "a chat that added nothing waits for the week")
   }
+
+  func testContextIsBoundedAndScopedToSuppliedThread() {
+    let context = ConversationContext(
+      (0..<30).map { (true, String(repeating: "x", count: 600) + "\($0)") })
+    XCTAssertLessThanOrEqual(context.turns.count, 8)
+    XCTAssertLessThanOrEqual(context.turns.reduce(0) { $0 + $1.text.count }, 1600)
+    XCTAssertTrue(ConversationContext([]).turns.isEmpty)
+  }
 }

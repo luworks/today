@@ -65,15 +65,15 @@ public enum ActionPolicy {
   public enum Words: String, Sendable {
     /// Typed or dictated by the user.
     case user
-    /// A suggestion chip or any text that carries data written by others (calendar titles etc.).
+    /// Text that carries data written by others (calendar titles etc.).
     case derived
   }
 
   public enum Kind: String, Sendable { case reminder, event, alarm, list }
 
-  /// Fields a write can set. `plannedStart` is retired: a reminder has one date, `due` (principle 3).
+  /// Fields a write can set. A reminder has one date, `due` (principle 3).
   public enum Field: String, Sendable {
-    case title, due, plannedStart, start, repeatRule, done, enabled, list, ringsAsAlarm, note
+    case title, due, start, repeatRule, done, enabled, list, ringsAsAlarm, note
   }
 
   /// Everything the policy needs, read from the tool metadata and from the live item.
@@ -135,7 +135,6 @@ public enum ActionPolicy {
     case readOnlyTool
     case backgroundWrite
     case meetingsStayFixed
-    case plannedTimeRetired
     case stoppingAlarmIsNotCompletion
     case noteIsNotATask
     case changedSincePreview
@@ -178,8 +177,6 @@ public enum ActionPolicy {
     guard !r.changedSincePreview else { return .refuse(.changedSincePreview) }
     // Principle 1: what someone else said or plans is not the user's request.
     guard !(r.reportedSpeech && effect == .create) else { return .refuse(.reportedSpeech) }
-    // Principle 3: one date per reminder.
-    guard !r.fields.contains(.plannedStart) else { return .refuse(.plannedTimeRetired) }
     // Principle 4: stopping an alarm never finishes a task.
     guard !(r.fromAlarmStop && r.fields.contains(.done)) else {
       return .refuse(.stoppingAlarmIsNotCompletion)

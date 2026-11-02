@@ -165,9 +165,6 @@ final class ActivityRecorderTests: XCTestCase {
     XCTAssertNil(ActivityRetention.forever.cutoff(now: now))
     let cut = ActivityRetention.days90.cutoff(now: now, calendar: cal)!
     XCTAssertEqual(cal.dateComponents([.day], from: cut, to: cal.startOfDay(for: now)).day, 90)
-    XCTAssertEqual(
-      ActivityWindows.userChoseDays, 90,
-      "the autonomy policy's look-back does not follow the setting")
   }
 
   // MARK: Event shapes

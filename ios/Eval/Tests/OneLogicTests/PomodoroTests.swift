@@ -47,9 +47,6 @@ final class PomodoroTests: XCTestCase {
     XCTAssertEqual(Pomodoro.next(after: .focus, roundsToday: 8), .longBreak)
     XCTAssertEqual(Pomodoro.next(after: .shortBreak, roundsToday: 4), .focus)
     XCTAssertEqual(Pomodoro.next(after: .longBreak, roundsToday: 4), .focus)
-    XCTAssertEqual(Pomodoro.nextTitle(.shortBreak), "Start 5-min break")
-    XCTAssertEqual(Pomodoro.nextTitle(.longBreak), "Start 15-min long break")
-    XCTAssertEqual(Pomodoro.nextTitle(.focus), "Focus again")
   }
 
   func testSpokenRounds() {

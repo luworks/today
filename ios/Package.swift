@@ -102,7 +102,7 @@ let package = Package(
       name: "TodayTests",
       dependencies: ["TodayCore", "TodayShared", "TodayData", "TodayTestSupport"],
       path: "Eval/Tests/OneLogicTests",
-      resources: [.copy("capture-cases.json"), .copy("conversation-journeys.json")]),
+      resources: [.copy("capture-cases.json")]),
   ],
   swiftLanguageModes: [.v6]
 )

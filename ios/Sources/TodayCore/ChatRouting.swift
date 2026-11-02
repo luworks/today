@@ -47,8 +47,8 @@ public enum ChatRouting {
     )
   }
 
-  /// Only complete, supported operation requests may bypass generic chat. The legacy matchers
-  /// also find words inside explanations, so they are not sufficient at this boundary.
+  /// Only complete, supported operation requests may bypass generic chat. `OverdueTidy.isRequest`
+  /// also finds words inside explanations, so it is not sufficient at this boundary.
   public static func isSupportedOperationRequest(_ text: String) -> Bool {
     guard
       OverdueTidy.isRequest(text)

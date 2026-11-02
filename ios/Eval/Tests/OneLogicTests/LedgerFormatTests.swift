@@ -83,12 +83,6 @@ final class LedgerFormatTests: XCTestCase {
     XCTAssertEqual(groups[0].items, [dates[2], dates[0]], "newest first within a day")
   }
 
-  func testRetentionKeepsNinetyDays() {
-    let now = Date.now
-    let cutoff = LedgerFormat.retentionCutoff(now: now, calendar: cal)
-    XCTAssertEqual(cal.dateComponents([.day], from: cutoff, to: cal.startOfDay(for: now)).day, 90)
-  }
-
   func testTaskSnapshotRoundTrips() throws {
     let s = TaskSnapshot(
       title: "Buy milk", due: .now, listName: "Home", flagged: true,

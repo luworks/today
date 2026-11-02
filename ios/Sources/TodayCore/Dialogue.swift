@@ -244,8 +244,7 @@ public enum CaptureConversation {
     has(text, #"^\s*(?:够|够了|好的|好|嗯|ok|okay|enough|that's enough)[。.!！]*\s*$"#)
   }
 
-  /// The same parser result is used with or without Apple Intelligence. Explicit reminders are
-  /// tasks even when their object contains event words (e.g. "don't eat dinner").
+  /// Explicit reminders are tasks even when their object contains event words (e.g. "don't eat dinner").
   public static func parse(_ text: String, now: Date, calendar: Calendar) -> Capture {
     var capture = CaptureParser.parse(text, now: now, calendar: calendar)
     if ChatRouting.intent(text) == .capture, ChatRouting.requestsEvent(text) {
