@@ -19,8 +19,15 @@ Merge elapsed time is the time for both jobs to turn green. The measured numbers
 [the measurements](../qa/ci-under-five-minutes-20261020.md). A green merge gate does **not**
 mean the app opens or stays responsive.
 
-## Install gate (explicit, before any phone installation)
+## Install gate (automatic on every `main` push, required before any phone installation)
 
+Every push to `main` also runs the `install-smoke` job, in parallel with the merge gate and
+in the same run, so a green smoke for the exact `main` SHA is normally ready ~12 min after the
+merge with no manual step. It is not a merge gate: pull requests never run it, and a smoke
+failure only turns the `main` push run red. It runs on docs-only pushes too, because the
+install gate needs the exact SHA (hosted macOS minutes are free on this public repo). A newer
+push cancels the older run, smoke included; only current `main` is installable anyway. After a
+flake, **Re-run failed jobs** on the push run. A manual run is still possible:
 **Actions → Today CI → Run workflow** on `main` with `lane = install-smoke` (or
 `gh workflow run today.yml --ref main -f lane=install-smoke`). The `install-smoke` job runs
 `scripts/ci/smoke.py`: the same build, then one simulator booted after the build and one
@@ -42,7 +49,7 @@ mean the app opens or stays responsive.
 
   ```sh
   sha=$(git rev-parse origin/main)
-  run=$(gh run list -w today.yml -e workflow_dispatch -c "$sha" -L 1 --json databaseId -q '.[0].databaseId')
+  run=$(gh run list -w today.yml -e push -c "$sha" -L 1 --json databaseId -q '.[0].databaseId')
   gh run download "$run" -n "smoke-screens-$sha" -D "tests/results/ci-screens/$sha"
   ```
 
@@ -50,14 +57,16 @@ The run fails unless exactly those three leaves are in the completed xcresult an
 passed. The xcresult is uploaded only on failure. Simulator devices are cached after their
 first boot for each runner image (~1.3 GB, synthetic data only). A simulator booting during
 the build made the build 4–5× slower on the 3-CPU runner, so boot always follows the build.
-Install readiness is roughly merge plus ~7 min (warm device cache) or ~10.5 min (cold).
+The smoke job takes ~10–12 min (median 11.6 min, 2026-11-02).
 
-`./dev release preflight-local --for-install --commit <main-sha> --main-run <push-run>
---smoke-run <install-smoke-run> --build-receipt <path> …` installs nothing. It blocks unless
-`<main-sha>` is current `main` and all of the following hold:
+`./dev release preflight-local --for-install --commit <main-sha> [--main-run <push-run>]
+[--smoke-run <run>] --build-receipt <path> …` installs nothing. Omitted run IDs are looked up
+for the SHA: the newest `main` push run, and as the smoke that same run, or a green
+`lane=install-smoke` dispatch run on the SHA if the push run's smoke did not pass. It blocks
+unless `<main-sha>` is current `main` and all of the following hold:
 
 - the push run has `checks` and `today-required` successful;
-- the dispatch run on the same SHA has `install-smoke` successful;
+- that push run, or a dispatch run on the same SHA, has `install-smoke` successful;
 - the local signed device build receipt matches the SHA
   ([release integration](release-integration.md)).
 
