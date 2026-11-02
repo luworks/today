@@ -73,4 +73,26 @@ final class AskRouterTests: XCTestCase {
       XCTAssertTrue(route.useAgent, text)
     }
   }
+
+  func testLocalPreviewFollowUpChangesKindWithoutLosingTitleOrTime() throws {
+    let draft = try XCTUnwrap(
+      FastLane.localPreview(
+        "Call Alex tomorrow at 3pm every week", items: [], now: now, calendar: calendar))
+    let route = AskRouter.plan(
+      "make it an alarm", context: ConversationContext(turns: []), pending: draft,
+      savedDraft: false, agentHasOpenCards: false, hasLocalTimeContext: true,
+      editItems: { [] }, now: now, calendar: calendar)
+    let answer = try XCTUnwrap(route.previewAnswer)
+    guard
+      case .updated(let alarm) = FastLane.refine(
+        draft, with: answer, now: now, calendar: calendar)
+    else {
+      return XCTFail("The answer must update the existing preview")
+    }
+    XCTAssertTrue(alarm.ringsAsAlarm)
+    XCTAssertEqual(alarm.kindLabel, "New alarm")
+    XCTAssertTrue(alarm.summary.hasPrefix("Alarm "))
+    XCTAssertEqual(alarm.title, draft.title)
+    XCTAssertEqual(alarm.clockTime, draft.clockTime)
+  }
 }
