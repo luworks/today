@@ -46,8 +46,8 @@ def build():
     lock.write_bytes((ROOT / 'ios/Dependencies/Package.resolved').read_bytes())
     step('project generated')
     run('xcodebuild', 'build-for-testing', '-quiet', '-project', 'ios/Today.xcodeproj', '-scheme', 'TodayCI',
-        '-configuration', 'Debug', '-destination', 'generic/platform=iOS Simulator', '-jobs', '2',
-        'ARCHS=arm64', *FLAGS)
+        '-configuration', 'Debug', '-destination', 'generic/platform=iOS Simulator',
+        'ARCHS=arm64', *FLAGS)  # every runner CPU; the laptop's -jobs 2 is for shared hosts
     step('built App, Widget, Share, Mock and test bundles')
     products = DD / 'Build/Products/Debug-iphonesimulator'
     for path, identifier in PRODUCTS.items():
