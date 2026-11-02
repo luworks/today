@@ -3,7 +3,7 @@
 This bounded tooling change starts at `ee0a478f6df481dfbe4b095599837bc1af1f1600`.
 It owns `scripts/release/`, `fastlane/Fastfile`, `tests/release/` and this document.
 No project, configuration, dependency, tool pin, signing or account changes belong
-here. Read with architecture, baseline, module-topology, adr-shortcut-discovery,
+here. Read with architecture, baseline, adr-shortcut-discovery,
 privacy-and-licenses and the release README.
 
 ## Identity and graph proof
