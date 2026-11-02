@@ -123,6 +123,11 @@ def main(build_only=False):
     if len(xctestrun) != 1:
         raise SystemExit('Expected one TodayCI xctestrun')
     # The smoke journey starts connected; the permission sheets are covered by the full UI suite.
+    # Grant only once the UI test host is installed. The cached device predates the com.luworks.today bundle ID (#293),
+    # so the test run's own install was a fresh install that could drop an earlier grant: the app then saw Reminders
+    # and Calendar as notDetermined for the whole journey. The test run's install is now an upgrade, which keeps it.
+    run('xcrun', 'simctl', 'install', udid, str(products / 'TodayMock.app'))
+    step('test host installed')
     for service in ('reminders', 'calendar'):
         run('xcrun', 'simctl', 'privacy', udid, 'grant', service, 'com.luworks.today')
     step('access granted')
