@@ -136,5 +136,76 @@ public enum LaunchTestConfiguration {
       for k in 4..<n { context.insert(entry(5 + k, .siri, .created, "Legacy filler \(k)")) }
       try? context.save()
     }
+
+    /// The AlarmKit id of the seeded "Morning alarm", so its recorded Stop matches its ring.
+    package static let pastDayAlarmID = UUID(uuidString: "00000000-0000-4000-8000-0000000000A1")!
+
+    /// UI tests only (`-uiTesting -uiTestingPastDay`): yesterday as Activity would have recorded it. Shown: "Feed the cat"
+    /// (still in Today, done at 08:30; its ledger row must not show twice), "Return library books" (completed at 10:15, then
+    /// deleted), "Morning alarm" stopped at 07:04, "Old alarm" stopped at 06:15 (since deleted), "Team lunch" (12:00, deleted at
+    /// 15:00) and "Send the weekly report" (due 17:00, still open). Hidden: "Tapped by mistake" (reopened a minute later),
+    /// "Undone in Activity" (undone) and "Cancelled call" (deleted before it began).
+    package static func seedPastDayForTests(
+      context: ModelContext, store: ActivityStore?, arguments: [String], runtime: PlannerRuntime
+    ) {
+      guard arguments.contains("-uiTesting"), arguments.contains("-uiTestingPastDay"),
+        let store
+      else { return }
+      let cal = runtime.calendar
+      let today = cal.startOfDay(for: runtime.now())
+      guard let yesterday = cal.date(byAdding: .day, value: -1, to: today) else { return }
+      func at(_ hour: Int, _ minute: Int, on day: Date = yesterday) -> Date {
+        cal.date(bySettingHour: hour, minute: minute, second: 0, of: day) ?? day
+      }
+      let alarm = OneAlarm(hour: 7, minute: 0, label: "Morning alarm", weekdays: Array(1...7))
+      alarm.alarmKitID = pastDayAlarmID
+      context.insert(alarm)
+      let fed = OneTask(title: "Feed the cat", due: at(8, 0))
+      fed.isDone = true
+      fed.doneAt = at(8, 30)
+      context.insert(fed)
+      context.insert(OneTask(title: "Send the weekly report", due: at(17, 0)))
+      try? context.save()
+
+      func event(
+        _ kind: String, _ title: String, at date: Date, subject: String = "task", ref: String? = nil
+      ) -> ActivityEvent {
+        var e = ActivityEvent(
+          kind: kind, tier: ActivityKind.tier(of: kind), actor: "you", channel: "app", at: date,
+          calendar: cal)
+        e.title = title
+        e.subjectKind = subject
+        e.subjectRef = ref
+        return e
+      }
+      var events = [
+        event(
+          "change.completed", "Feed the cat", at: at(8, 30),
+          ref: Ledger.ref(fed.persistentModelID)),
+        event("change.completed", "Return library books", at: at(10, 15), ref: "gone-books"),
+        event("change.deleted", "Return library books", at: at(9, 0, on: today)),
+        event("change.completed", "Tapped by mistake", at: at(11, 0), ref: "mistake"),
+        event("change.reopened", "Tapped by mistake", at: at(11, 1), ref: "mistake"),
+        event(
+          "sys.alarm.stopped", "Morning alarm", at: at(7, 4), subject: "alarm",
+          ref: pastDayAlarmID.uuidString),
+        event(
+          "sys.alarm.stopped", "Old alarm", at: at(6, 15), subject: "alarm",
+          ref: UUID().uuidString),
+      ]
+      let undone = event("change.completed", "Undone in Activity", at: at(11, 30), ref: "undone")
+      var undo = event("change.undone", "Undone in Activity", at: at(11, 31), ref: "undone")
+      undo.undoOf = undone.uid
+      events += [undone, undo]
+      for (title, start, deleted) in [
+        ("Team lunch", at(12, 0), at(15, 0)), ("Cancelled call", at(16, 0), at(9, 0)),
+      ] {
+        var e = event("change.deleted", title, at: deleted, subject: "event")
+        e.beforeTs = ActivityClock.ms(start)
+        e.afterTs = ActivityClock.ms(start.addingTimeInterval(3600))
+        events.append(e)
+      }
+      _ = try? store.insert(events)
+    }
   }
 #endif

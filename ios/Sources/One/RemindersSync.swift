@@ -1058,7 +1058,12 @@
               ledger.activity.record(
                 ActivityEvents.syncConflict(source: "reminders", at: runtime.now()))
             }
+            let wasDone = t.isDone
+            let due = t.due
             apply(r, to: t)
+            if !wasDone, t.isDone {
+              recordCompletedInApple(t, due: due, ledger: ledger, context: context)
+            }
             fp[r.id] = r.fingerprint
           } else if local != agreed {
             // A repeating reminder whose date was cleared needs one again (code 18): today, like the upload.
@@ -1129,6 +1134,7 @@
           if t.isDone == false, ek.isCompleted {
             t.isDone = true
             t.doneAt = ek.completionDate ?? runtime.now()
+            recordCompletedInApple(t, due: t.due, ledger: ledger, context: context)
             fp[id] = Self.fingerprint(of: t)
           } else if !t.isDone, !ek.isCompleted {
             let r = Remote(ek, calendar: runtime.calendar)
@@ -1216,6 +1222,17 @@
       if t.listName != r.listTitle { t.listName = r.listTitle }
       if t.flagged != r.flagged { t.flagged = r.flagged }
       if t.repeatRule != r.repeatRule { t.repeatRule = r.repeatRule }
+    }
+
+    /// A reminder completed in Apple Reminders goes in Activity at Apple's completion time, so its day keeps it even if it is
+    /// deleted later (`DayHistory`). Only for reminders Today already had; ones pulled in done are not new completions.
+    private func recordCompletedInApple(
+      _ t: OneTask, due: Date?, ledger: Ledger, context: ModelContext
+    ) {
+      ledger.record(
+        .completed, task: t, title: t.title, beforeDate: due,
+        actor: .agent("Apple Reminders"), channel: .sync, approval: .observed, at: t.doneAt,
+        context: context)
     }
 
     /// A per-reminder write Apple refused: logged and recorded by code, then retried on the next pass.

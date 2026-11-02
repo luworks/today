@@ -375,16 +375,19 @@
     private let onDelete: (() -> Void)?
     package init(
       alarm: OneAlarm, date: Date, open: @escaping @MainActor (OneAlarm) -> Void,
-      attention: TodayRowAttention? = nil, onDelete: (() -> Void)? = nil
+      attention: TodayRowAttention? = nil, onDelete: (() -> Void)? = nil, stoppedAt: Date? = nil
     ) {
       self.open = open
       self.alarm = alarm
       self.date = date
+      self.stoppedAt = stoppedAt
       self.attention = attention
       self.onDelete = onDelete
     }
     package let alarm: OneAlarm
     package let date: Date
+    /// On a past day: when this ring was stopped (recorded by the alarm's Stop). It then shows done: a green check, dimmed.
+    package let stoppedAt: Date?
 
     package var body: some View {
       Button {
@@ -396,14 +399,21 @@
         ) {
           TimeColumn(date: date, compact: attention != nil).dynamicTypeSize(
             ...(attention == nil ? DynamicTypeSize.accessibility5 : .xxxLarge))
-          Image(systemName: "alarm")
+          Image(systemName: stoppedAt == nil ? "alarm" : "checkmark.circle.fill")
             .font(attention == nil ? .body : AgendaRowStyle.title)
-            .foregroundStyle(Color.accentColor)
-            .frame(width: attention == nil ? 4 + 6 : nil)
+            .foregroundStyle(stoppedAt == nil ? Color.accentColor : Color.green)
+            .frame(width: attention == nil && stoppedAt == nil ? 4 + 6 : nil)
             .modifier(AgendaIconSlot(enabled: attention != nil))
-          Text(alarm.label.isEmpty ? "Alarm" : alarm.label)
-            .lineLimit(2)
-            .foregroundStyle(alarm.isOn ? Color.primary : Color.secondary)
+          if let stoppedAt {
+            TitleDetail(title: Text(alarm.label.isEmpty ? "Alarm" : alarm.label)) {
+              Text("Stopped " + stoppedLabel(stoppedAt)).font(.caption)
+            }
+            .foregroundStyle(.secondary)
+          } else {
+            Text(alarm.label.isEmpty ? "Alarm" : alarm.label)
+              .lineLimit(2)
+              .foregroundStyle(alarm.isOn ? Color.primary : Color.secondary)
+          }
           Spacer(minLength: 0)
         }
         .frame(minHeight: 44)
@@ -438,7 +448,12 @@
       .accessibilityElement(children: .combine)
       .accessibilityLabel(
         "Alarm \(alarm.label) at \(date.plannerFormatted(date: .omitted, time: .shortened, runtime: presentation.runtime))"
+          + (stoppedAt.map { ", stopped " + stoppedLabel($0) } ?? "")
       )
+    }
+
+    private func stoppedLabel(_ date: Date) -> String {
+      date.plannerFormatted(date: .omitted, time: .shortened, runtime: presentation.runtime)
     }
 
     private func deleteAlarm() {

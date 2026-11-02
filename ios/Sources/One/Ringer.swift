@@ -440,6 +440,8 @@
           schedule: schedule,
           attributes: attributes,
           appEntityIdentifier: entity,
+          // An alarm from the Clock tab records its Stop, so the day it rang shows it (`DayHistory`).
+          stopIntent: entity == nil ? nil : AlarmStoppedIntent(alarmID: id, label: title),
           sound: AlarmSound.named(sound)?.alertSound ?? .default)
         _ = try await driver.manager.schedule(id: id, configuration: configuration)
       }

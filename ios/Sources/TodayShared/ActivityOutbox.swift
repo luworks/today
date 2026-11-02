@@ -19,10 +19,12 @@ public enum ActivityOutbox {
       .appendingPathComponent(folderName, isDirectory: true)
   }
 
-  /// Writes one event. `props` holds no free text. Returns false when the App Group is unavailable, the outbox is full or the write fails.
+  /// Writes one event. `props` holds no free text; a title goes in `title`. Returns false when the App Group is unavailable,
+  /// the outbox is full or the write fails.
   @discardableResult
   public static func append(
     kind: String, tier: Int = 4, actor: String, channel: String? = nil, props: [String: Any] = [:],
+    subjectKind: String? = nil, subjectRef: String? = nil, title: String? = nil,
     at date: Date = .now, in folder: URL? = folderURL
   ) -> Bool {
     guard let folder else { return false }
@@ -44,6 +46,9 @@ public enum ActivityOutbox {
         "tier": tier, "kind": kind, "actor": actor, "v": 1, "props": props,
       ]
       if let channel { line["channel"] = channel }
+      if let subjectKind { line["subject_kind"] = subjectKind }
+      if let subjectRef { line["subject_ref"] = subjectRef }
+      if let title { line["title"] = title }
       var data = try JSONSerialization.data(
         withJSONObject: line, options: [.sortedKeys, .withoutEscapingSlashes])
       data.append(0x0A)

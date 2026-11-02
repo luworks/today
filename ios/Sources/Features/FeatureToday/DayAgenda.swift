@@ -13,6 +13,8 @@
 
   /// One day's view: active events, tasks and alarms stay directly visible in a single timeline.
   /// On today a red "N overdue" line sits above the timeline (tap to show the rows, Tidy to reschedule them all).
+  /// A past day also shows what was done on it, rebuilt from Activity (`DayHistory`): reminders completed that day at
+  /// their completion time, alarms that were stopped, and events deleted after they happened.
   /// The Calendar tab adds the week strip to pick a day.
   package struct DayAgenda: View {
     private let actions: PlannerActions
@@ -89,6 +91,9 @@
     @State private var now: Date
     /// A repeating system event whose Delete is waiting for "this event or the series?".
     @State private var pendingDelete: CalEntry?
+    /// What Activity says happened on `day` (past days only), and the day it was read for.
+    @State private var history = DayHistory()
+    @State private var historyDay: Date?
     @Environment(\.modelContext) private var context
     @Environment(UndoToast.self) private var toast: UndoToast?
 
@@ -114,6 +119,13 @@
       }
       .onChange(of: scenePhase) { _, phase in
         if phase == .active { refreshClock() }
+      }
+      // Re-read when the day changes, the app comes back (the outbox brings in alarm stops) or a reminder changes.
+      .task(
+        id:
+          "\(cal.startOfDay(for: day).timeIntervalSince1970)|\(scenePhase == .active)|\(tasks.count)"
+      ) {
+        loadHistory()
       }
       .environment(actions)
       .defaultAppStorage(presentation.defaults)
@@ -156,6 +168,24 @@
         try? await Task.sleep(for: .milliseconds(250))
         withAnimation(reduceMotion ? nil : .snappy) { proxy.scrollTo("now-line", anchor: .center) }
       }
+    }
+
+    private var isPastDay: Bool { cal.startOfDay(for: day) < cal.startOfDay(for: now) }
+
+    /// Reads the day's history from the Activity store: indexed, paged day-range queries (`DayHistory.load`). Read-only.
+    private func loadHistory() {
+      let start = cal.startOfDay(for: day)
+      guard isPastDay, let store = ledger.activity.store else {
+        history = DayHistory()
+        historyDay = nil
+        return
+      }
+      ledger.activity.recorder.flush()
+      history =
+        (try? DayHistory.load(
+          from: store, day: start, calendar: cal, shownLive: [], reopened: [],
+          key: Ledger.comparisonKey)) ?? DayHistory()
+      historyDay = start
     }
 
     /// The Today tab on today (not the Calendar tab, not another day).
@@ -285,12 +315,33 @@
           onDelete: { requestDelete(task) }, open: openTask,
           attention: attention(canDelete: canDelete(task))
         )
-      case .alarm(let alarm, let date):
+      case .alarm(let alarm, let date, let stoppedAt):
         AlarmMarkRow(
           alarm: alarm, date: date, open: openAlarm,
           attention: attention(canDelete: true),
           onDelete: showsWeekStrip
-            ? nil : { _ = actions.delete(alarm, context: context, toast: toast) })
+            ? nil : { _ = actions.delete(alarm, context: context, toast: toast) },
+          stoppedAt: stoppedAt)
+      case .done(let task, let doneAt):
+        TaskRow(
+          task: task, showsTime: true, time: doneAt, compact: true, agendaDay: rowDay,
+          onDelete: { requestDelete(task) }, open: openTask,
+          attention: attention(canDelete: canDelete(task))
+        )
+      case .completed(let c):
+        PastDayRow(
+          time: c.at, title: c.title, detail: "Completed", mark: .completed,
+          todayStyle: !showsWeekStrip)
+      case .stoppedAlarm(let stop):
+        PastDayRow(
+          time: stop.at, title: stop.title, detail: "Alarm stopped", mark: .stopped,
+          todayStyle: !showsWeekStrip)
+      case .deletedEvent(let e):
+        PastDayRow(
+          time: e.start, title: e.title,
+          detail: DurationLabel.text(minutes: max(1, Int(e.end.timeIntervalSince(e.start) / 60)))
+            + " · Deleted later",
+          mark: .deletedEvent, todayStyle: !showsWeekStrip)
       case .gap(let free): FreeRow(free: free)
       case .nowMarker(let date): NowRow(date: date).id("now-line")
       }
@@ -335,11 +386,16 @@
         timeline += DaySchedule.freeGaps(busy: busy, day: day, now: now, calendar: cal).map(
           TimelineItem.gap)
       }
-      if showsAlarms {
-        timeline += CalendarAlarms.occurrences(
-          of: alarms.map(\.spec), on: day, now: now, calendar: cal
-        ).map { TimelineItem.alarm(alarms[$0.index], $0.date) }
+      let rings =
+        showsAlarms
+        ? CalendarAlarms.occurrences(of: alarms.map(\.spec), on: day, now: now, calendar: cal)
+        : []
+      // A past day: what Activity says was done on it. Today and later days are unchanged.
+      let past = pastItems(rings: rings)
+      timeline += rings.indices.map { i in
+        TimelineItem.alarm(alarms[rings[i].index], rings[i].date, past.stoppedAt[i])
       }
+      timeline += past.items
       if cal.isDate(day, inSameDayAs: now), !timeline.isEmpty {
         timeline.append(.nowMarker(now))
       }
@@ -351,6 +407,45 @@
           ($0.start, $0.isNow ? 0 : 1) < ($1.start, $1.isNow ? 0 : 1)
         },
         anytime: anytime)
+    }
+
+    /// On a past day: reminders completed that day (the live row when Today still has the reminder done, else the Activity
+    /// row), which rings were stopped, stops of alarms no longer scheduled, and events deleted after they had started.
+    private func pastItems(rings: [AlarmOccurrence]) -> (
+      items: [TimelineItem], stoppedAt: [Int: Date]
+    ) {
+      guard isPastDay else { return ([], [:]) }
+      var items: [TimelineItem] = []
+      var shownLive = Set<String>()
+      var reopened = Set<String>()
+      let refs = Set(history.completions.compactMap(\.ref))
+      for task in tasks {
+        let doneToday = task.isDone && task.doneAt.map { cal.isDate($0, inSameDayAs: day) } == true
+        if doneToday, let doneAt = task.doneAt { items.append(.done(task, doneAt)) }
+        guard !refs.isEmpty, doneToday || (!task.isDone && task.repeats == nil),
+          let key = Ledger.ref(task.persistentModelID).map(Ledger.comparisonKey), refs.contains(key)
+        else { continue }
+        if doneToday { shownLive.insert(key) } else { reopened.insert(key) }
+      }
+      // `history` may still hold the previous day for a moment after the day changes.
+      guard historyDay == cal.startOfDay(for: day) else { return (items, [:]) }
+      for c in history.completions {
+        guard let ref = c.ref else {
+          items.append(.completed(c))
+          continue
+        }
+        if !shownLive.contains(ref), !reopened.contains(ref) { items.append(.completed(c)) }
+      }
+      var stoppedAt: [Int: Date] = [:]
+      if showsAlarms {
+        let match = DayHistory.matchStops(
+          rings: rings.map { (alarms[$0.index].alarmKitID?.uuidString, $0.date) },
+          stops: history.alarmStops)
+        stoppedAt = match.stopped
+        items += match.unmatched.map(TimelineItem.stoppedAlarm)
+      }
+      items += history.deletedEvents.map(TimelineItem.deletedEvent)
+      return (items, stoppedAt)
     }
 
     /// Deleting a reminder never asks: the Undo toast is the safety net.
@@ -452,7 +547,16 @@
     case external(ExternalEvent)
     /// A reminder, at the time it is due.
     case due(OneTask)
-    case alarm(OneAlarm, Date)
+    /// A ring; on a past day, when it was stopped (if Activity recorded the Stop).
+    case alarm(OneAlarm, Date, Date?)
+    /// A past day: a reminder Today still has, completed that day, at its completion time.
+    case done(OneTask, Date)
+    /// A past day: a completion recorded in Activity whose reminder is gone or has moved on (repeating).
+    case completed(DayHistory.Completion)
+    /// A past day: a recorded Stop of an alarm that no longer rings that day.
+    case stoppedAlarm(DayHistory.AlarmStop)
+    /// A past day: an event deleted after it had started.
+    case deletedEvent(DayHistory.DeletedEvent)
     /// Free time of 30 minutes or more, from now on.
     case gap(DateInterval)
     case nowMarker(Date)
@@ -462,7 +566,11 @@
       case .event(let e, let d): return [AnyHashable(ObjectIdentifier(e)), AnyHashable(d)]
       case .external(let e): return e.id
       case .due(let t): return ["due", AnyHashable(ObjectIdentifier(t))]
-      case .alarm(let a, _): return ObjectIdentifier(a)
+      case .alarm(let a, let d, _): return [AnyHashable(ObjectIdentifier(a)), AnyHashable(d)]
+      case .done(let t, _): return ["done", AnyHashable(ObjectIdentifier(t))]
+      case .completed(let c): return ["completed", c.id]
+      case .stoppedAlarm(let s): return ["stopped", s.id]
+      case .deletedEvent(let e): return ["deletedEvent", e.id]
       case .gap(let free): return ["gap", AnyHashable(free.start)]
       case .nowMarker: return "now"
       }
@@ -475,7 +583,11 @@
       case .event(_, let d): return d
       case .external(let e): return e.start
       case .due(let t): return t.due ?? .distantFuture
-      case .alarm(_, let d): return d
+      case .alarm(_, let d, _): return d
+      case .done(_, let d): return d
+      case .completed(let c): return c.at
+      case .stoppedAlarm(let s): return s.at
+      case .deletedEvent(let e): return e.start
       case .gap(let free): return free.start
       case .nowMarker(let d): return d
       }

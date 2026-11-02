@@ -59,13 +59,15 @@
       before: String = "", after: String = "", beforeDate: Date? = nil, afterDate: Date? = nil,
       actor: LedgerActor = .you, channel: LedgerChannel = .app,
       approval: LedgerApproval = .userMade,
-      snapshot: (any Encodable)? = nil, undoOf: UUID? = nil, context: ModelContext
+      snapshot: (any Encodable)? = nil, undoOf: UUID? = nil, at date: Date? = nil,
+      context: ModelContext
     ) -> LedgerItem {
       var item = LedgerItem(
         actor: actor, channel: channel, action: action, itemKind: kind, title: title,
         before: before, after: after, approval: approval)
       item.id = runtime.nextID()
-      item.date = runtime.now()
+      // A change seen later (a completion in Apple Reminders) keeps the time it happened, so it lands on its own day.
+      item.date = date ?? runtime.now()
       item.beforeDate = beforeDate
       item.afterDate = afterDate
       item.undoOf = undoOf
@@ -141,7 +143,7 @@
     }
 
     /// Compare decoded identity values without rewriting existing serialized Activity references.
-    package static func comparisonKey(_ reference: String) -> String {
+    nonisolated package static func comparisonKey(_ reference: String) -> String {
       guard let data = reference.data(using: .utf8),
         let value = try? JSONSerialization.jsonObject(with: data),
         let stable = try? JSONSerialization.data(withJSONObject: value, options: [.sortedKeys]),

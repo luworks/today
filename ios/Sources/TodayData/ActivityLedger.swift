@@ -25,6 +25,8 @@ public struct LedgerItem: Identifiable, Equatable {
   public var after: String
   /// `LedgerApproval.rawValue`.
   public var approval: String
+  /// The date before → after (a reminder's due date). A completion carries the due date it had; a deleted calendar event
+  /// carries its start and end, so a past day can still show it (`DayHistory`).
   public var beforeDate: Date?
   public var afterDate: Date?
   /// A deleted reminder is stored (`TaskSnapshot`), so Activity can put it back.
