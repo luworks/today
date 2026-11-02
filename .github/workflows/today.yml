@@ -75,9 +75,10 @@ jobs:
           path: ${{ runner.temp }}/today-smoke/failure
           if-no-files-found: warn
           retention-days: 7
-  # Install gate, run explicitly on main before any phone install. Never installs a phone.
+  # Install gate: runs by itself on every main push (and on dispatch), so a green smoke for the
+  # exact main SHA exists before any phone install. Not a merge gate. Never installs a phone.
   install-smoke:
-    if: github.event_name == 'workflow_dispatch' && inputs.lane == 'install-smoke'
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.lane == 'install-smoke')
     runs-on: xcode-27
     timeout-minutes: 20
     steps:

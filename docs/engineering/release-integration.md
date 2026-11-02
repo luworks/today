@@ -116,17 +116,19 @@ Formal release `preflight` also reads the authoritative `tests/testing/groups.js
 ## Exact-main manual installation preflight
 
 `./dev release preflight-local --commit <full-main-sha> --version <version>
---build <build> --for-install --main-run <push-run-id> --smoke-run <install-smoke-run-id>
+--build <build> --for-install [--main-run <push-run-id>] [--smoke-run <install-smoke-run-id>]
 --build-receipt <path>`
 is the mandatory check immediately before an explicitly authorized manual
 `xcrun devicectl device install app` of a new main build. It installs nothing.
 Do not use a source-only preflight or a PID/install success as functional
-acceptance. The guarded `./dev build Debug --device <UDID> --install --main-run <push-run-id> --smoke-run <install-smoke-run-id>` also performs this check under the build locks immediately before installation. Add `--allow-provisioning-updates` only with explicit authorization; the receipt and gate must match that choice.
+acceptance. The guarded `./dev build Debug --device <UDID> --install` (run IDs optional, looked up for the SHA) also performs this check under the build locks immediately before installation. Add `--allow-provisioning-updates` only with explicit authorization; the receipt and gate must match that choice.
 
-Both runs must be in `.github/workflows/today.yml` for the exact SHA of current `main`:
-the `push` run (merge gate) with `checks` and `today-required` successful, and an explicit
-`workflow_dispatch` run with `lane=install-smoke` whose `install-smoke` job (the
-Simulator usability leaves) succeeded. A green merge gate alone never authorizes an
+The runs must be in `.github/workflows/today.yml` for the exact SHA of current `main`:
+the `push` run (merge gate) with `checks` and `today-required` successful, and an
+`install-smoke` job (the Simulator usability leaves) that succeeded, either in that same
+push run (it runs on every `main` push) or in a `workflow_dispatch` run with
+`lane=install-smoke`. Omitted run IDs are looked up: the newest push run on the SHA, and its
+own smoke unless only a dispatch run passed it. A green merge gate alone never authorizes an
 install. After checking the local device build receipt, the checker rereads current
 main and both runs. Offline, branch green, old main, a
 failed/skipped/missing job or missing install smoke, a rerun in progress and source/product drift

@@ -29,7 +29,7 @@ Replace selector placeholders with discovered method IDs; repeat `--only` for a 
 
 `build --for-testing` uses the same test-product provenance as the test adapters, without booting a device or executing tests. Set the existing synthetic CI environment when diagnosing its compiler mode. Native build logs retain elapsed phase markers and a read-only CPU/RSS process-tree sample every 30 seconds, including before a timeout; diagnostics do not change the build deadline or compiler settings.
 
-CI is described in [CI](../docs/engineering/ci.md): `./dev` checks plus one native smoke (`scripts/ci/smoke.py`). Local success does not establish hosted CI acceptance. Without a Mac, run the `install-smoke` lane and download its Light/Dark TodayMock screenshots (`smoke-screens-<sha>`, see CI).
+CI is described in [CI](../docs/engineering/ci.md): `./dev` checks plus one native smoke (`scripts/ci/smoke.py`). Local success does not establish hosted CI acceptance. Without a Mac, download the Light/Dark TodayMock screenshots of the `main` push run's automatic `install-smoke` (`smoke-screens-<sha>`, see CI).
 
 ## Pinned tools and host ownership
 
@@ -118,7 +118,7 @@ Planner list rows in Today, Calendar, Reminders and Search use at most two text 
 
 ## Physical-device delivery
 
-For an explicitly authorized Live Debug installation, use `./dev build Debug --device <UDID> --install --main-run <push-run-id> --smoke-run <install-smoke-run-id>`. Add `--allow-provisioning-updates` only when explicitly authorized. The build, receipt, exact-current-main CI preflight and install share the host and derived-data locks. The receipt and logs are retained under the primary checkout's `tests/results/`. A failed preflight prevents installation. This command does not launch the app or establish usability.
+For an explicitly authorized Live Debug installation, use `./dev build Debug --device <UDID> --install` (it finds the `main` push run and its automatic `install-smoke` for the SHA; `--main-run`/`--smoke-run` pick runs explicitly). Add `--allow-provisioning-updates` only when explicitly authorized. The build, receipt, exact-current-main CI preflight and install share the host and derived-data locks. The receipt and logs are retained under the primary checkout's `tests/results/`. A failed preflight prevents installation. This command does not launch the app or establish usability.
 
 ## Source map
 
