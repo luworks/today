@@ -14,6 +14,9 @@
     package var words: ActionPolicy.Words
     /// The message reports someone else's words or plans (rules, not the model).
     package var reportedSpeech: Bool
+    /// The message clearly asks for an action (rules, not the model): its cards are applied right
+    /// after the reply, with Undo (`ActionPolicy.asksForAction`).
+    package var askedForAction: Bool
 
     package init(text: String, chinese: Bool, runID: String, words: ActionPolicy.Words = .user) {
       self.text = text
@@ -21,10 +24,12 @@
       self.runID = runID
       self.words = words
       self.reportedSpeech = FastLane.isReportedSpeech(text)
+      self.askedForAction = ActionPolicy.asksForAction(text)
     }
   }
 
-  /// A change to an existing item, prepared by the agent and written only on the user's Apply.
+  /// A change to an existing item, prepared by the agent and written by `apply`: right after the reply
+  /// when the message clearly asked for it, else on the user's Apply.
   /// Everything the card says is rendered here by code; the model's `why` is shown as an AI note.
   @MainActor
   package struct AgentChange {
@@ -55,6 +60,8 @@
     package var baseStart: Date?
     package var itemID: String
     package var userAskedToMove: Bool
+    /// Set from the turn when the card is shown (`AgentTurn.askedForAction`).
+    package var askedForAction = false
 
     package var kind: ActionPolicy.Kind {
       switch target {
@@ -78,8 +85,8 @@
       }
       return ActionPolicy.Request(
         tool: isDelete ? .proposeDelete : .proposeEdit, source: .agent, kind: kind,
-        fields: fields, userAskedToMoveEvent: userAskedToMove, attendees: live ?? attendees,
-        changedSincePreview: changed)
+        fields: fields, askedForAction: askedForAction, userAskedToMoveEvent: userAskedToMove,
+        attendees: live ?? attendees, changedSincePreview: changed)
     }
   }
 
@@ -138,8 +145,9 @@
   }
 
   /// The twelve agent tools, run on the phone against the user's own planner (§1.3). Reads return
-  /// bounded data with short ids; writes only prepare cards, tiered by `ActionPolicy`; `apply` is
-  /// the code-owned write, re-checked against the item's live state.
+  /// bounded data with short ids; writes only prepare cards, tiered by `ActionPolicy`; Ask applies
+  /// `direct` cards right after the reply, and `apply` is the code-owned write, re-checked against
+  /// the item's live state.
   @MainActor
   package final class AgentPlannerTools: AgentToolbox {
     package var history: AgentHistory
@@ -813,7 +821,7 @@
           let tier = ActionPolicy.tier(
             .init(
               tool: .proposeCreate, source: .agent, words: turn.words, kind: kind, fields: fields,
-              reportedSpeech: turn.reportedSpeech))
+              askedForAction: turn.askedForAction, reportedSpeech: turn.reportedSpeech))
           if case .refuse(let reason) = tier {
             var refused: [String: JSONValue] = [
               "error": "refused", "reason": .string(reason.rawValue),
@@ -843,6 +851,8 @@
             "proposal_id": .string(opened.id),
             "status": .string(opened.duplicate ? "already_shown" : "shown_to_user"),
             "parsed": parsed(c),
+            // Applied by the app right after your reply, with Undo; the app writes the receipt.
+            "applied_after_reply": .bool(tier == .direct),
           ])
         }
       }
@@ -1016,6 +1026,8 @@
     }
 
     private func show(_ change: AgentChange, why: String?) -> AgentToolOutcome {
+      var change = change
+      change.askedForAction = turn.askedForAction
       let tier = ActionPolicy.tier(change.request())
       if case .refuse(let reason) = tier {
         let hint =
@@ -1036,6 +1048,7 @@
       var out: [String: JSONValue] = [
         "proposal_id": .string(opened.id), "status": "shown_to_user",
         "before": .string(change.before), "after": .string(change.after),
+        "applied_after_reply": .bool(tier == .direct),
       ]
       if !tier.allowsAddAll {
         out["needs_confirmation"] = .array(card.consequences.map(JSONValue.string))
@@ -1160,15 +1173,19 @@
           TidyProposal.Row(task: overdue[s.id], expectedDue: $0, choice: s.choice)
         }
       }
-      let opened = book.open(tool: .proposeTidy, kind: "reminder", tier: .preview, run: turn.runID)
+      let tier = ActionPolicy.tier(
+        .init(
+          tool: .proposeTidy, source: .agent, words: turn.words, kind: .reminder, fields: [.due],
+          askedForAction: turn.askedForAction))
+      let opened = book.open(tool: .proposeTidy, kind: "reminder", tier: tier, run: turn.runID)
       let card = AgentCard(
-        id: opened.id, body: .tidy(rows), tier: .preview, why: why(a), chinese: turn.chinese)
+        id: opened.id, body: .tidy(rows), tier: tier, why: why(a), chinese: turn.chinese)
       cards[opened.id] = card
       sink?.show(card)
       return AgentToolOutcome(
         [
           "proposal_id": .string(opened.id), "status": "shown_to_user",
-          "rows": .number(Double(rows.count)),
+          "rows": .number(Double(rows.count)), "applied_after_reply": .bool(tier == .direct),
         ],
         cards: 1)
     }

@@ -46,8 +46,8 @@ public enum AgentTool: String, CaseIterable, Sendable {
   public var isWrite: Bool { metadata.effect != .read }
 }
 
-/// Decides how a proposed write is handled: written at once, shown as a preview, confirmed with its
-/// consequence spelled out, or refused. Pure code; the model never decides this. Product principles 1–6
+/// Decides how a proposed write is handled: applied right after the reply with Undo, shown as a preview,
+/// confirmed with its consequence spelled out, or refused. Pure code; the model never decides this. Product principles 1–6
 /// (CLAUDE.md) live here. Called when a card is prepared and again when the user taps Apply (`recheck`).
 public enum ActionPolicy {
   public enum Source: String, Sendable {
@@ -83,8 +83,8 @@ public enum ActionPolicy {
     public var words: Words
     public var kind: Kind
     public var fields: Set<Field>
-    /// The rules established a clear one-off reminder: action and timing known, no recurrence, not an alarm.
-    public var clearOneOffReminder: Bool
+    /// The user's message clearly asks for an action (`asksForAction`), not a question or chit-chat.
+    public var askedForAction: Bool
     /// The user explicitly asked to move this meeting (or tapped an AI conflict card), principle 2.
     public var userAskedToMoveEvent: Bool
     public var attendees: Int
@@ -102,7 +102,7 @@ public enum ActionPolicy {
 
     public init(
       tool: AgentTool, source: Source, words: Words = .user, kind: Kind,
-      fields: Set<Field> = [], clearOneOffReminder: Bool = false,
+      fields: Set<Field> = [], askedForAction: Bool = false,
       userAskedToMoveEvent: Bool = false, attendees: Int = 0, affectsSeries: Bool = false,
       fromNote: Bool = false, viaMakeTask: Bool = false, fromAlarmStop: Bool = false,
       changedSincePreview: Bool = false, reportedSpeech: Bool = false
@@ -112,7 +112,7 @@ public enum ActionPolicy {
       self.words = words
       self.kind = kind
       self.fields = fields
-      self.clearOneOffReminder = clearOneOffReminder
+      self.askedForAction = askedForAction
       self.userAskedToMoveEvent = userAskedToMoveEvent
       self.attendees = attendees
       self.affectsSeries = affectsSeries
@@ -142,9 +142,10 @@ public enum ActionPolicy {
   }
 
   public enum Tier: Equatable, Sendable {
-    /// Written at once, with an exact Undo receipt. Only the FastLane clear one-off reminder.
+    /// Applied right after the reply, with an exact Undo receipt (owner decision 2026-11-02).
     case direct
-    /// A card the user taps Add / Apply on.
+    /// A card the user taps Add / Apply on: only when the message did not clearly ask for an action
+    /// (a question, chit-chat, words written by others) or a Siri intent confirms it itself.
     case preview
     /// A card that names its consequences and is tapped on its own (never "Add all").
     case confirmConsequence(Set<Consequence>)
@@ -191,23 +192,56 @@ public enum ActionPolicy {
       if effect == .modify, r.fields.contains(.start), !r.userAskedToMoveEvent {
         return .refuse(.meetingsStayFixed)
       }
-      if effect == .delete { consequences.insert(.deletesEvent) }
+      // What leaves the phone can't be recalled by Undo: an update to attendees, a whole series.
       if r.affectsSeries && effect != .create { consequences.insert(.wholeSeries) }
       if r.attendees > 0 && effect != .create {
         consequences.insert(.notifies(attendees: r.attendees))
       }
+      if effect == .delete && !consequences.isEmpty { consequences.insert(.deletesEvent) }
     }
     if !consequences.isEmpty { return .confirmConsequence(consequences) }
-    // The scoped submitted-chat exception, unchanged in scope (§4.2): rules, the user's own words,
-    // a new one-off reminder. Notes, alarms, recurrence, edits and everything the agent prepares stay previews.
-    if r.source == .fastLane, r.words == .user, r.tool == .proposeCreate, r.kind == .reminder,
-      r.clearOneOffReminder, !r.fromNote,
-      r.fields.isDisjoint(with: [.repeatRule, .ringsAsAlarm])
-    {
+    // Owner decision 2026-11-02: a clear request in the user's own words is applied right after the
+    // reply, with Undo. Questions, chit-chat and words written by others only get a preview.
+    if r.words == .user, r.askedForAction, r.source == .fastLane || r.source == .agent {
       return .direct
     }
-    // Principle 6 needs no rule of its own: a redate of an overdue item is never direct, so it is shown.
+    // Principle 6 needs no rule of its own: nothing here moves an overdue item without being asked.
     return .preview
+  }
+
+  /// A new item has what it needs to be added without asking: an alarm needs its time, an event its
+  /// day. Anything less is a question to the user, never a guess (owner decision 2026-11-02).
+  public static func autoAddReady(_ c: Capture) -> Bool {
+    guard c.isReadyToAdd else { return false }
+    if c.kind == .event { return c.hasDay }
+    return true
+  }
+
+  /// Whether a submitted message clearly asks Today to do something (create, change, delete, tidy).
+  /// Questions ("should I move it?"), chit-chat, declines and someone else's words do not; polite
+  /// requests ("can you remind me…", "能帮我设个闹钟吗") do.
+  public static func asksForAction(_ text: String) -> Bool {
+    let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !t.isEmpty, !FastLane.isReportedSpeech(t) else { return false }
+    if ChatRouting.intent(t) != .conversation, !OneOffReminderRequest.isQuestion(t) { return true }
+    // A polite request is phrased as a question; read what it asks for.
+    guard
+      t.range(
+        of: #"^(?:can|could|would|will) you (?:explain|tell me|show me|see|read|remember)\b"#,
+        options: [.regularExpression, .caseInsensitive]) == nil,
+      let lead = t.range(
+        of:
+          #"^(?:(?:please\s+)?(?:can|could|would|will) you(?: please)?\s+|(?:请问)?(?:能不能|可不可以|能否|你能|你可以|您能|您可以|可以|能)(?:你|您)?(?:帮我|给我)?)"#,
+        options: [.regularExpression, .caseInsensitive])
+    else { return false }
+    let body = String(t[lead.upperBound...])
+      .replacingOccurrences(
+        of: #"(?:[,，]?\s*(?:吗|好吗|可以吗|行吗|好不好|可不可以|please))?\s*[?？.。!！]*$"#, with: "",
+        options: [.regularExpression, .caseInsensitive]
+      )
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+    return !body.isEmpty && ChatRouting.intent(body) != .conversation
+      && !OneOffReminderRequest.isQuestion(body)
   }
 
   public enum Recheck: Equatable, Sendable {
@@ -223,5 +257,12 @@ public enum ActionPolicy {
     if case .refuse(let reason) = current { return .void(reason) }
     if current == shown || current.rank < shown.rank { return .apply }
     return .reconfirm(current)
+  }
+}
+
+extension Capture {
+  /// What `ActionPolicy` calls this new item.
+  public var policyKind: ActionPolicy.Kind {
+    kind == .event ? .event : (ringsAsAlarm ? .alarm : .reminder)
   }
 }

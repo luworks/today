@@ -1,9 +1,10 @@
 import Foundation
 
 /// The agent's final words, checked by code (docs/engineering/ai-agent-architecture.md §1.4 step 5):
-/// the model may never say that something was added, moved, deleted or done. Only a card's own
-/// status (rendered by code) says that, after the user taps it. Every fixed string the agent
-/// path shows lives here, in the language of the user's message.
+/// the model may never say that something was added, moved, deleted or done. Only code says that,
+/// from what was really written (`receipt`, owner decision 2026-11-02: clear requests are applied
+/// right after the reply, with Undo). Every fixed string the agent path shows lives here, in the
+/// language of the user's message.
 public enum AgentReply {
   public static func isChinese(_ text: String) -> Bool {
     text.range(of: #"\p{Han}"#, options: .regularExpression) != nil
@@ -35,22 +36,88 @@ public enum AgentReply {
     return text
   }
 
+  /// Cards that still wait for the user's tap: they reach other people, change a whole series, or the
+  /// message was a question rather than a request.
   public static func cardsReady(_ n: Int, chinese: Bool) -> String {
     if chinese {
-      return n == 1 ? "卡片准备好了，点了才会生效。" : "\(n) 张卡片准备好了，点了才会生效。"
+      return n == 1 ? "这张卡片需要你确认后才会生效。" : "这 \(n) 张卡片需要你确认后才会生效。"
     }
     return n == 1
-      ? "A card is ready. Nothing changes until you tap it."
-      : "\(n) cards are ready. Nothing changes until you tap them."
+      ? "This card needs your tap before anything changes."
+      : "These \(n) cards need your tap before anything changes."
+  }
+
+  /// What was really written this turn, from the cards' own results (never from the model's words).
+  public struct Receipt: Equatable, Sendable {
+    /// `label(kind:title:chinese:)` of each item that was created.
+    public var added: [String] = []
+    /// Labels of existing items that were changed (moved, renamed, completed, deleted, tidied).
+    public var changed: [String] = []
+    /// Titles whose save failed; their draft stays on the card to retry.
+    public var failed: [String] = []
+    /// Cards that still need the user's tap (`cardsReady`).
+    public var waiting = 0
+
+    public init(
+      added: [String] = [], changed: [String] = [], failed: [String] = [], waiting: Int = 0
+    ) {
+      self.added = added
+      self.changed = changed
+      self.failed = failed
+      self.waiting = waiting
+    }
+
+    public var isEmpty: Bool {
+      added.isEmpty && changed.isEmpty && failed.isEmpty && waiting == 0
+    }
+  }
+
+  /// "闹钟“绝对不能吃饭”", "the alarm “Gym”".
+  public static func label(kind: ActionPolicy.Kind, title: String, chinese: Bool) -> String {
+    let name: String
+    switch kind {
+    case .reminder: name = chinese ? "提醒" : "the reminder"
+    case .event: name = chinese ? "事件" : "the event"
+    case .alarm: name = chinese ? "闹钟" : "the alarm"
+    case .list: name = chinese ? "列表" : "the list"
+    }
+    return chinese ? "\(name)“\(title)”" : "\(name) “\(title)”"
+  }
+
+  /// Past tense for what was done, with Undo; never "tap Add" next to something already added.
+  public static func receipt(_ r: Receipt, chinese zh: Bool) -> String {
+    var parts: [String] = []
+    let sep = zh ? "、" : ", "
+    if !r.added.isEmpty {
+      parts.append(zh ? "已添加" + r.added.joined(separator: sep) + "。" : "Added " + r.added.joined(separator: sep) + ".")
+    }
+    if !r.changed.isEmpty {
+      parts.append(zh ? "已修改" + r.changed.joined(separator: sep) + "。" : "Changed " + r.changed.joined(separator: sep) + ".")
+    }
+    if !r.added.isEmpty || !r.changed.isEmpty {
+      parts.append(zh ? "不需要的话点撤销。" : "Tap Undo if you don't want it.")
+    }
+    for title in r.failed {
+      parts.append(
+        zh
+          ? "“\(title)”没有保存成功，草稿还在卡片上，可以重试。"
+          : "Couldn't save “\(title)”. The draft is still on its card to retry.")
+    }
+    if r.waiting > 0 { parts.append(cardsReady(r.waiting, chinese: zh)) }
+    return parts.joined(separator: zh ? "" : " ")
   }
 
   public static func nothingChanged(chinese: Bool) -> String {
     chinese ? "没有改动任何内容。" : "Nothing was changed."
   }
 
+  public static func stoppedEarly(chinese: Bool) -> String {
+    chinese ? "还没做完，先停在这里。" : "I couldn't finish this in time."
+  }
+
   /// The run hit the step cap or the deadline: say so, and keep the cards it made.
   public static func unfinished(cards: Int, chinese: Bool) -> String {
-    let head = chinese ? "还没做完，先停在这里。" : "I couldn't finish this in time."
+    let head = stoppedEarly(chinese: chinese)
     guard cards > 0 else {
       return head + (chinese ? " 请换个说法再试一次。" : " Try again or rephrase it.")
     }
@@ -62,8 +129,8 @@ public enum AgentReply {
   public static func unavailable(_ error: ModelClientError?, chinese: Bool) -> String {
     let rest =
       chinese
-      ? "你的草稿还在输入框里；说清楚的提醒、事件和闹钟仍可在本地预览，整理逾期也能用。"
-      : "Your draft is still in the box; clear reminders, events and alarms still get a local preview, and Tidy overdue still works."
+      ? "你的草稿还在输入框里；说清楚的提醒、事件和闹钟仍会按规则直接添加，整理逾期也能用。"
+      : "Your draft is still in the box; clear reminders, events and alarms are still added by the rules, and Tidy overdue still works."
     switch error {
     case .unavailable?:
       return (chinese ? "需要登录 Luna AI 才能用 AI。" : "Sign in to Luna AI to use AI. ") + rest
@@ -74,15 +141,13 @@ public enum AgentReply {
     }
   }
 
-  /// The heading of a rules-only preview made while the AI can't run (§4.7 #3).
-  public static func localPreview(_ error: ModelClientError?, chinese: Bool) -> String {
+  /// The lead-in when the rules read the request because the AI can't run (§4.7 #3).
+  public static func localRules(_ error: ModelClientError?, chinese: Bool) -> String {
     let why: String
     switch error {
     case .unavailable?: why = chinese ? "未登录 Luna AI" : "Not signed in to Luna AI"
     default: why = chinese ? "AI 暂时不可用" : "AI is unavailable"
     }
-    return chinese
-      ? "\(why)，这是按规则读出的预览。点 Add 才会添加。"
-      : "\(why), so this preview comes from the rules. Nothing is added until you tap Add."
+    return chinese ? "\(why)，这是按规则读出的。" : "\(why), so the rules read this."
   }
 }

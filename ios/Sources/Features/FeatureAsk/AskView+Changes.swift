@@ -7,7 +7,8 @@
   import SwiftUI
   import SwiftData
 
-  /// Change cards: an edit of the attached item, a saved reminder's repeat, and new-item previews.
+  /// Change cards: an edit of the attached item, a saved reminder's repeat, and new items; all applied
+  /// with Undo unless they reach other people.
   extension AskView {
     /// Resolve an explicit anaphoric edit against the selected identity, never a matching title.
     func routeAttachedEdit(_ text: String) -> Bool {
@@ -57,9 +58,7 @@
             oldText: subject.whenLabel(calendar: runtime.calendar), newStart: start,
             notes: notes, attendees: audience.attendeeCount)
           card.systemMove = snapshot
-          change = card
-          messages.append(reply("Here's the change. Nothing changes until you apply it."))
-          recordCard(shown: "change", items: 1)
+          present(card)
         } catch {
           messages.append(reply("This event can't safely be changed here. Open it in Calendar."))
           openSystemEvent = true
@@ -84,10 +83,10 @@
             if case .move(let date) = operation { return date }
             return nil
           }(),
-          notes: ["Nothing changes until you tap Apply."], attendees: 0)
+          notes: [], attendees: 0)
         card.expectedTask = Ledger.snapshot(of: task)
         card.attachedOperation = operation
-        change = card
+        present(card)
       case .alarm(let alarm):
         let alarmEdit: AttachedAlarmChange.Edit
         switch operation {
@@ -107,10 +106,10 @@
               if case .move(let date) = operation { return date }
               return nil
             }(),
-            notes: ["Nothing changes until you tap Apply."], attendees: 0)
+            notes: [], attendees: 0)
           card.alarmChange = try AttachedAlarmChange(alarm: alarm, edit: alarmEdit)
           card.attachedOperation = operation
-          change = card
+          present(card)
         } catch {
           messages.append(reply(error.localizedDescription))
           return true
@@ -132,8 +131,6 @@
         messages.append(reply("This item is no longer available. Open it to edit it."))
         return true
       }
-      messages.append(reply("Here's the change. Nothing changes until you apply it."))
-      recordCard(shown: "change", items: 1)
       return true
     }
 
@@ -168,12 +165,27 @@
         notes.append("Only on your calendar. No one else is notified.")
       }
       notes.append("Meetings move only when you ask. This changes this one event.")
-      change = PendingChange(
-        subject: .event(event), delete: delete, title: event.title,
-        oldText: plannerDayLabel(event.start, runtime: runtime), newStart: newStart,
-        notes: notes, attendees: audience?.attendees ?? 0)
-      messages.append(reply("Here's the change. Nothing changes until you apply it."))
+      present(
+        PendingChange(
+          subject: .event(event), delete: delete, title: event.title,
+          oldText: plannerDayLabel(event.start, runtime: runtime), newStart: newStart,
+          notes: notes, attendees: audience?.attendees ?? 0))
+    }
+
+    /// A change the rules prepared is applied at once, with Undo (owner decision 2026-11-02), unless it
+    /// reaches other people: then the card waits for Apply, because Undo can't recall an update.
+    /// A failed apply leaves the card open to retry.
+    func present(_ card: PendingChange) {
+      change = card
       recordCard(shown: "change", items: 1)
+      guard card.attendees == 0 else {
+        messages.append(
+          reply(
+            "This change reaches \(card.attendees) attendee\(card.attendees == 1 ? "" : "s") and can't be recalled by Undo, so it applies only when you tap Apply."
+          ))
+        return
+      }
+      apply(card)
     }
 
     func apply(_ c: PendingChange) {
@@ -254,50 +266,69 @@
         })
     }
 
-    /// The Send tap is the scoped approval for a clear one-off reminder. Save errors leave
-    /// the same card open; Added/Undo/Open come only from the normal commit receipt.
-    func createSubmittedReminder(_ capture: Capture) {
-      let message = reply("Saving reminder…")
-      var proposal = CaptureProposal(capture: filed(capture), anchor: message.id)
-      proposal.retainsDraft = true
-      proposals.append(proposal)
-      recordCard(shown: "capture", items: 1)
+    /// FastLane's items are added right after the reply, with Undo and Open on each card (owner
+    /// decision 2026-11-02). Added appears only after the save succeeded; a failed save keeps its
+    /// draft on the card to retry. An item missing what it needs (an alarm's time) is asked about.
+    /// `lead` comes before the receipt (e.g. why the rules read this).
+    func show(_ captures: [Capture], lead: String? = nil, chinese: Bool) {
+      guard !captures.isEmpty else {
+        messages.append(
+          reply("I couldn't prepare an item from that. Tell me what you'd like to add."))
+        return
+      }
+      let message = reply(chinese ? "正在保存…" : "Saving…")
+      let batch = UUID()
+      // Earlier cards stay where they are; the new ones sit under the message that adds them.
+      dropOpenCards()
+      let added = captures.map { capture -> CaptureProposal in
+        var p = CaptureProposal(
+          capture: filed(capture), batchSize: captures.count, batch: batch, anchor: message.id)
+        // A one-off reminder commits to Apple Reminders first and keeps a recoverable draft.
+        p.retainsDraft = FastLane.isEligibleOneOff(p.capture)
+        return p
+      }
+      proposals += added
+      recordCard(shown: "capture", items: captures.count)
       messages.append(message)
       // Direct creation can precede SwiftUI's message-persistence callback on a new chat.
       // Establish the thread first so its item relationship receives the real save receipt.
       persist()
-      let saved = commit(proposal.id) != nil
+      let receipt = applyOpenProposals(added.map(\.id), chinese: chinese)
       if let index = messages.firstIndex(where: { $0.id == message.id }) {
         messages[index] = ChatMessage(
           id: message.id, role: .ai,
-          text: saved ? "Added." : "Reminder not added. Your draft is ready to retry or cancel.",
+          text: ([lead].compactMap { $0 } + [receipt]).filter { !$0.isEmpty }.joined(
+            separator: chinese ? "" : " "),
           timestamp: message.timestamp)
       }
       persist()
       persistCards()
     }
 
-    func show(_ captures: [Capture], note: String? = nil) {
-      guard !captures.isEmpty else {
-        messages.append(
-          reply("I couldn't prepare an item from that. Tell me what you'd like to add."))
-        return
+    /// Adds each open card that has what it needs; the rest wait (an alarm asks for its time).
+    /// Returns the receipt sentence.
+    func applyOpenProposals(_ ids: [UUID], chinese: Bool) -> String {
+      var receipt = AgentReply.Receipt()
+      var asksTime = false
+      for id in ids {
+        guard let p = proposals.first(where: { $0.id == id }), p.status == .open else { continue }
+        guard ActionPolicy.autoAddReady(p.capture) else {
+          if p.capture.ringsAsAlarm && p.capture.hour == nil { asksTime = true }
+          continue
+        }
+        if let written = commit(id, reportFailure: false) {
+          receipt.added.append(
+            AgentReply.label(kind: written.policyKind, title: written.title, chinese: chinese))
+        } else {
+          receipt.failed.append(p.capture.title)
+        }
       }
-      let message = reply(
-        note
-          ?? (captures.count == 1
-            ? "Here's what I understood. Nothing is added until you confirm."
-            : "I found \(captures.count) items. Add them one by one or all at once; nothing is added until you confirm.")
-      )
-      let batch = UUID()
-      // Earlier cards stay where they are; the new ones sit under the message that proposes them.
-      dropOpenCards()
-      proposals += captures.map {
-        CaptureProposal(
-          capture: filed($0), batchSize: captures.count, batch: batch, anchor: message.id)
+      if asksTime {
+        followup = .alarmTime
+        return AgentReply.receipt(receipt, chinese: chinese)
+          + (chinese ? "闹钟要设在几点？" : (receipt.isEmpty ? "" : " ") + "What time should the alarm ring?")
       }
-      recordCard(shown: "capture", items: captures.count)
-      messages.append(message)
+      return AgentReply.receipt(receipt, chinese: chinese)
     }
 
     /// A task goes to the list it clearly belongs to, else the list chosen in Settings > Reminders ("New reminders go to"),

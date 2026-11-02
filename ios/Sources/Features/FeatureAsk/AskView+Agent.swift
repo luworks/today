@@ -96,23 +96,89 @@
           runLocally(text, typed: typed, error: error)
           return
         }
-        // The model's own words can be copied; the app's replacement sentences can't.
-        let own = !result.modelText.isEmpty && result.reply == result.modelText
-        messages.append(
-          ChatMessage(
-            role: .ai, text: result.reply, timestamp: now(), carriesContent: own ? true : nil))
         if result.cards > 0 { recordCard(shown: "agent", items: result.cards) }
+        // Clear requests are applied right after the reply, with Undo (owner decision 2026-11-02).
+        // What was written is said by code, in the past tense; the model's "tap Add" never shows.
+        let receipt = await autoApply(session, anchor: anchor, chinese: chinese)
+        var text = result.reply
+        if !receipt.added.isEmpty || !receipt.changed.isEmpty || !receipt.failed.isEmpty {
+          text = AgentReply.receipt(receipt, chinese: chinese)
+          if result.stop != .finished {
+            text = AgentReply.stoppedEarly(chinese: chinese) + " " + text
+          }
+        }
+        // The model's own words can be copied; the app's replacement sentences can't.
+        let own = !result.modelText.isEmpty && text == result.modelText
+        messages.append(
+          ChatMessage(role: .ai, text: text, timestamp: now(), carriesContent: own ? true : nil))
+        persistCards()
       }
     }
 
+    /// Applies this turn's `direct` cards (owner decision 2026-11-02): new items through the same
+    /// commit as Add (Added only after the save succeeded), changes through the code-owned `apply`
+    /// with its live re-check, Tidy with its Undo row. Cards that reach other people, change a whole
+    /// series, answer a question rather than a request, or lack what they need stay open.
+    func autoApply(_ session: AskAgentSession, anchor: UUID, chinese: Bool) async
+      -> AgentReply.Receipt
+    {
+      var receipt = AgentReply.Receipt()
+      for p in proposals where p.anchor == anchor && p.status == .open {
+        guard let aid = p.agentID, session.tools.cards[aid]?.tier == .direct,
+          ActionPolicy.autoAddReady(p.capture)
+        else {
+          receipt.waiting += 1
+          continue
+        }
+        if let written = commit(p.id, reportFailure: false) {
+          receipt.added.append(
+            AgentReply.label(kind: written.policyKind, title: written.title, chinese: chinese))
+        } else {
+          receipt.failed.append(p.capture.title)
+        }
+      }
+      for change in session.changes where change.anchor == anchor && change.status == .open {
+        guard session.tools.cards[change.id]?.tier == .direct, case .change(let c) = change.card.body
+        else {
+          receipt.waiting += 1
+          continue
+        }
+        await session.apply(change.id)
+        let after = session.changes.first(where: { $0.id == change.id })
+        if after?.status == .applied {
+          recordCard(resolved: "agent-change", "applied")
+          receipt.changed.append(AgentReply.label(kind: c.kind, title: c.title, chinese: chinese))
+        } else if after?.status == .open, after?.card.tier != .direct {
+          // The stakes went up since the card was made (e.g. attendees): it waits for a tap.
+          receipt.waiting += 1
+        } else {
+          receipt.failed.append(c.title)
+        }
+      }
+      if let id = agentTidyID, !tidy.isEmpty {
+        if session.tools.cards[id]?.tier == .direct {
+          let n = tidy.filter { $0.choice != .keep }.count
+          if applyTidyNow() {
+            receipt.changed.append(chinese ? "\(n) 条逾期提醒的日期" : "the dates of \(n) overdue reminders")
+          } else {
+            receipt.failed.append(chinese ? "整理逾期" : "Tidy overdue")
+          }
+        } else {
+          receipt.waiting += 1
+        }
+      }
+      saveAgentHistory()
+      return receipt
+    }
+
     /// Offline, signed out, over quota or a failed request (§4.7 #3): FastLane alone. Tidy keeps working,
-    /// a reminder, event or alarm the rules are sure of becomes a preview card (nothing is written until
-    /// Add), and anything else says the AI is unavailable and puts the draft back in the composer.
+    /// a reminder, event or alarm the rules are sure of is added with Undo, and anything else says
+    /// the AI is unavailable and puts the draft back in the composer.
     func runLocally(_ text: String, typed: String, error: ModelClientError) {
       if OverdueTidy.isRequest(text) {
         recordTurn("tidy", text, route: "offline")
         clearPreviews()
-        proposeTidy()
+        tidyOverdue()
         return
       }
       let chinese = AgentReply.isChinese(typed)
@@ -121,15 +187,7 @@
       {
         recordTurn("capture", text, route: "offline")
         clearPreviews()
-        show([capture], note: AgentReply.localPreview(error, chinese: chinese))
-        if capture.ringsAsAlarm, capture.hour == nil {
-          followup = .alarmTime
-          messages.append(
-            reply(
-              chinese
-                ? "闹钟要设在几点？确认添加后才会生效。"
-                : "What time should the alarm ring? Nothing is added until you confirm."))
-        }
+        show([capture], lead: AgentReply.localRules(error, chinese: chinese), chinese: chinese)
         return
       }
       recordTurn("unavailable", text, route: "offline")
@@ -158,18 +216,21 @@
       try? context.save()
     }
 
-    /// FastLane's direct reminder goes into the agent's history as a receipt with its item id (§1.5),
+    /// What FastLane added goes into the agent's history as a receipt with its item id (§1.5),
     /// so a follow-up like "其实是4点" can find it.
     func recordFastLaneReceipt(typed: String) {
-      guard let p = proposals.last, p.status == .added, let ref = p.itemRef else { return }
+      guard let p = proposals.last, p.agentID == nil, p.status == .added, let ref = p.itemRef
+      else { return }
       let session = agentSession()
-      let id = session.tools.history.shortID(for: Ledger.comparisonKey(ref), prefix: "t")
+      let kind = p.capture.policyKind
+      let prefix = kind == .event ? "e" : (kind == .alarm ? "a" : "t")
+      let id = session.tools.history.shortID(for: Ledger.comparisonKey(ref), prefix: prefix)
       let due = p.capture.taskTiming(calendar: runtime.calendar).due
       let when = due.map { plannerDayLabel($0, runtime: runtime) } ?? "no date"
       session.tools.history.appendReceipt(
         user: typed,
         receipt:
-          "Receipt from the app (rules, no model): added reminder \(id) “\(p.capture.title)”, due \(when), "
+          "Receipt from the app (rules, no model): added \(kind.rawValue) \(id) “\(p.capture.title)”, \(when), "
           + "from the user's own words. The user can Undo it on its card.")
       saveAgentHistory()
     }

@@ -1,7 +1,7 @@
 import Foundation
 
-/// Which chat messages offer a Copy button. The app's own status sentences ("Here's what I understood. Nothing is added
-/// until you confirm.", "Updated…", "OK, dropped it.", "卡片准备好了…") are templates: copying them is never useful.
+/// Which chat messages offer a Copy button. The app's own status sentences ("Added the alarm “Gym”. Tap Undo if you
+/// don't want it.", "OK, dropped it.", "已添加…") are templates: copying them is never useful.
 /// Your own words, and answers the model wrote (`ChatMessage.carriesContent`), can be copied.
 /// Plain Swift (no SwiftUI) so it runs under `swift test`.
 public enum MessageCopy {

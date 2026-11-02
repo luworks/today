@@ -18,9 +18,6 @@ final class SubmittedCaptureBoundaryTests: XCTestCase {
     XCTAssertEqual(FastLane.intent(text), .capture)
     XCTAssertTrue(FastLane.hasMultipleActions(text))
     XCTAssertNil(FastLane.oneOffReminder(text, now: now, calendar: calendar))
-    XCTAssertFalse(
-      FastLane.contextAllowsOneOff(
-        ConversationContext(turns: [.init(isUser: true, text: text, timestamp: now)])))
   }
 
   func testConjunctionInsideASingleObjectKeepsItsReminderAuthority() throws {
@@ -35,9 +32,6 @@ final class SubmittedCaptureBoundaryTests: XCTestCase {
     let text = "提醒我周四，不对，周五下午两点买[QA]面包"
     XCTAssertTrue(FastLane.hasMaterialCorrection(text))
     XCTAssertNil(FastLane.oneOffReminder(text, now: now, calendar: calendar))
-    XCTAssertFalse(
-      FastLane.contextAllowsOneOff(
-        ConversationContext(turns: [.init(isUser: true, text: text, timestamp: now)])))
     XCTAssertFalse(FastLane.hasMaterialCorrection("Remind me to check the date tomorrow"))
     XCTAssertFalse(FastLane.hasMaterialCorrection("Actually make it every day"))
   }

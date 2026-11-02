@@ -574,13 +574,14 @@
           return
         }
         clearPreviews()
-        change = PendingChange(
+        var card = PendingChange(
           subject: .task(task), delete: false, title: task.title,
           oldText: plannerDayLabel(due, runtime: runtime),
           newStart: refined.taskTiming(calendar: runtime.calendar).due,
-          notes: ["Repeat every day. Nothing changes until you tap Apply."], attendees: 0)
-        change?.newRepeatRule = refined.repeatRule
-        change?.expectedTask = Ledger.snapshot(of: task)
+          notes: ["Repeat every day."], attendees: 0)
+        card.newRepeatRule = refined.repeatRule
+        card.expectedTask = Ledger.snapshot(of: task)
+        present(card)
         return
       }
       let route = AskRouter.plan(
@@ -617,52 +618,32 @@
       case .directReminder(let capture):
         recordTurn("capture", text)
         clearPreviews()
-        createSubmittedReminder(capture)
+        show([capture], chinese: AgentReply.isChinese(typed))
         recordFastLaneReceipt(typed: typed)
         return
-      case .continuation(let resolved, let direct):
+      case .continuation(let resolved):
         recordTurn("answer", text)
-        if direct {
-          // A subjectless continuation never duplicates a previously decided card, including
-          // after reopening the chat. Undo/Cancel require a deliberate Add again/new request.
-          if let existing = proposals.last(where: {
-            FastLane.sameOneOff($0.capture, resolved)
-          }) {
-            if existing.status == .open {
-              commit(existing.id)
-            } else {
-              messages.append(
-                reply(
-                  existing.status == .added
-                    ? "Already added. Use Open or Undo on the reminder."
-                    : "Use the card to add it again."))
-            }
-          } else {
-            clearPreviews()
-            createSubmittedReminder(resolved)
-          }
+        let chinese = AgentReply.isChinese(typed)
+        // A continuation never duplicates a previously decided card, including after reopening
+        // the chat. Undo/Cancel require a deliberate Add again or a new request.
+        if let existing = proposals.last(where: { FastLane.sameOneOff($0.capture, resolved) }),
+          existing.status != .open
+        {
+          messages.append(
+            reply(
+              existing.status == .added
+                ? (chinese ? "已经添加过了，可在卡片上打开或撤销。" : "Already added. Use Open or Undo on its card.")
+                : (chinese ? "需要的话在卡片上重新添加。" : "Use the card to add it again.")))
           return
         }
         if pending != nil {
           pending = resolved
+          commitPending(chinese: chinese)
         } else {
           clearPreviews()
-          show([resolved])
+          show([resolved], chinese: chinese)
         }
-        if resolved.hour == nil && resolved.ringsAsAlarm {
-          followup = .alarmTime
-          messages.append(
-            reply(
-              text.range(of: #"\p{Han}"#, options: .regularExpression) != nil
-                ? "闹钟要设在几点？确认添加后才会生效。"
-                : "What time should the alarm ring? Nothing is added until you confirm."))
-        } else {
-          followup = nil
-          messages.append(
-            reply(
-              text.range(of: #"\p{Han}"#, options: .regularExpression) != nil
-                ? "预览已更新，点 Add 后才会添加。" : "The preview is ready. Tap Add to create it."))
-        }
+        recordFastLaneReceipt(typed: typed)
         return
       case .notFastLane: break
       }
@@ -683,7 +664,7 @@
       {
         followup = nil
         pending = c
-        messages.append(reply("Set as an alarm. Nothing is added until you confirm."))
+        commitPending(chinese: AgentReply.isChinese(text))
         return true
       }
       if pending != nil || change != nil,
@@ -699,7 +680,7 @@
         switch FastLane.refine(capture, with: text, now: now, calendar: cal) {
         case .updated(let c):
           pending = c
-          messages.append(reply("Updated. Nothing is added until you confirm."))
+          commitPending(chinese: AgentReply.isChinese(text))
           return true
         case .needsTime:
           followup = .alarmTime
@@ -716,10 +697,19 @@
         var updated = current
         updated.newStart = new
         change = updated
-        messages.append(reply("Updated. Nothing changes until you apply it."))
+        messages.append(reply("Updated. It still applies only when you tap Apply."))
         return true
       }
       return false
+    }
+
+    /// FastLane's own open draft was completed by an answer: add it now, with Undo.
+    func commitPending(chinese: Bool) {
+      guard let batch = proposals.last(where: { $0.agentID == nil })?.batch else { return }
+      let ids = proposals.filter { $0.batch == batch && $0.status == .open }.map(\.id)
+      let text = applyOpenProposals(ids, chinese: chinese)
+      if !text.isEmpty { messages.append(reply(text)) }
+      persistCards()
     }
 
     /// Moving on drops pending cards in place, recording their resolution without removing chat history.

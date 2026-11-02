@@ -36,7 +36,7 @@
           ScriptedModelClient.calls([
             Call("propose_edit", ["id": "e1", "when_text": "5pm"], id: "c2")
           ]),
-          ScriptedModelClient.reply("Here's the change. Nothing changes until you apply it."),
+          ScriptedModelClient.reply("Moving Dentist to 5pm."),
         ]
       default:
         return nil
