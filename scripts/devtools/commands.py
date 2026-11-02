@@ -70,9 +70,8 @@ def generate(root, timeout=600, *, _locked=False):
 def build(root, configuration='Debug', *, scheme='Today', timeout=600, testing=False, device=None,
           install=False, provisioning_updates=False, main_run=None, smoke_run=None):
     if (device and (scheme != 'Today' or testing or configuration != 'Debug')) or (
-            (install or provisioning_updates) and not device) or (install and not (main_run and smoke_run)) or (
-            (main_run or smoke_run) and not install):
-        raise ValueError('Device install requires Debug Live Today, device and both CI run IDs')
+            (install or provisioning_updates) and not device) or ((main_run or smoke_run) and not install):
+        raise ValueError('Device install requires Debug Live Today and a device; CI run IDs only with --install')
     if timeout <= 0:
         raise ValueError('Positive build timeout required')
     sdk = 'iphoneos' if device else 'iphonesimulator'

@@ -19,8 +19,8 @@ class DeviceBuildTests(unittest.TestCase):
 
     def test_invalid_device_options_stop_before_build(self):
         for options in ({'device': 'phone', 'scheme': 'TodayMock'}, {'device': 'phone', 'testing': True},
-                        {'install': True}, {'device': 'phone', 'install': True},
-                        {'provisioning_updates': True}):
+                        {'install': True}, {'device': 'phone', 'main_run': '42'},
+                        {'device': 'phone', 'smoke_run': '43'}, {'provisioning_updates': True}):
             with self.subTest(options=options), self.assertRaises(ValueError):
                 commands.build(Path('.'), **options)
 
