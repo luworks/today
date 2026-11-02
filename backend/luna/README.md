@@ -72,6 +72,11 @@ Phase P0 of `docs/engineering/ai-agent-architecture.md`. A body containing
 Atomic D1 counters enforce 40 agent runs/UTC day, 6 steps/run and 20 steps/minute per
 user. Signup is limited to 100 active accounts and 3 registrations/day/IP; login is rate
 limited per IP and username. Account deletion does not refund global model spending.
+Per-minute counters live in the `buckets` table as `login:`, `account-login:` and
+`agent-minute:` keys ending in `:<minute>`. A daily Cron Trigger (`17 4 * * *` UTC,
+`scheduled()` → `expireBuckets`) deletes those older than 10 minutes in batches of 500
+(at most 20 batches per run). `signup:<ip>` rows enforce the registration limit and are
+never expired.
 
 The global table started with the exact prior conservative evaluation spend
 USD0.023951 and a USD0.50 cumulative ceiling. On 2026-10-31 the owner approved raising
