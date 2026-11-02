@@ -34,7 +34,7 @@
           Section {
             ForEach(selection.shown.filter(matches)) { metric in metricRow(metric) }
               .onMove { from, to in
-                Logger(subsystem: "com.luworks.one", category: "health.reorder")
+                Logger(subsystem: "com.luworks.today", category: "health.reorder")
                   .debug(
                     "Picker move from \(from.description, privacy: .public) to \(to, privacy: .public)"
                   )

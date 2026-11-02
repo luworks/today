@@ -6,7 +6,7 @@
 
 ## 超时规则（Add Metric 卡死修复）
 
-任何 Health 调用（授权请求、每个指标的查询、单位）都不会无限等：`HealthTimeout.race` 给每个调用 8 秒，超时就放弃（HealthKit 的挂起调用取消不掉，所以放在独立任务里，不占住调用方）。每个指标单独查询、单独超时，一个卡住不影响其他行；列表永远在屏幕上，只有「新行自己」显示小转圈，不再有整页转圈。卡住的行：有旧数据就保留旧数据；没有就显示「—」加一行「Can't read this yet. Check Health access.」和 Allow / Try Again。授权请求由 `HealthAccessGate` 统一发（每批新类型只请求一次，串行，超时后忘掉以便重试，晚到的回答会触发刷新）；Add Metric 先关掉选择器、等它完全消失后再请求授权并加行。被拒绝时 Health 不会说，空数据就显示「No data」并在页脚用一句话说明。日志：`os.Logger`，subsystem `com.luworks.one`，category `health`。测试：`swift test --filter HealthLoadingTests`；UI：`HealthStallTests`（启动参数 `-uiTestingHealthStall <ids>`、`-uiTestingHealthAuthStall <ids>`）；真机路径可在模拟器用 `-realHealth -seedHealth steps,sleep,weight`（仅 Debug，写入样例数据）。
+任何 Health 调用（授权请求、每个指标的查询、单位）都不会无限等：`HealthTimeout.race` 给每个调用 8 秒，超时就放弃（HealthKit 的挂起调用取消不掉，所以放在独立任务里，不占住调用方）。每个指标单独查询、单独超时，一个卡住不影响其他行；列表永远在屏幕上，只有「新行自己」显示小转圈，不再有整页转圈。卡住的行：有旧数据就保留旧数据；没有就显示「—」加一行「Can't read this yet. Check Health access.」和 Allow / Try Again。授权请求由 `HealthAccessGate` 统一发（每批新类型只请求一次，串行，超时后忘掉以便重试，晚到的回答会触发刷新）；Add Metric 先关掉选择器、等它完全消失后再请求授权并加行。被拒绝时 Health 不会说，空数据就显示「No data」并在页脚用一句话说明。日志：`os.Logger`，subsystem `com.luworks.today`，category `health`。测试：`swift test --filter HealthLoadingTests`；UI：`HealthStallTests`（启动参数 `-uiTestingHealthStall <ids>`、`-uiTestingHealthAuthStall <ids>`）；真机路径可在模拟器用 `-realHealth -seedHealth steps,sleep,weight`（仅 Debug，写入样例数据）。
 
 ## Apple 健康 App 是怎么做的（调研摘要）
 

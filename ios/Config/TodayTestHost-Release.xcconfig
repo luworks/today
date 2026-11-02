@@ -7,6 +7,6 @@ SWIFT_VERSION = 6.0
 TARGETED_DEVICE_FAMILY = 1
 PRODUCT_NAME = TodayTestHost
 PRODUCT_MODULE_NAME = TodayTestHost
-PRODUCT_BUNDLE_IDENTIFIER = com.luworks.one.development.todaytesthost
+PRODUCT_BUNDLE_IDENTIFIER = com.luworks.today.development.todaytesthost
 INFOPLIST_KEY_UILaunchScreen_Generation = YES
 INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES

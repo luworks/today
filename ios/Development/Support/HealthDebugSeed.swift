@@ -17,7 +17,7 @@ import One
   /// (simulator's) Health database, so the real `HealthKitSource` code path has something to read. It asks for write
   /// access to exactly those types, so anything not listed is still "not asked about yet" and shows Apple's sheet on Add Metric.
   enum HealthDebugSeed {
-    private static let log = Logger(subsystem: "com.luworks.one", category: "health")
+    private static let log = Logger(subsystem: "com.luworks.today", category: "health")
 
     static func runIfRequested() {
       let args = ProcessInfo.processInfo.arguments

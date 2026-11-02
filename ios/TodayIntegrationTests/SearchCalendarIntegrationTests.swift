@@ -17,7 +17,7 @@
       let suite = "SearchCalendarIntegration.\(UUID())"
       let defaults = try #require(UserDefaults(suiteName: suite))
       defer { defaults.removePersistentDomain(forName: suite) }
-      defaults.set(true, forKey: "one.calendarSync.enabled")
+      defaults.set(true, forKey: "today.calendarSync.enabled")
       let now = Date(timeIntervalSince1970: 1_792_314_000)
       var cal = Calendar(identifier: .gregorian)
       cal.timeZone = try #require(TimeZone(secondsFromGMT: 0))

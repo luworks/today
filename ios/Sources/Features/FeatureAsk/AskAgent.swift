@@ -58,7 +58,7 @@
     @ObservationIgnored var onReviseCreate: (AgentCard) -> Void = { _ in }
     @ObservationIgnored var onTidy: (AgentCard) -> Void = { _ in }
 
-    static let log = Logger(subsystem: "com.luworks.one", category: "Agent")
+    static let log = Logger(subsystem: "com.luworks.today", category: "Agent")
 
     init(tools: AgentPlannerTools) {
       self.tools = tools

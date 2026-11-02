@@ -32,9 +32,9 @@ TESTS = (
     'TodayUITests/TodayReminderCompletionTests/testPreconnectedImportedTimelineStaysResponsive',
     'TodayUITests/SmokeScreenshotTests/testTabsAndChatInBothModes',
 )
-PRODUCTS = {'One.app': 'com.luworks.one',
-            'One.app/PlugIns/TodayWidgets.appex': 'com.luworks.one.widgets',
-            'One.app/PlugIns/ShareExtension.appex': 'com.luworks.one.share'}
+PRODUCTS = {'One.app': 'com.luworks.today',
+            'One.app/PlugIns/TodayWidgets.appex': 'com.luworks.today.widgets',
+            'One.app/PlugIns/ShareExtension.appex': 'com.luworks.today.share'}
 FLAGS = ['-derivedDataPath', str(DD), '-disableAutomaticPackageResolution',
          '-onlyUsePackageVersionsFromResolvedFile', '-skipPackageUpdates',
          'COMPILER_INDEX_STORE_ENABLE=NO', 'SWIFT_ENABLE_EXPLICIT_MODULES=NO']
@@ -124,7 +124,7 @@ def main(build_only=False):
         raise SystemExit('Expected one TodayCI xctestrun')
     # The smoke journey starts connected; the permission sheets are covered by the full UI suite.
     for service in ('reminders', 'calendar'):
-        run('xcrun', 'simctl', 'privacy', udid, 'grant', service, 'com.luworks.one')
+        run('xcrun', 'simctl', 'privacy', udid, 'grant', service, 'com.luworks.today')
     step('access granted')
     os.environ['TEST_RUNNER_SMOKE_SHOTS'] = str(SCREENS)
     code = EVIDENCE.run('xcodebuild', 'test-without-building', '-xctestrun', str(xctestrun[0]),

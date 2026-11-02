@@ -9,11 +9,11 @@
   /// A few items around today so the first launch isn't empty. Inserted once; Delete all data removes them.
   package enum SampleData {
     package static func resetFlags() {
-      UserDefaults.standard.removeObject(forKey: "one.sampleData.v1")
+      UserDefaults.standard.removeObject(forKey: "today.sampleData.v1")
     }
 
     package static func insertIfNeeded(_ context: ModelContext) {
-      let key = "one.sampleData.v1"
+      let key = "today.sampleData.v1"
       guard !UserDefaults.standard.bool(forKey: key) else { return }
       UserDefaults.standard.set(true, forKey: key)
 

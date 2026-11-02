@@ -237,7 +237,7 @@ def main(argv=None):
                       pid_discovered_monotonic=time.monotonic())
         save()
         installed = Path(read('target-container', ['xcrun', 'simctl', 'get_app_container',
-                              SIMULATOR, 'com.luworks.one', 'app']).strip()).resolve(strict=True)
+                              SIMULATOR, 'com.luworks.today', 'app']).strip()).resolve(strict=True)
         if Path(executable).resolve(strict=True) != (installed / 'One').resolve(strict=True):
             raise RuntimeError('New PID executable does not correspond to installed container')
         verify_binaries(reference, installed)

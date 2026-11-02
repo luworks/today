@@ -496,7 +496,7 @@
       return 0
     }
 
-    private static let log = Logger(subsystem: "com.luworks.one", category: "Agent")
+    private static let log = Logger(subsystem: "com.luworks.today", category: "Agent")
 
     /// Finds by name. When the kinds the model asked for have no match, other kinds are offered
     /// (a "dentist appointment" may be a reminder, not an event).

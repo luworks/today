@@ -1,6 +1,6 @@
 # Today — goal, eval and hill-climbing plan
 
-*(Formerly "one.". Renamed in October 2026; bundle id `com.luworks.one` and the Xcode target names are unchanged. Log rows before round 19 use the old name.)*
+*(Formerly "one.". Renamed in October 2026; the bundle id followed in November 2026 (`com.luworks.one` → `com.luworks.today`); the Xcode target names are unchanged. Log rows before round 19 use the old name.)*
 
 ## Goal
 

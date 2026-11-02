@@ -30,7 +30,7 @@ final class TodayReminderCompletionTests: XCTestCase {
       // This owned-simulator fixture must not inherit a cancelled/denied Calendar prompt from another run.
       app.resetAuthorizationStatus(for: .calendar)
       // Revoking authorization must also reset the saved toggle before exercising first-time connection.
-      app.launchArguments += ["-one.calendarSync.enabled", "NO"]
+      app.launchArguments += ["-today.calendarSync.enabled", "NO"]
     }
     app.launch()
     app.openSidebar()
@@ -95,7 +95,7 @@ final class TodayReminderCompletionTests: XCTestCase {
   /// Reminders and Calendar access with `simctl privacy` and both syncs start on from launch arguments.
   func testPreconnectedImportedTimelineStaysResponsive() throws {
     try assertImportedTimelineJourney(extra: [
-      "-today.remindersSync.enabled", "YES", "-one.calendarSync.enabled", "YES",
+      "-today.remindersSync.enabled", "YES", "-today.calendarSync.enabled", "YES",
     ])
   }
 

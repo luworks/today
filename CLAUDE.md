@@ -62,8 +62,8 @@ HTML prototype:
 - Never use `alert/confirm/prompt` (the claude.ai artifact frame blocks them). Use `openMenu('confirm-…')`.
 - Touch drag on iOS must use touch events (see the `TD` handler); pointer events get cancelled when the DOM under the finger is replaced. Don't re-render the dragged element mid-drag.
 - Left-edge swipe conflicts with Safari's back gesture; it works from the Home Screen (standalone) and in a native app.
-- `localStorage` key `one-v8`; Settings → Reset sample data restores the seed.
-- Debug handle: `window.oneV8` (`data`, `go(tab)`, `openDrawer()`, `A`, `parse`, `needs`, `sendAI`, `reset`).
+- `localStorage` key `today-v8`; Settings → Reset sample data restores the seed.
+- Debug handle: `window.todayV8` (`data`, `go(tab)`, `openDrawer()`, `A`, `parse`, `needs`, `sendAI`, `reset`).
 
 ## Where it's going
 1. **Aggregate** (done): Reminders tab like Apple Reminders with two-way EventKit sync (complete, rename, delete and repeat tested both ways), Calendar via EventKit, alarms, world clock, stopwatch and a focus timer via AlarmKit.

@@ -75,7 +75,7 @@ def grant_preconnected_access(selected, simulator, journal):
     if method in selected:
         for service in ("reminders", "calendar"):
             journal.action(["xcrun", "simctl", "privacy", simulator, "grant", service,
-                            "com.luworks.one"], subprocess.run, check=True)
+                            "com.luworks.today"], subprocess.run, check=True)
 
 
 def ui_command(selected, simulator, derived, output, test_products=None):
@@ -390,7 +390,7 @@ def main(argv=None):
             raise ValueError("Missing explicit Mock UI product")
         journal.action(["xcrun", "simctl", "install", simulator, mock["app"]], subprocess.run, check=True)
         installed = journal.action(
-            ["xcrun", "simctl", "get_app_container", simulator, "com.luworks.one", "app"], capture).strip()
+            ["xcrun", "simctl", "get_app_container", simulator, "com.luworks.today", "app"], capture).strip()
         if mock_app_identity(installed) != mock["identity"]:
             raise ValueError("Installed UI product differs from verified TodayMock")
         summary["mock_product"] = {**mock, "installed_app": installed,

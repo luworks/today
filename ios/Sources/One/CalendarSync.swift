@@ -204,7 +204,8 @@
   @MainActor
   @Observable
   package final class CalendarSync: NativeCalendarService {
-    @ObservationIgnored private let log = Logger(subsystem: "com.luworks.one", category: "calendar")
+    @ObservationIgnored private let log = Logger(
+      subsystem: "com.luworks.today", category: "calendar")
 
     /// Created on first use: EKEventStore is slow to set up and most launches don't need it.
     @ObservationIgnored private lazy var store: EKEventStore = {
@@ -220,8 +221,8 @@
         })
       return s
     }()
-    private static let enabledKey = "one.calendarSync.enabled"
-    private static let hiddenKey = "one.calendarSync.hiddenCalendars"
+    private static let enabledKey = "today.calendarSync.enabled"
+    private static let hiddenKey = "today.calendarSync.hiddenCalendars"
 
     /// Bumped when the system calendar changes so views refetch.
     package private(set) var version = 0
@@ -1033,7 +1034,7 @@
     }
     // Retained because EventKitUI holds its delegate weakly; Delegate holds this owner weakly.
     private var retainedCoordinator: Delegate?
-    private let log = Logger(subsystem: "com.luworks.one", category: "calendar")
+    private let log = Logger(subsystem: "com.luworks.today", category: "calendar")
 
     /// `identifier` nil = a new event starting at `start`.
     /// `start`: for an existing event, the start of the occurrence that was tapped; for a new event, when it starts.
@@ -1420,7 +1421,7 @@
       package func eventEditViewController(
         _ controller: EKEventEditViewController, didCompleteWith action: EKEventEditViewAction
       ) {
-        Logger(subsystem: "com.luworks.one", category: "calendar").info(
+        Logger(subsystem: "com.luworks.today", category: "calendar").info(
           "apple editor done: \(action == .deleted ? "deleted" : action == .saved ? "saved" : "cancelled", privacy: .public)"
         )
         calendar.refresh()

@@ -17,7 +17,7 @@ from .process import Evidence, Redactor, run_process
 from .xcode_tests import DEVICE, RUNTIME, simulator_name
 from scripts.gallery.adapter import CaptureIdentity, Manifest, identifier, validate_png
 
-APP_ID = 'com.luworks.one.workbench'
+APP_ID = 'com.luworks.today.workbench'
 TYPE_SIZES = ('xSmall', 'small', 'medium', 'large', 'xLarge', 'xxLarge', 'xxxLarge',
               'accessibility1', 'accessibility2', 'accessibility3', 'accessibility4', 'accessibility5')
 QUARANTINE_PREFIX = '3243BEDB'

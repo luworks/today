@@ -345,7 +345,7 @@ def mock_app_identity(app):
     """Verify the actual Mock executable/module/composition, not its shared bundle ID alone."""
     app = Path(app)
     info = plistlib.loads((app / 'Info.plist').read_bytes())
-    if info.get('CFBundleExecutable') != 'TodayMock' or info.get('CFBundleIdentifier') != 'com.luworks.one':
+    if info.get('CFBundleExecutable') != 'TodayMock' or info.get('CFBundleIdentifier') != 'com.luworks.today':
         raise ValueError('Expected TodayMock executable and bundle identity')
     executable = app / 'TodayMock'
     payload = app / 'TodayMock.debug.dylib'
@@ -423,7 +423,7 @@ def mock_ui_product(root, path, *, normalize=False):
             host = product_path(native_host)
             info = plistlib.loads((host / 'Info.plist').read_bytes())
             if (info.get('CFBundleExecutable') != 'TodayTestHost'
-                    or info.get('CFBundleIdentifier') != 'com.luworks.one.development.todaytesthost'):
+                    or info.get('CFBundleIdentifier') != 'com.luworks.today.development.todaytesthost'):
                 raise ValueError('Unexpected native test host identity')
             allowed_apps.add(host)
     live_path = (products / Path(live[len(prefix):])).resolve()

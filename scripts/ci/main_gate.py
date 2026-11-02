@@ -13,8 +13,8 @@ import re
 
 from scripts.devtools.core import probe, toolchain
 
-PRODUCTS = {'One': 'com.luworks.one', 'TodayWidgets': 'com.luworks.one.widgets',
-            'ShareExtension': 'com.luworks.one.share'}
+PRODUCTS = {'One': 'com.luworks.today', 'TodayWidgets': 'com.luworks.today.widgets',
+            'ShareExtension': 'com.luworks.today.share'}
 # Workflow run event -> jobs that must have succeeded in that run.
 REQUIRED = {'push': ('checks', 'today-required'), 'workflow_dispatch': ('install-smoke',)}
 

@@ -4,7 +4,7 @@ import XCTest
 /// The app changes Apple Reminders and its own data through debug launch arguments (`-uiTestingAppleOp`,
 /// `-uiTestingAppOp`, see `RemindersSync`), so nothing is typed, and reads both sides from hidden labels
 /// (`-uiTestingSyncDump`). Needs Reminders access on the simulator (allowed on the first run, or
-/// `xcrun simctl privacy <udid> grant reminders com.luworks.one`).
+/// `xcrun simctl privacy <udid> grant reminders com.luworks.today`).
 @MainActor
 final class RemindersSyncBothWaysTests: XCTestCase {
   private let stamp = Int(Date.now.timeIntervalSince1970) % 100000

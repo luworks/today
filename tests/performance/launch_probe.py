@@ -31,14 +31,14 @@ def main():
     fixture = Path(__file__).resolve().parents[1] / 'fixtures/today-dataset.json'
     samples = []
     for i in range(4):
-        subprocess.run(['xcrun', 'simctl', 'terminate', args.simulator, 'com.luworks.one'], capture_output=True)
+        subprocess.run(['xcrun', 'simctl', 'terminate', args.simulator, 'com.luworks.today'], capture_output=True)
         log = args.output / f'launch-{i}.log'
         with log.open('w') as stream:
             process = subprocess.Popen(['xcrun', 'simctl', 'launch', '--console-pty', args.simulator,
-                'com.luworks.one', '-uiTesting', '-dataset', str(fixture), '-uiTestingNow', '09:41'],
+                'com.luworks.today', '-uiTesting', '-dataset', str(fixture), '-uiTestingNow', '09:41'],
                 stdout=stream, stderr=subprocess.STDOUT)
             time.sleep(4)
-            subprocess.run(['xcrun', 'simctl', 'terminate', args.simulator, 'com.luworks.one'], capture_output=True)
+            subprocess.run(['xcrun', 'simctl', 'terminate', args.simulator, 'com.luworks.today'], capture_output=True)
             try:
                 process.wait(timeout=5)
             except subprocess.TimeoutExpired:

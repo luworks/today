@@ -38,7 +38,7 @@
 
     public var isAvailable: Bool { configuration() != nil }
 
-    private static let log = Logger(subsystem: "com.luworks.one", category: "Agent")
+    private static let log = Logger(subsystem: "com.luworks.today", category: "Agent")
     private static let session: URLSession = {
       let config = URLSessionConfiguration.ephemeral
       config.urlCache = nil

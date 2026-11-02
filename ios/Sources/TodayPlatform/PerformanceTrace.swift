@@ -12,7 +12,7 @@
       ProcessInfo.processInfo.arguments.contains("-performancePageRevisits")
         ? "first_cycle_plus_two_revisits" : "unclassified"
     }
-    private let log = OSLog(subsystem: "com.luworks.one", category: "PerformanceTrace")
+    private let log = OSLog(subsystem: "com.luworks.today", category: "PerformanceTrace")
     private struct Pending {
       let name: String
       let destination: String?

@@ -20,11 +20,11 @@ graph = importlib.util.module_from_spec(_graph_spec)
 _graph_spec.loader.exec_module(graph)
 
 ROOT = Path(__file__).resolve().parents[2]
-PRODUCTS = {'One': 'com.luworks.one', 'TodayWidgets': 'com.luworks.one.widgets',
-            'ShareExtension': 'com.luworks.one.share'}
+PRODUCTS = {'One': 'com.luworks.today', 'TodayWidgets': 'com.luworks.today.widgets',
+            'ShareExtension': 'com.luworks.today.share'}
 PROFILES = {'One': 'TODAY_APP_PROFILE', 'TodayWidgets': 'TODAY_WIDGET_PROFILE',
             'ShareExtension': 'TODAY_SHARE_PROFILE'}
-GROUP = 'group.com.luworks.one'
+GROUP = 'group.com.luworks.today'
 
 
 class Blocked(Exception):
