@@ -392,8 +392,8 @@ returns, it needs the whole look-ahead window or a rule that a snapshot never st
 
 | | µ$ |
 | --- | ---: |
-| D1 `budget.used` before this task / now | 345,816 / 2,259,505 |
-| Metered (settled) cost of this task's 1,006 Worker calls, 686 agent runs, 20 synthetic accounts | **51,835** |
+| D1 `budget.used` before this task / after cleanup | 345,816 / 2,259,683 |
+| Metered (settled) cost of this task's Worker calls (1,006 during the eval + the post-P4 smoke), 20 synthetic accounts | **52,013** |
 | Stranded reservations: 186 calls killed mid-stream by `exceededCpu`, never settled, $0.01 each | 1,860,000 |
 | Another thread's calls in the same window | 1,854 |
 | Direct probes outside the Worker | 0 |
@@ -402,7 +402,9 @@ Real OpenAI spend of this task: **$0.052 metered**, plus at most ~$0.06 for the 
 cut ~1 s in; ≤ ~$0.0003 per step); under the $1.00 limit. The Worker ledger, however, books $1.86 of
 reservations that will never settle (by design, unknown outcomes keep their reservation), so the $5
 ceiling now has $2.74 left. Releasing them is a reviewed `UPDATE` on the production ledger and is left to
-the owner.
+the owner. All 20 synthetic accounts were deleted through `DELETE /auth/account` (D1 afterwards: 0
+`qa-p3-*` users, 0 orphan calls or runs, 1 user = the owner); their `calls` rows went with them, so the
+1,860,000 µ$ above is the only remaining trace of the stranded reservations.
 
 ## Caveats and deviations
 
