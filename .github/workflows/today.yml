@@ -28,12 +28,25 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - run: python3 scripts/ci/smoke.py --command ./dev bootstrap --tool swift-format --tool swiftlint --tool ruff --tool actionlint
-      - run: python3 scripts/ci/smoke.py --command ./dev format --check
-      - run: python3 scripts/ci/smoke.py --command ./dev lint
-      - run: python3 scripts/ci/smoke.py --command ./dev test helpers
-      - run: python3 scripts/ci/smoke.py --command ./dev test qa
-      - run: python3 scripts/ci/smoke.py --command ./dev test unit
+      # Docs/prototype-only pull requests: the job stays and reports green, its steps skip.
+      - id: scope
+        if: github.event_name == 'pull_request'
+        run: python3 scripts/ci/scope.py
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RANGE: ${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }}
+      - if: steps.scope.outputs.app != 'false'
+        run: python3 scripts/ci/smoke.py --command ./dev bootstrap --tool swift-format --tool swiftlint --tool ruff --tool actionlint
+      - if: steps.scope.outputs.app != 'false'
+        run: python3 scripts/ci/smoke.py --command ./dev format --check
+      - if: steps.scope.outputs.app != 'false'
+        run: python3 scripts/ci/smoke.py --command ./dev lint
+      - if: steps.scope.outputs.app != 'false'
+        run: python3 scripts/ci/smoke.py --command ./dev test helpers
+      - if: steps.scope.outputs.app != 'false'
+        run: python3 scripts/ci/smoke.py --command ./dev test qa
+      - if: steps.scope.outputs.app != 'false'
+        run: python3 scripts/ci/smoke.py --command ./dev test unit
       # Export allowlisted diagnostics only; raw command bytes remain runner-local/private.
       - if: failure() || cancelled()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -51,15 +64,26 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      # Docs/prototype-only pull requests: the job stays and reports green, its steps skip.
+      - id: scope
+        if: github.event_name == 'pull_request'
+        run: python3 scripts/ci/scope.py
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RANGE: ${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }}
+      - if: steps.scope.outputs.app != 'false'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ runner.temp }}/today-smoke/dd/SourcePackages
           key: spm-${{ hashFiles('ios/Dependencies/Package.resolved') }}
-      - run: python3 scripts/ci/smoke.py --build-only
+      - if: steps.scope.outputs.app != 'false'
+        run: python3 scripts/ci/smoke.py --build-only
       # TodayMock simulator build (arm64) for agents without Xcode; launch with -uiTesting -dataset <path>.
       # Simulator only: never on a phone, never next to One.app in the same simulator.
-      - run: ditto -c -k --keepParent "$RUNNER_TEMP/today-smoke/dd/Build/Products/Debug-iphonesimulator/TodayMock.app" "$RUNNER_TEMP/TodayMock.app.zip"
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      - if: steps.scope.outputs.app != 'false'
+        run: ditto -c -k --keepParent "$RUNNER_TEMP/today-smoke/dd/Build/Products/Debug-iphonesimulator/TodayMock.app" "$RUNNER_TEMP/TodayMock.app.zip"
+      - if: steps.scope.outputs.app != 'false'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: TodayMock-sim-${{ github.sha }}
           path: ${{ runner.temp }}/TodayMock.app.zip
