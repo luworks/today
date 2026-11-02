@@ -91,15 +91,7 @@ final class TodayReminderCompletionTests: XCTestCase {
     try assertImportedTimelineJourney()
   }
 
-  /// CI smoke: the same imported journey without the Settings connection flow. The runner grants
-  /// Reminders and Calendar access with `simctl privacy` and both syncs start on from launch arguments.
-  func testPreconnectedImportedTimelineStaysResponsive() throws {
-    try assertImportedTimelineJourney(extra: [
-      "-today.remindersSync.enabled", "YES", "-today.calendarSync.enabled", "YES",
-    ])
-  }
-
-  private func assertImportedTimelineJourney(extra: [String] = []) throws {
+  private func assertImportedTimelineJourney() throws {
     let data = try Data(
       contentsOf: URL(fileURLWithPath: TestData.fixturePath("phone-freeze-navigation.json")))
     let fixture = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: String])
@@ -108,7 +100,7 @@ final class TodayReminderCompletionTests: XCTestCase {
     let eventTitle = try XCTUnwrap(fixture["eventTitle"]) + " " + suffix
     let app = launch(
       title: title, store: "freeze-navigation-" + suffix, seed: true,
-      extra: ["-uiTestingCalendarSync", "-debugCreateSystemEvent", eventTitle] + extra)
+      extra: ["-uiTestingCalendarSync", "-debugCreateSystemEvent", eventTitle])
     assertState(app, done: false)
     XCTAssertTrue(app.staticTexts[title].firstMatch.waitForExistence(timeout: 8))
     let event = app.descendants(matching: .any).matching(
@@ -117,7 +109,7 @@ final class TodayReminderCompletionTests: XCTestCase {
     XCTAssertTrue(event.waitForExistence(timeout: 8), "native Calendar import is rendered")
     // Resolve each target while it is ready, before measuring its touch-to-state response.
     // XCUIElement.tap resolves the AX tree again before synthesizing a touch (8.34s across
-    // these two targets in smoke 39466973063); that is not time after a user's touch.
+    // these two targets in CI run 39466973063); that is not time after a user's touch.
     let journeyStarted = ProcessInfo.processInfo.systemUptime
     let open = readyCoordinate(app.staticTexts[title].firstMatch, in: app)
     let started = ProcessInfo.processInfo.systemUptime

@@ -13,14 +13,14 @@ class DeviceBuildTests(unittest.TestCase):
     def test_cli_routes_authorization_and_run_ids(self):
         with patch.object(commands, 'build', return_value=0) as build:
             self.assertEqual(main(['build', '--device', 'phone', '--install', '--allow-provisioning-updates',
-                                   '--main-run', '42', '--smoke-run', '43'], Path('.')), 0)
+                                   '--main-run', '42'], Path('.')), 0)
         self.assertTrue(build.call_args.kwargs['provisioning_updates'])
-        self.assertEqual(build.call_args.kwargs['smoke_run'], '43')
+        self.assertEqual(build.call_args.kwargs['main_run'], '42')
 
     def test_invalid_device_options_stop_before_build(self):
         for options in ({'device': 'phone', 'scheme': 'TodayMock'}, {'device': 'phone', 'testing': True},
                         {'install': True}, {'device': 'phone', 'main_run': '42'},
-                        {'device': 'phone', 'smoke_run': '43'}, {'provisioning_updates': True}):
+                        {'provisioning_updates': True}):
             with self.subTest(options=options), self.assertRaises(ValueError):
                 commands.build(Path('.'), **options)
 
@@ -42,11 +42,11 @@ class DeviceBuildTests(unittest.TestCase):
               patch('scripts.ci.main_gate.check_install', side_effect=ValueError('blocked')) as gate):
             with self.assertRaisesRegex(ValueError, 'blocked'):
                 commands.build(Path('.'), device='phone', install=True, provisioning_updates=True,
-                               main_run='42', smoke_run='43')
+                               main_run='42')
             self.assertEqual(execute.call_count, 1)
             gate.side_effect = None
             self.assertEqual(commands.build(Path('.'), device='phone', install=True, provisioning_updates=True,
-                                            main_run='42', smoke_run='43'), 0)
+                                            main_run='42'), 0)
             self.assertEqual(execute.call_args.args[1][:5], ['xcrun', 'devicectl', 'device', 'install', 'app'])
         self.assertTrue(receipt.call_args.args[1]['automatic_provisioning_updates'])
         self.assertIn('-allowProvisioningUpdates', execute.call_args_list[0].args[1])
