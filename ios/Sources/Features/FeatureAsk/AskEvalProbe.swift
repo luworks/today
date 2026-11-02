@@ -5,8 +5,8 @@
   import TodayCore
 
   /// Evaluation only (docs/qa/agent-p3-eval-20261101.md): lets `TodayIntegrationTests/AgentEvalTests`
-  /// drive a hosted `AskView` like a user (send, tap Apply) and read what the chat shows after each turn,
-  /// for both the old pipeline and the agent. Inert unless a test installs `current` before the view appears.
+  /// drive a hosted `AskView` like a user (send, tap Apply) and read what the chat shows after each turn.
+  /// Inert unless a test installs `current` before the view appears.
   @MainActor
   package final class AskEvalProbe {
     package static var current: AskEvalProbe?
@@ -14,7 +14,7 @@
     package var send: (String) -> Void = { _ in }
     /// What the chat shows now, as JSON (see `AskView.evalSnapshot`).
     package var snapshot: () -> JSONValue = { .null }
-    /// Taps Apply on the open change card (old ChangeCard or the agent's), as the user would.
+    /// Taps Apply on the open agent change card, as the user would.
     package var applyChange: () async -> Void = {}
     /// Every agent run of this chat, in order (`AskAgentSession.logRun`).
     package var runs: [AgentRunResult] = []

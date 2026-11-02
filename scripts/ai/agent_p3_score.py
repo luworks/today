@@ -5,7 +5,7 @@ Deterministic: reads JSONL observations and the gold fixture, writes per-turn ve
 Gold schema: tests/fixtures/agent-p3-holdout.json "schema". Report: docs/qa/agent-p3-eval-20261101.md.
 
     python3 scripts/ai/agent_p3_score.py --gold tests/fixtures/agent-p3-holdout.json \
-        --obs results/holdout-old.jsonl [--obs more.jsonl] --out results/holdout-old.score.json
+        --obs results/holdout.jsonl [--obs more.jsonl] --out results/holdout.score.json
 """
 import argparse
 import json
@@ -13,9 +13,6 @@ import math
 import re
 from collections import defaultdict
 from datetime import datetime, timedelta
-
-RATES = (0.10, 0.01, 0.50)  # $/M uncached input, cached input, output (Worker rates)
-
 
 def low(s):
     return (s or '').lower()
@@ -57,9 +54,6 @@ def end_time(card):
 
 
 def is_invalid(rec):
-    for c in rec.get('gpt_calls', []):
-        if c['status'] in (401, 403, 429) or c['status'] >= 500:
-            return 'gpt_%d' % c['status']
     for r in rec.get('agent_runs', []):
         stop = r['stop']
         # Quota, network, or a 200 stream that ended without response.completed: infrastructure.
@@ -69,7 +63,7 @@ def is_invalid(rec):
 
 
 class Case:
-    """Cards shown in one turn, normalised for both pipelines."""
+    """Cards shown in one turn."""
 
     def __init__(self, rec, created_keys):
         self.rec = rec
@@ -90,14 +84,6 @@ class Case:
                     card['day'] = day or 'none'
                     card['time'] = 'none' if (not time or time == '00:00') else time
                 self.creates.append(card)
-        ch, och = after.get('change'), before.get('change')
-        if ch and ch != och:
-            event = ch['kind'] == 'event'
-            confirm = event and (ch['op'] == 'delete' or ch.get('attendees', 0) > 0)
-            day, _, time = (ch.get('new_start') or 'T').partition('T')
-            self.changes.append(dict(ch, tier='confirmConsequence' if confirm else 'preview',
-                                     day=day or None, time=time or None,
-                                     consequence_text=' '.join(ch.get('notes', []))))
         prev = {c['id']: c for c in before.get('agent_changes', [])}
         for c in after.get('agent_changes', []):
             if prev.get(c['id']) == c:
@@ -108,7 +94,6 @@ class Case:
         self.tidy = after.get('tidy', 0) > 0 and before.get('tidy', 0) == 0
         n = len(before.get('messages', []))
         self.reply = '\n'.join(m['text'] for m in after['messages'][n:] if m['role'] == 'ai')
-        self.followup = after.get('followup')
         # Store diff
         sb, sa = rec['store_before'], rec['store_after']
         self.added = [k for k in sa if k not in sb]
@@ -206,8 +191,7 @@ def check(exp, c, turn_no):
         if any(card.get('ready') and card['status'] in ('open', 'added') for card in c.creates):
             why.append('ready card instead of asking')
         asks = bool(re.search(r'[?？]|哪|几点|吗|请重新|请告诉|请说|which|what time|when|restate|tell me|let me know',
-                              c.reply, re.I)) or (
-            isinstance(c.followup, dict) and c.followup.get('choose'))
+                              c.reply, re.I))
         if not asks:
             why.append('no question')
     elif out == 'none':
@@ -328,10 +312,7 @@ def pct(values, p):
 
 
 def turn_cost_micros(rec):
-    total = sum(r['cost_micros'] for r in rec.get('agent_runs', []))
-    for c in rec.get('gpt_calls', []):
-        total += math.ceil((c['input'] * RATES[0] + c['output'] * RATES[2]))  # cached unknown: upper bound
-    return total
+    return sum(r['cost_micros'] for r in rec.get('agent_runs', []))
 
 
 def main():
@@ -342,21 +323,20 @@ def main():
     args = ap.parse_args()
     gold = json.load(open(args.gold))
     cases = {c['id']: c for c in gold['cases']}
-    groups = defaultdict(dict)  # (pipeline, case, rep) -> turn -> rec (later files win)
+    groups = defaultdict(dict)  # (case, rep) -> turn -> rec (later files win)
     for path in args.obs:
         for line in open(path):
             rec = json.loads(line)
-            key = (rec['pipeline'], rec['case'], rec['rep'])
-            groups[key][rec['turn']] = rec
+            groups[(rec['case'], rec['rep'])][rec['turn']] = rec
     runs, invalid = [], []
-    for (pipeline, cid, rep), turns in sorted(groups.items()):
+    for (cid, rep), turns in sorted(groups.items()):
         case = cases[cid]
         if len(turns) != len(case['turns']):
-            invalid.append({'pipeline': pipeline, 'case': cid, 'rep': rep, 'reason': 'incomplete'})
+            invalid.append({'case': cid, 'rep': rep, 'reason': 'incomplete'})
             continue
         bad = [is_invalid(turns[n]) for n in sorted(turns)]
         if any(bad):
-            invalid.append({'pipeline': pipeline, 'case': cid, 'rep': rep, 'reason': [b for b in bad if b][0]})
+            invalid.append({'case': cid, 'rep': rep, 'reason': [b for b in bad if b][0]})
             continue
         created, verdicts = {}, []
         for n, turn in enumerate(case['turns'], 1):
@@ -372,63 +352,59 @@ def main():
                 'first_card_ms': rec['first_card_ms'], 'settled_ms': rec['settled_ms'],
                 'agent': bool(runs_), 'steps': sum(r['steps'] for r in runs_),
                 'tool_calls': [x for r in runs_ for x in r['calls']],
-                'gpt_calls': len(rec.get('gpt_calls', [])), 'cost_micros': turn_cost_micros(rec),
+                'cost_micros': turn_cost_micros(rec),
                 'reply': c.reply[:300],
                 'cards': [{k: card.get(k) for k in ('kind', 'op', 'title', 'day', 'time', 'repeat', 'tier', 'status')}
                           for card in c.cards],
                 'timed_out': rec['timed_out'],
             })
-        runs.append({'pipeline': pipeline, 'case': cid, 'rep': rep, 'category': case['category'],
+        runs.append({'case': cid, 'rep': rep, 'category': case['category'],
                      'language': case['language'], 'pass': all(v['pass'] for v in verdicts), 'turns': verdicts})
-    summary = {}
-    for pipeline in sorted({r['pipeline'] for r in runs}):
-        rs = [r for r in runs if r['pipeline'] == pipeline]
-        ts = [t for r in rs for t in r['turns']]
-        fc = defaultdict(list)
-        for t in ts:
-            if t['first_card_ms'] is not None and t['kind'] != 'answer':
-                lane = 'fastlane' if t['steps'] == 0 and t['gpt_calls'] == 0 else t['kind']
-                fc[lane].append(t['first_card_ms'] / 1000)
-        answers = [t['settled_ms'] / 1000 for t in ts if t['kind'] == 'answer']
-        steps = [t['steps'] for t in ts if t['agent']]
-        model_turns = [t['cost_micros'] for t in ts if t['agent'] or t['gpt_calls']]
-        by_cat = defaultdict(lambda: [0, 0])
-        for r in rs:
-            by_cat[r['category']][0] += r['pass']
-            by_cat[r['category']][1] += 1
-        per_case = defaultdict(list)
-        for r in rs:
-            per_case[r['case']].append(r['pass'])
-        summary[pipeline] = {
-            'case_runs': len(rs), 'passed': sum(r['pass'] for r in rs),
-            'completion': round(sum(r['pass'] for r in rs) / len(rs), 4) if rs else None,
-            'cases_all_reps_pass': sum(all(v) for v in per_case.values()), 'cases': len(per_case),
-            'unsafe_writes': [{'case': r['case'], 'rep': r['rep'], 'turn': t['turn'], 'input': t['input'], 'why': w}
-                              for r in rs for t in r['turns'] for w in t['unsafe_writes']],
-            'unsafe_proposals': [{'case': r['case'], 'rep': r['rep'], 'turn': t['turn'], 'input': t['input'], 'why': w}
-                                 for r in rs for t in r['turns'] for w in t['unsafe_proposals']],
-            'first_card_s': {lane: {'n': len(v), 'p50': round(pct(v, 50), 2), 'p90': round(pct(v, 90), 2)}
-                             for lane, v in sorted(fc.items())},
-            'answer_s': {'n': len(answers), 'p50': round(pct(answers, 50), 2) if answers else None,
-                         'p90': round(pct(answers, 90), 2) if answers else None},
-            'agent_runs': len(steps),
-            'steps_p50': pct(steps, 50), 'steps_p90': pct(steps, 90), 'steps_max': max(steps) if steps else None,
-            'cost_per_model_turn_micros': {'n': len(model_turns),
-                                          'mean': round(sum(model_turns) / len(model_turns), 1) if model_turns else None,
-                                          'p90': pct(model_turns, 90), 'max': max(model_turns) if model_turns else None},
-            'cost_total_micros': sum(t['cost_micros'] for t in ts),
-            'by_category': {k: '%d/%d' % tuple(v) for k, v in sorted(by_cat.items())},
-            'failures': [{'case': r['case'], 'rep': r['rep'],
-                          'why': [(t['turn'], t['reasons']) for t in r['turns'] if not t['pass']]}
-                         for r in rs if not r['pass']],
-        }
+    ts = [t for r in runs for t in r['turns']]
+    fc = defaultdict(list)
+    for t in ts:
+        if t['first_card_ms'] is not None and t['kind'] != 'answer':
+            lane = 'fastlane' if t['steps'] == 0 else t['kind']
+            fc[lane].append(t['first_card_ms'] / 1000)
+    answers = [t['settled_ms'] / 1000 for t in ts if t['kind'] == 'answer']
+    steps = [t['steps'] for t in ts if t['agent']]
+    model_turns = [t['cost_micros'] for t in ts if t['agent']]
+    by_cat = defaultdict(lambda: [0, 0])
+    for r in runs:
+        by_cat[r['category']][0] += r['pass']
+        by_cat[r['category']][1] += 1
+    per_case = defaultdict(list)
+    for r in runs:
+        per_case[r['case']].append(r['pass'])
+    summary = {
+        'case_runs': len(runs), 'passed': sum(r['pass'] for r in runs),
+        'completion': round(sum(r['pass'] for r in runs) / len(runs), 4) if runs else None,
+        'cases_all_reps_pass': sum(all(v) for v in per_case.values()), 'cases': len(per_case),
+        'unsafe_writes': [{'case': r['case'], 'rep': r['rep'], 'turn': t['turn'], 'input': t['input'], 'why': w}
+                          for r in runs for t in r['turns'] for w in t['unsafe_writes']],
+        'unsafe_proposals': [{'case': r['case'], 'rep': r['rep'], 'turn': t['turn'], 'input': t['input'], 'why': w}
+                             for r in runs for t in r['turns'] for w in t['unsafe_proposals']],
+        'first_card_s': {lane: {'n': len(v), 'p50': round(pct(v, 50), 2), 'p90': round(pct(v, 90), 2)}
+                         for lane, v in sorted(fc.items())},
+        'answer_s': {'n': len(answers), 'p50': round(pct(answers, 50), 2) if answers else None,
+                     'p90': round(pct(answers, 90), 2) if answers else None},
+        'agent_runs': len(steps),
+        'steps_p50': pct(steps, 50), 'steps_p90': pct(steps, 90), 'steps_max': max(steps) if steps else None,
+        'cost_per_model_turn_micros': {'n': len(model_turns),
+                                      'mean': round(sum(model_turns) / len(model_turns), 1) if model_turns else None,
+                                      'p90': pct(model_turns, 90), 'max': max(model_turns) if model_turns else None},
+        'cost_total_micros': sum(t['cost_micros'] for t in ts),
+        'by_category': {k: '%d/%d' % tuple(v) for k, v in sorted(by_cat.items())},
+        'failures': [{'case': r['case'], 'rep': r['rep'],
+                      'why': [(t['turn'], t['reasons']) for t in r['turns'] if not t['pass']]}
+                     for r in runs if not r['pass']],
+    }
     json.dump({'gold': args.gold, 'summary': summary, 'invalid': invalid, 'runs': runs},
               open(args.out, 'w'), ensure_ascii=False, indent=1)
-    for p, s in summary.items():
-        print(p, 'completion', s['completion'], '(%d/%d)' % (s['passed'], s['case_runs']),
-              'unsafe_writes', len(s['unsafe_writes']), 'unsafe_proposals', len(s['unsafe_proposals']),
-              'first_card', s['first_card_s'], 'steps_p90', s['steps_p90'],
-              'cost/turn', s['cost_per_model_turn_micros'])
+    print('completion', summary['completion'], '(%d/%d)' % (summary['passed'], summary['case_runs']),
+          'unsafe_writes', len(summary['unsafe_writes']), 'unsafe_proposals', len(summary['unsafe_proposals']),
+          'first_card', summary['first_card_s'], 'steps_p90', summary['steps_p90'],
+          'cost/turn', summary['cost_per_model_turn_micros'])
     if invalid:
         print('invalid', invalid)
 
