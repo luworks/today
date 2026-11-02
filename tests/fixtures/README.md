@@ -42,7 +42,7 @@ Dates are relative: `day: 0` means the local start of the day the fixture loads,
 `day: 1` tomorrow, and negative offsets earlier days. `time` is a local `HH:mm`
 wall-clock time. `-uiTestingNow` pins the clock time used by these journeys; it
 does not turn the relative day into a fixed calendar date. Chats use `hoursAgo`
-relative to load time. The loader is [`TestDataset.swift`](../../ios/One/TestDataset.swift).
+relative to load time. The loader is [`TestDataset.swift`](../../ios/Development/Support/TestDataset.swift).
 
 `-uiTesting -dataset <path>` loads into a fresh in-memory store with Apple Calendar
 and Reminders sync off. Mutations affect that store, not the source JSON. Explicit
@@ -126,25 +126,22 @@ existing `[role, text]` format and has no stored preview or created item. Its
 assistant aside names watering plants at 09:00; the relevant user request remains
 the dinner alarm at 18:00. The journeys cover the exact Chinese three-turn report,
 English alarm/date/time corrections, and New chat isolation plus stored-thread
-resumption. They use `-uiTesting` and the simulator's production rule fallback;
-they do not inject model output or verify Apple Intelligence. Chinese screenshots
+resumption. They use `-uiTesting`, which is not signed in to Luna AI, so FastLane's
+local previews answer; they inject no model output. Chinese screenshots
 are retained as XCTest attachments inside the eventual xcresult bundle.
 
 - `ios/Eval/Tests/OneLogicTests/conversation-journeys.json` is a copied Swift package resource: thirteen bilingual multi-turn journeys with expected route, title, time/date, preview action and zero writes before Add/Apply. `ConversationJourneyTests` exercises the production context resolver, routing and parser; UI journeys additionally check the real confirmation gate.
 
 ## Recurring reminder goals
 
-- `ai-title-rewrite-recurring-cases.json`: 16 cases / 19 turns in the existing
-  TitleQuality observation/scoring format; 9 development / 7 reserved validation
+- `ai-title-rewrite-recurring-cases.json`: 16 cases / 19 turns (observation/scoring
+  format); 9 development / 7 reserved validation
   cases (reserved, not blind). Exact owner Sunday and Friday+Sunday requests are
   mandatory development inputs. Route, type, time, actual weekdays, title meaning,
   notes and Add/Apply are independent expectations. No observations are invented.
 - `RecurringReminderTests` and `RepeatWeekdayTests` keep small pure inputs inline;
   the three observed-goal regression methods additionally read the unchanged
-  development cases from `ai-title-rewrite-recurring-cases.json`;
-  `RecurringReminderExportTests` reads the versioned fixture with
-  `AI_RECURRING_EVAL_FIXTURES` and writes actual fallback artifacts to
-  `AI_RECURRING_EVAL_OUTPUT`. Gates, writes and FM remain unmeasured there.
+  development cases from `ai-title-rewrite-recurring-cases.json`.
 - `AIRecurringReminderTests` reuses `ai-context-ui.json` as an empty planner and
   keeps three short journey inputs inline: Chinese Sunday preview, Friday+Sunday
   Add/editor Save/reopen, English add-repeat/time-correction. These use production
@@ -153,9 +150,9 @@ are retained as XCTest attachments inside the eventual xcresult bundle.
 
 ## SwiftUI development previews
 
-The small inline fixtures in `ios/One/PreviewFixtures.swift` (DEBUG only) seed
+The small inline fixtures in `ios/Development/Support/PreviewFixtures.swift` (DEBUG only) seed
 three reminder lists and three reminders in an in-memory SwiftData container.
-`WorldClockStore.previewFixture()` in `ios/One/WorldClockView.swift` provides
+`WorldClockStore.previewFixture()` in `ios/Sources/Features/FeatureClock/WorldClockView.swift` provides
 London, Shanghai and Tokyo with Los Angeles as home in a separate store instance.
 `HealthMetricDetail.swift`'s `Weight trend` preview reuses the versioned
 `HealthSampleSeries.swift` algorithm and `PreviewFixtures.healthNow` fixed date.

@@ -61,8 +61,8 @@ Install readiness is roughly merge plus ~7 min (warm device cache) or ~10.5 min 
 - the local signed device build receipt matches the SHA
   ([release integration](release-integration.md)).
 
-CI never installs a phone. A CI pass does not establish physical Health, Foundation Models
-or AlarmKit behaviour.
+CI never installs a phone or calls the Luna Worker. A CI pass does not establish physical
+Health, hosted AI or AlarmKit behaviour.
 
 ## Manual full coverage
 
