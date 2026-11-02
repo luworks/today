@@ -350,9 +350,24 @@
           day: cal.startOfDay(for: iso.date), namesDay: true, hour: iso.hasTime ? c.hour : nil,
           minute: iso.hasTime ? (c.minute ?? 0) : 0, minutes: nil)
       }
-      // A bare clock number ("10", "6:45") is a time.
+      // A bare clock number ("10", "6:45") is a time, also next to day words ("tomorrow 10",
+      // "10 Friday") when the rest names a day and no time ("Nov 5" stays a date).
       if raw.range(of: #"^\d{1,2}(?:[:：]\d{2})?$"#, options: .regularExpression) != nil {
         raw = "at " + raw
+      } else {
+        var tokens = raw.split(whereSeparator: \.isWhitespace).map(String.init)
+        let isNumber = { (t: String) in
+          t.range(of: #"^\d{1,2}$"#, options: .regularExpression) != nil
+        }
+        let number =
+          tokens.count > 1 && isNumber(tokens.last!)
+          ? tokens.removeLast()
+          : (tokens.count > 1 && isNumber(tokens[0]) ? tokens.removeFirst() : nil)
+        if let number {
+          let rest = tokens.joined(separator: " ")
+          let dayOnly = CaptureParser.parse(rest, now: now, calendar: cal)
+          if dayOnly.hasDay, dayOnly.hour == nil { raw = rest + " at " + number }
+        }
       }
       let parsed = CaptureParser.parse(raw, now: now, calendar: cal, alarm: alarm)
       guard parsed.hasDay || parsed.hour != nil else { return nil }

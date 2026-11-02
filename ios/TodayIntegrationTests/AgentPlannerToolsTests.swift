@@ -205,7 +205,10 @@
           "propose_create",
           [
             "items": [
-              ["kind": "event", "title": "[QA] Offsite \(words)", "when_text": .string(words)]
+              [
+                "kind": "event", "title": .string("[QA] Offsite \(words)"),
+                "when_text": .string(words),
+              ]
             ]
           ])
         let parsed = try #require(out["results"]?.array?.first?["parsed"])
@@ -285,6 +288,12 @@
         ["items": [["kind": "reminder", "title": "[QA] buy stamps", "when_text": "tomorrow 10"]]])
       #expect(carried["results"]?.array?.first?["parsed"]?["time"] == "10:00")
       #expect(carried["results"]?.array?.first?["parsed"]?["day"] == "Wed 2026-10-21")
+      // A month and day stays a date, not a time.
+      let date = await a.call(
+        "propose_create",
+        ["items": [["kind": "reminder", "title": "[QA] buy stamps", "when_text": "Nov 5"]]])
+      #expect(date["results"]?.array?.first?["parsed"]?["day"] == "Thu 2026-11-05")
+      #expect(date["results"]?.array?.first?["parsed"]?["time"] == .null)
     }
   }
 
