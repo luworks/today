@@ -9,7 +9,7 @@
     import AlarmKit
   #endif
 
-  /// Every countdown timer Today started (AlarmKit, iOS 26+): the ones set on the Timer tab (Apple-style picker and
+  /// Every countdown timer Today started (AlarmKit): the ones set on the Timer tab (Apple-style picker and
   /// Recents, including the Focus / break presets) and the ones started by voice ("Start a timer in Today for 10 minutes"),
   /// Siri, Shortcuts or the Clock schema. Any number run at once, except that a Focus / break preset replaces the
   /// previous one. They ring full-screen through Silent and Focus, even with the app closed.
@@ -80,10 +80,6 @@
         source: phase == nil ? .voice : .card)
       let previous = phase == nil ? nil : timers.first { $0.isCard }
       #if canImport(AlarmKit)
-        guard #available(iOS 26, *) else {
-          message = "Timers need iOS 26 or later."
-          return nil
-        }
         if driver.authorization == .notDetermined {
           await driver.requestAuthorization()
         }
@@ -125,7 +121,6 @@
       guard let timer = timers.first(where: { $0.id == id }), !timer.isPaused else { return }
       do {
         #if canImport(AlarmKit)
-          guard #available(iOS 26, *) else { return }
           do { try driver.manager.pause(id: id) } catch {
             message = "Couldn't pause the timer."
             return
@@ -139,7 +134,6 @@
       guard let timer = timers.first(where: { $0.id == id }), timer.isPaused else { return }
       do {
         #if canImport(AlarmKit)
-          guard #available(iOS 26, *) else { return }
           do { try driver.manager.resume(id: id) } catch {
             message = "Couldn't resume the timer."
             return
@@ -155,10 +149,8 @@
       if ringing.contains(id), timer.isCard { complete(timer) }
       do {
         #if canImport(AlarmKit)
-          if #available(iOS 26, *) {
-            if ringing.contains(id) { try? driver.manager.stop(id: id) }
-            try? driver.manager.cancel(id: id)
-          }
+          if ringing.contains(id) { try? driver.manager.stop(id: id) }
+          try? driver.manager.cancel(id: id)
         #endif
       }
       ringing.remove(id)
@@ -190,10 +182,6 @@
       guard !starting else { return }
       setLog { _ in }  // midnight reset
       #if canImport(AlarmKit)
-        guard #available(iOS 26, *) else {
-          ringing = []
-          return
-        }
         let stored = TimerStore.load(defaults)
         var live: [UUID: LiveTimerState] = [:]
         for alarm in (try? driver.manager.alarms) ?? [] {
@@ -217,7 +205,6 @@
     package func watch() async {
       refresh()
       #if canImport(AlarmKit)
-        guard #available(iOS 26, *) else { return }
         for await _ in driver.manager.alarmUpdates {
           guard !Task.isCancelled else { return }
           refresh()
@@ -253,21 +240,12 @@
     // MARK: AlarmKit configuration
 
     #if canImport(AlarmKit)
-      @available(iOS 26, *)
       nonisolated private static func configuration(for timer: RunningTimer, sound: String)
         -> AlarmManager.AlarmConfiguration<AlarmScheduler.Meta>
       {
         // "Focus", "Break" or the user's name: the full-screen alert, the Lock Screen and the Dynamic Island show this.
         let title = LocalizedStringResource(stringLiteral: TimerList.title(timer))
-        let alert: AlarmPresentation.Alert
-        if #available(iOS 26.1, *) {
-          alert = AlarmPresentation.Alert(title: title)
-        } else {
-          alert = AlarmPresentation.Alert(
-            title: title,
-            stopButton: AlarmButton(text: "Stop", textColor: .white, systemImageName: "stop.circle")
-          )
-        }
+        let alert = AlarmPresentation.Alert(title: title)
         let presentation = AlarmPresentation(
           alert: alert,
           countdown: AlarmPresentation.Countdown(

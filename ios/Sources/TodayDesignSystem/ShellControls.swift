@@ -33,16 +33,10 @@
     }
   }
 
-  /// 0.97 press scale with a light haptic.
-
   extension View {
-    @ViewBuilder
+    /// Liquid Glass circle.
     package func glassCircle() -> some View {
-      if #available(iOS 26, *) {
-        glassEffect(.regular.interactive(), in: Circle())
-      } else {
-        background(.regularMaterial, in: Circle())
-      }
+      glassEffect(.regular.interactive(), in: Circle())
     }
   }
 

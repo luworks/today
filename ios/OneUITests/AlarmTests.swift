@@ -5,7 +5,6 @@ import XCTest
 @MainActor
 final class AlarmTests: XCTestCase {
   func testRingAsAlarmFires() throws {
-    guard #available(iOS 26, *) else { throw XCTSkip("AlarmKit needs iOS 26") }
     #if targetEnvironment(simulator)
       // The simulator answers AlarmKit's authorization request with .denied, so this only runs on a device.
       throw XCTSkip("AlarmKit alarms only ring on a real device")

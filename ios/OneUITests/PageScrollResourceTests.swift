@@ -5,9 +5,6 @@ import XCTest
 final class PageScrollResourceTests: XCTestCase {
   func testYearNativeScrollResources() throws {
     continueAfterFailure = false
-    guard #available(iOS 26.0, *) else {
-      throw XCTSkip("XCTHitchMetric requires iOS 26 or later; no zero-hitch result is implied.")
-    }
     let app = XCUIApplication()
     app.launchArguments = TestData.launchArguments + ["-uiTestingNow", "09:41"]
     app.launch()
