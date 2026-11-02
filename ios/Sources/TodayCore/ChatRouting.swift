@@ -56,7 +56,7 @@ public enum ChatRouting {
     let body = requestBody(text.trimmingCharacters(in: .whitespacesAndNewlines))
     return has(
       body,
-      #"^(?:(?:tidy(?: up)?|clean up|clear|reschedule|sort out) (?:my )?(?:\d+ )?overdue(?: reminders)?)\s*[.!?]*$|^(?:(?:整理|处理|清理)(?:\d+条)?过期(?:提醒)?)(?:好吗|可以吗)?[。！？?]*$"#
+      #"^(?:(?:tidy(?: up)?|clean up|clear|reschedule|sort out) (?:my )?(?:\d+ )?overdue(?: reminders)?)\s*[.!?]*$|^(?:(?:整理|处理|清理)(?:\d+条)?(?:过期|逾期)(?:提醒)?)(?:好吗|可以吗)?[。！？?]*$"#
     )
   }
 

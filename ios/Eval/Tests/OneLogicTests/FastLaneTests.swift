@@ -219,4 +219,12 @@ final class FastLaneTests: XCTestCase {
     XCTAssertFalse(plain.ringsAsAlarm)
     XCTAssertEqual(plain.kind, .task)
   }
+
+  func testATidyRequestIsNeverADirectReminder() {
+    for text in ["整理逾期", "整理过期", "Tidy overdue", "清理逾期提醒", "整理3条逾期"] {
+      XCTAssertTrue(OverdueTidy.isRequest(text), text)
+      if case .directReminder = decide(text) { XCTFail(text) }
+      XCTAssertNil(FastLane.localPreview(text, items: [], now: now, calendar: calendar), text)
+    }
+  }
 }
