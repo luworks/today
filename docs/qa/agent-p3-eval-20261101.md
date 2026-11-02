@@ -406,6 +406,14 @@ the owner. All 20 synthetic accounts were deleted through `DELETE /auth/account`
 `qa-p3-*` users, 0 orphan calls or runs, 1 user = the owner); their `calls` rows went with them, so the
 1,860,000 µ$ above is the only remaining trace of the stranded reservations.
 
+**Reconciled 2026-11-01 (owner approved).** One reviewed change to the production ledger, no rows
+deleted: the 186 deleted-account reservations and the 31 still-`pending` calls (all older than 2.6 h)
+were each charged 471 µ$, the largest settled call on record (a conservative stand-in for the real
+≤ ~300 µ$), and their remaining reservation released; the 31 rows became `status='abandoned'`.
+`budget.used` went from 2,267,656 to 199,863 µ$. Backup: a local export of `budget` and `calls`
+taken immediately before, and D1 Time Travel bookmark
+`0000003f-00000000-00005117-3600912cf101689882690c0ec9b444bf`.
+
 ## Caveats and deviations
 
 - **The holdout author also wrote the fixes.** Fixes for holdout findings (#270) were made after the frozen
