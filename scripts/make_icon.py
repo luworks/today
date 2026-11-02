@@ -8,7 +8,7 @@ import sys
 from PIL import Image, ImageDraw, ImageFont
 
 S = 1024
-TOP, BOTTOM = (44, 44, 46), (22, 22, 24)   # same charcoal gradient as the "1." icon
+TOP, BOTTOM = (44, 44, 46), (22, 22, 24)   # charcoal gradient
 INK = (245, 245, 242)
 ACCENT = (232, 116, 59)
 FONTS = "/usr/share/fonts/opentype/inter/"

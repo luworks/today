@@ -32,7 +32,6 @@ The native SwiftUI app in `ios/` is the product and is ahead of the HTML/JS prot
 - **Side drawer** (`renderDrawer`): ☰ button or left-edge swipe. Today / Calendar / Reminders / Notes / Alarms (no live summaries), conversations (`threads`), AI activity, Lock Screen & widgets mock, Settings.
 - Secondary full views: `vCalendar` (week/month only; the day view is Home), `vTasks` (shown as "Reminders": tasks/projects/notes), `vAlarms` (real alarms only; reminders are a per-item alert, not a list).
 - Sheets with detents (`openSheet`/`renderSheet`), iOS action sheets (`openMenu`), ring screen (`showRing`), toasts with Undo.
-- `vToday` is the older list-style Today; it is no longer routed but kept for reference.
 
 ## Files
 - `src/app.js` — all logic and rendering (vanilla JS, no framework). Seed data in `seed()`. Demo clock: `D0='2026-10-12'`, `NOW=9:41`.
