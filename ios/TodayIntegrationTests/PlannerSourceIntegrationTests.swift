@@ -252,9 +252,10 @@
       a.services.reminders.hasAccess = true
       a.services.reminders.isConnected = true
 
-      DataReset.run(
-        a.context, reminders: a.services.reminders, ledger: a.services.ledger,
-        inbox: EmptyInbox())
+      #expect(
+        DataReset.run(
+          a.context, reminders: a.services.reminders, ledger: a.services.ledger,
+          inbox: EmptyInbox(), focus: a.services.actions.focus))
 
       #expect(try a.context.fetchCount(FetchDescriptor<OneTask>()) == 0)
       #expect(try a.services.activityStore.count() == 0)

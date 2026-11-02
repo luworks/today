@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "about": "Synthetic Today Focus journeys. Dates are relative to load day; tests pin the clock to 09:00. No Apple sync, health inputs, timers or alarms.",
+  "lists": [{ "name": "Focus work", "color": 2 }],
+  "reminders": [
+    { "title": "Focus invoice", "list": "Focus work", "note": "Keep the original deadline and source list.", "due": { "day": 0, "time": "09:00" }, "minutes": 25 },
+    { "title": "Focus overdue", "list": "Focus work", "due": { "day": -1, "time": "17:00" } },
+    { "title": "Focus flexible", "list": "Focus work", "due": { "day": 0 }, "minutes": 60 }
+  ],
+  "events": [{ "title": "Busy meeting", "start": { "day": 0, "time": "10:00" }, "minutes": 60 }],
+  "alarms": [],
+  "chats": []
+}

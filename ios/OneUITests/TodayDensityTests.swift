@@ -75,14 +75,15 @@ final class TodayDensityTests: XCTestCase {
     cancel.tap()
     XCTAssertTrue(title.waitForExistence(timeout: 4))
     title.swipeLeft()
-    XCTAssertTrue(app.buttons["Tomorrow"].firstMatch.waitForExistence(timeout: 3))
+    XCTAssertTrue(app.buttons["Settle"].firstMatch.waitForExistence(timeout: 3))
+    XCTAssertTrue(app.buttons["Tomorrow"].firstMatch.exists)
     XCTAssertTrue(app.buttons["Delete"].firstMatch.exists)
     capture(app, name: "today-density-swipe")
     // The swiped title is shifted toward the left edge, where a right drag opens the sidebar.
     app.collectionViews.firstMatch.cells.containing(
       NSPredicate(format: "label BEGINSWITH %@", "Free ")
     ).firstMatch.tap()
-    XCTAssertTrue(app.buttons["Tomorrow"].firstMatch.waitForNonExistence(timeout: 3))
+    XCTAssertTrue(app.buttons["Settle"].firstMatch.waitForNonExistence(timeout: 3))
     complete.tap()
     XCTAssertTrue(app.staticTexts["Buy groceries and fill the car"].waitForNonExistence(timeout: 3))
     XCTAssertFalse(

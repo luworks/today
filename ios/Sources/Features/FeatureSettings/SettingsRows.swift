@@ -13,9 +13,15 @@
   /// Settings > Today: the timeline's extras. Rows only; they sit inside the Today section.
   package struct TodayTimelineSettings: View {
     package init() {}
+    @AppStorage(Preferences.showSettleKey) private var showsSettle = Preferences.showSettle
     @AppStorage(Preferences.showFreeTimeKey) private var showsFreeTime = Preferences.showFreeTime
 
     package var body: some View {
+      ExplainedToggle(
+        title: "Show Settle", isOn: $showsSettle,
+        caption:
+          "Show Settle actions and Settled items in Today. Settle hides an item in Today only. Turn this back on to access settled items."
+      )
       ExplainedToggle(
         title: "Show free time", isOn: $showsFreeTime,
         caption: "Quiet “Free 1 h” lines in the gaps between your plans.")

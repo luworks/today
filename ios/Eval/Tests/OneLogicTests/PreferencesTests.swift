@@ -61,19 +61,19 @@ final class PreferencesTests: XCTestCase {
     XCTAssertEqual(Preferences.newAlarmSoundName(d), "")
   }
 
-  func testSwitchDefaultsAndExplicitPreferencesSurviveRelaunch() {
+  func testFocusVisibilityDefaultsAndExplicitPreferencesSurviveRelaunch() {
     let d = freshDefaults()
     XCTAssertEqual(
-      d.object(forKey: Preferences.showFreeTimeKey) as? Bool ?? Preferences.showFreeTime, true)
-    d.set(false, forKey: Preferences.showFreeTimeKey)
+      d.object(forKey: Preferences.showSettleKey) as? Bool ?? Preferences.showSettle, true)
+    d.set(false, forKey: Preferences.showSettleKey)
     LaunchTestConfiguration.applyPreferenceOverrides(arguments: [], defaults: d)
-    XCTAssertEqual(d.object(forKey: Preferences.showFreeTimeKey) as? Bool, false)
+    XCTAssertEqual(d.object(forKey: Preferences.showSettleKey) as? Bool, false)
     LaunchTestConfiguration.applyPreferenceOverrides(
       arguments: ["-uiTesting", "-uiTestingKeepPreferences"], defaults: d)
-    XCTAssertEqual(d.object(forKey: Preferences.showFreeTimeKey) as? Bool, false)
+    XCTAssertEqual(d.object(forKey: Preferences.showSettleKey) as? Bool, false)
     LaunchTestConfiguration.applyPreferenceOverrides(
-      arguments: ["-uiTesting", "-uiTestingPrefs", "showFreeTime=1"], defaults: d)
-    XCTAssertEqual(d.object(forKey: Preferences.showFreeTimeKey) as? Bool, true)
+      arguments: ["-uiTesting", "-uiTestingPrefs", "showSettle=1"], defaults: d)
+    XCTAssertEqual(d.object(forKey: Preferences.showSettleKey) as? Bool, true)
   }
 
   func testEveryKeyIsListedOnceAndSharesThePrefix() {

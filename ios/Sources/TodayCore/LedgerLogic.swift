@@ -108,7 +108,6 @@ public enum LedgerChannel: String, CaseIterable {
 /// What happened.
 public enum LedgerAction: String {
   case created, completed, reopened, deleted
-  /// Retired with Settle and Today Snooze; kept so older Activity rows still read.
   case settled, snoozed, restored
   /// A planned time was given to something that had none.
   case planned
@@ -238,7 +237,7 @@ public enum LedgerFormat {
 
   /// Activity offers Undo for changes it can put back on its own: Today's own reminders (complete, date, rename, add,
   /// delete) and alarms (add, delete, edit, on/off; each needs the snapshot taken when it changed, so old rows and rows older
-  /// than the snapshot window have none). Not for old Settle entries (Settle was removed), grants, undo records, changes seen
+  /// than the snapshot window have none). Not for Focus choices (Settle and its reverse), grants, undo records, changes seen
   /// in sync, or something already undone.
   public static func canUndo(
     action: LedgerAction, itemKind: String, approval: LedgerApproval, hasItem: Bool,
