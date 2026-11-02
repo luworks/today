@@ -98,6 +98,10 @@ final class AIRecurringReminderTests: XCTestCase {
   }
   private func assertNoPlannerWrites() {
     app.buttons["Close"].firstMatch.tap()
+    // Activity lives in the sidebar: open it from the page's menu button.
+    let menu = app.buttons["Open menu"].firstMatch
+    XCTAssertTrue(menu.waitForExistence(timeout: 5))
+    menu.tap()
     let activity = app.buttons["Activity"].firstMatch
     XCTAssertTrue(activity.waitForExistence(timeout: 5))
     activity.tap()

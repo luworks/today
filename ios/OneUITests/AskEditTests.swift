@@ -74,8 +74,9 @@ final class AskEditTests: XCTestCase {
     for (i, c) in cases.enumerated() {
       send(c.input)
       let direct = [0, 3, 4].contains(i)
-      let stack = app.descendants(matching: .any).matching(identifier: "capture-stack").element(
-        boundBy: i)
+      // The list is lazy (cards scrolled off leave the tree), so find this case's card by its text.
+      let stack = app.descendants(matching: .any).matching(identifier: "capture-stack")
+        .containing(NSPredicate(format: "label CONTAINS %@", c.expect[0])).firstMatch
       let action = direct ? stack.buttons["capture-open"] : stack.buttons["Add"]
       XCTAssertTrue(action.waitForExistence(timeout: 90), "card for \(c.input)")
       if direct {

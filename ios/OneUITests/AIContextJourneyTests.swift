@@ -10,7 +10,9 @@ final class AIContextJourneyTests: XCTestCase {
     await MainActor.run {
       continueAfterFailure = false
       app = XCUIApplication()
-      app.launchArguments = TestData.fixtureArguments("ai-context-ui.json")
+      // A fixed morning clock: "今天晚上6点" / "6pm tonight" must still be ahead.
+      app.launchArguments =
+        TestData.fixtureArguments("ai-context-ui.json") + ["-uiTestingNow", "09:11"]
       app.launch()
     }
   }
@@ -77,7 +79,9 @@ final class AIContextJourneyTests: XCTestCase {
         .firstMatch.exists,
       "The new thread cannot borrow the old thread's 6pm time")
     XCTAssertFalse(app.descendants(matching: .any)["capture-added"].exists)
-    XCTAssertEqual(app.buttons.matching(identifier: "Add").count, 1)
+    // Only this thread offers an Add (the closed thread stays built, hidden).
+    XCTAssertEqual(
+      app.buttons.matching(identifier: "Add").allElementsBoundByIndex.filter(\.isHittable).count, 1)
 
     closeChatToSidebar()
     tapStoredThread()
@@ -186,6 +190,7 @@ final class AIContextJourneyTests: XCTestCase {
     closeChatToSidebar()
     let activity = app.buttons["Activity"].firstMatch
     XCTAssertTrue(activity.waitForExistence(timeout: 5))
+    if !activity.isHittable { app.openSidebar() }
     activity.tap()
     XCTAssertTrue(
       app.staticTexts["No activity yet"].waitForExistence(timeout: 5),
