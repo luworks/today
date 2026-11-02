@@ -62,39 +62,19 @@ final class AskEditTests: XCTestCase {
 
   // MARK: Capture
 
-  func testCapture_fiveSentences() {
+  // Sentence routing is covered by AskRouterTests; retain the real direct-save receipt and Undo.
+  func testDirectCaptureShowsReceiptAndUndo() {
     launch()
-    let cases: [(input: String, expect: [String], notExpect: [String])] = [
-      ("Call Alex tomorrow at 3pm", ["Call Alex", "New reminder", "alerts you"], []),
-      ("周五晚上7点和朋友聚餐", ["和朋友聚餐", "19:00"], []),
-      ("明早7点叫我起床", ["Alarm Tomorrow 07:00"], []),
-      ("提醒我下周一交报销单", ["交报销单"], ["Alarm "]),
-      ("30分钟后关烤箱", ["关烤箱", "New reminder", "alerts you"], []),
-    ]
-    for (i, c) in cases.enumerated() {
-      send(c.input)
-      let direct = [0, 3, 4].contains(i)
-      // The list is lazy (cards scrolled off leave the tree), so find this case's card by its text.
-      let stack = app.descendants(matching: .any).matching(identifier: "capture-stack")
-        .containing(NSPredicate(format: "label CONTAINS %@", c.expect[0])).firstMatch
-      let action = direct ? stack.buttons["capture-open"] : stack.buttons["Add"]
-      XCTAssertTrue(action.waitForExistence(timeout: 90), "card for \(c.input)")
-      if direct {
-        XCTAssertTrue(stack.descendants(matching: .any)["capture-added"].exists)
-      }
-      for e in c.expect {
-        XCTAssertTrue(cardText(containing: e).exists, "'\(e)' on the card for \(c.input)")
-      }
-      for n in c.notExpect {
-        XCTAssertFalse(cardText(containing: n).exists, "no '\(n)' for \(c.input)")
-      }
-      shot("capture-\(i + 1)")
-      if direct {
-        if i != 0 { stack.buttons["capture-undo"].tap() }
-      } else {
-        app.buttons["Cancel"].tap()
-      }
-    }
+    send("Call Alex tomorrow at 3pm")
+    let stack = app.descendants(matching: .any).matching(identifier: "capture-stack")
+      .containing(NSPredicate(format: "label CONTAINS %@", "Call Alex")).firstMatch
+    XCTAssertTrue(stack.buttons["capture-open"].waitForExistence(timeout: 90))
+    XCTAssertTrue(stack.descendants(matching: .any)["capture-added"].exists)
+    XCTAssertTrue(cardText(containing: "Call Alex").exists)
+    XCTAssertTrue(cardText(containing: "New reminder").exists)
+    XCTAssertTrue(cardText(containing: "alerts you").exists)
+    stack.buttons["capture-undo"].tap()
+    XCTAssertTrue(stack.descendants(matching: .any)["capture-undone"].waitForExistence(timeout: 5))
   }
 
   // MARK: Edit

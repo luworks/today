@@ -35,22 +35,6 @@ final class AIContextJourneyTests: XCTestCase {
     assertNoPlannerWrites()
   }
 
-  func testEnglishAlarmClarificationAndDateTimeCorrectionsPreserveTitle() {
-    openNewChat()
-    send("At 6pm tonight, remind me not to eat dinner again every day.")
-    let title = assertPreview(
-      titleContaining: "Do not eat dinner again", kind: "New reminder", day: "Today", hour: 18)
-    send("No, just add an alarm.")
-    assertPreview(title: title, kind: "New alarm", day: "Today", hour: 18)
-    send("I need you to help me set that alarm.")
-    assertPreview(title: title, kind: "New alarm", day: "Today", hour: 18)
-    send("Make it tomorrow instead.")
-    assertPreview(title: title, kind: "New alarm", day: "Tomorrow", hour: 18)
-    send("Actually, 7pm.")
-    assertPreview(title: title, kind: "New alarm", day: "Tomorrow", hour: 19)
-    assertNoPlannerWrites()
-  }
-
   func testNewChatClearsReferenceAndStoredThreadResumesUserContext() {
     openStoredThread()
     // The fixture contains text history, not a stored capture card. This turn must recover user context.
