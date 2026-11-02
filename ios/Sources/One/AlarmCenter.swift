@@ -98,7 +98,6 @@
     /// Every update also runs a sync, so a one-time alarm that rang is switched off in the list.
     package func watch(context: ModelContext) async {
       #if canImport(AlarmKit)
-        guard #available(iOS 26, *) else { return }
         refreshStates()
         let session = WatchSession(context: context, driver: driver)
         await withTaskGroup(of: Void.self) { group in
@@ -110,7 +109,6 @@
 
     private func refreshStates() {
       #if canImport(AlarmKit)
-        guard #available(iOS 26, *) else { return }
         guard authorization == .authorized else {
           states = [:]
           return

@@ -60,8 +60,7 @@
       case .metersPerSecond: HKUnit.meter().unitDivided(by: .second())
       case .perMinute: HKUnit.count().unitDivided(by: .minute())
       case .watts: .watt()
-      case .effortScore:
-        if #available(iOS 18.0, *) { .appleEffortScore() } else { .count() }
+      case .effortScore: .appleEffortScore()
       case .metabolicRate:
         HKUnit.kilocalorie().unitDivided(by: .gramUnit(with: .kilo)).unitDivided(by: .hour())
       case .decibels: .decibelAWeightedSoundPressureLevel()

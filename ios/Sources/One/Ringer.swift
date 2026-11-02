@@ -13,7 +13,7 @@
     import AppIntents
   #endif
 
-  /// Real alarms (AlarmKit, iOS 26+): full-screen, ring through Silent and Focus. Covers the alarms made on
+  /// Real alarms (AlarmKit): full-screen, ring through Silent and Focus. Covers the alarms made on
   /// the Alarms tab (`OneAlarm`, one stable AlarmKit id each) and tasks/events marked "Ring as alarm".
   /// Stopping an alarm never completes the task; only Done does.
   ///
@@ -39,12 +39,10 @@
       self.runtime = runtime
       Task { [weak self] in await self?.refreshAuthorization() }
       #if canImport(AlarmKit)
-        if #available(iOS 26, *) {
-          authorizationTask = Task { [weak self] in
-            for await state in AlarmManager.shared.authorizationUpdates {
-              guard !Task.isCancelled else { return }
-              self?.receiveAuthorization(Self.authorization(state))
-            }
+        authorizationTask = Task { [weak self] in
+          for await state in AlarmManager.shared.authorizationUpdates {
+            guard !Task.isCancelled else { return }
+            self?.receiveAuthorization(Self.authorization(state))
           }
         }
       #endif
@@ -76,19 +74,14 @@
     package func releaseTimer(_ id: UUID) { schedulingTimers.remove(id) }
 
     #if canImport(AlarmKit)
-      @available(iOS 26, *)
       package nonisolated var manager: AlarmManager { AlarmManager.shared }
     #endif
-    package var isAvailable: Bool {
-      if #available(iOS 26, *) { return true }
-      return false
-    }
+    package var isAvailable: Bool { true }
 
     package var authorization: AlarmAuthorization { authorizationCache.state }
     package var isDenied: Bool { authorization == .denied }
 
     #if canImport(AlarmKit)
-      @available(iOS 26, *)
       package nonisolated static func authorization(_ state: AlarmManager.AuthorizationState)
         -> AlarmAuthorization
       {
@@ -107,10 +100,6 @@
 
     private func refreshAuthorization() async {
       #if canImport(AlarmKit)
-        guard #available(iOS 26, *) else {
-          authorizationCache.receive(.unavailable)
-          return
-        }
         await authorizationCache.refresh {
           await withCheckedContinuation { continuation in
             // AlarmManager is nonisolated in the SDK. Its getter may wait on synchronous XPC;
@@ -127,7 +116,6 @@
     /// Consume the returned decision directly; reading authorizationState here can deadlock after denial.
     package func requestAuthorization() async {
       #if canImport(AlarmKit)
-        guard #available(iOS 26, *) else { return }
         await authorizationCache.request {
           try await Self.authorization(manager.requestAuthorization())
         }
@@ -147,7 +135,6 @@
     ///   and the countdown timers (`TimerStore`, see TimerController.swift).
     package func sync(_ context: ModelContext) async {
       #if canImport(AlarmKit)
-        guard #available(iOS 26, *) else { return }
         if isSyncing {
           syncAgain = true
           return
@@ -208,8 +195,7 @@
     private func cancelSystem(_ alarm: OneAlarm) throws {
       guard let id = alarm.alarmKitID else { return }
       #if canImport(AlarmKit)
-        guard #available(iOS 26, *), authorization == .authorized,
-          !timerIDs.contains(id)
+        guard authorization == .authorized, !timerIDs.contains(id)
         else { throw AlarmActions.Failure.unavailable }
         // AlarmManager exposes only the current client's namespace.
         if try manager.alarms.contains(where: { $0.id == id }) { try manager.cancel(id: id) }
@@ -220,7 +206,6 @@
 
     private func write(_ alarm: OneAlarm) async throws {
       #if canImport(AlarmKit)
-        guard #available(iOS 26, *) else { throw AlarmActions.Failure.unavailable }
         if authorization == .notDetermined { await requestAuthorization() }
         guard authorization == .authorized, let id = alarm.alarmKitID,
           !timerIDs.contains(id)
@@ -248,14 +233,12 @@
     /// Stops a ringing alarm (the Stop button on the row). Never completes a task.
     package func stop(_ id: UUID) {
       #if canImport(AlarmKit)
-        guard #available(iOS 26, *) else { return }
         try? manager.stop(id: id)
       #endif
     }
   }
 
   #if canImport(AlarmKit)
-    @available(iOS 26, *)
     @MainActor
     package enum AlarmScheduler {
       typealias Meta = AlarmMeta
@@ -415,17 +398,8 @@
         let snoozeButton = AlarmButton(text: "Snooze", textColor: .white, systemImageName: "zzz")
         let secondary = snooze ? snoozeButton : nil
         let behavior: AlarmPresentation.Alert.SecondaryButtonBehavior? = snooze ? .countdown : nil
-        let alert: AlarmPresentation.Alert
-        if #available(iOS 26.1, *) {
-          alert = AlarmPresentation.Alert(
-            title: resource, secondaryButton: secondary, secondaryButtonBehavior: behavior)
-        } else {
-          alert = AlarmPresentation.Alert(
-            title: resource,
-            stopButton: AlarmButton(
-              text: "Stop", textColor: .white, systemImageName: "stop.circle"),
-            secondaryButton: secondary, secondaryButtonBehavior: behavior)
-        }
+        let alert = AlarmPresentation.Alert(
+          title: resource, secondaryButton: secondary, secondaryButtonBehavior: behavior)
         // While snoozing, the countdown shows the alarm's title (what Clock shows under the snooze timer).
         let presentation = AlarmPresentation(
           alert: alert,

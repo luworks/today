@@ -1045,7 +1045,7 @@
       // iOS 27's remote editor disables Done for an unchanged existing event.
       // Keep completion and explicit EventKit errors under our control; new events
       // and the full system options still use Apple's editor.
-      if #available(iOS 27, *), !fullOptions, let identifier,
+      if !fullOptions, let identifier,
         let (event, store) = sync.nativeEvent(identifier: identifier, occurrence: start),
         let top = Self.topViewController()
       {
