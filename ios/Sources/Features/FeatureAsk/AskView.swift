@@ -583,32 +583,19 @@
         change?.expectedTask = Ledger.snapshot(of: task)
         return
       }
-      let intent = FastLane.intent(text)
-      // Rule gates first, in this order; only `.directReminder` writes without a card.
-      let decision = FastLane.decide(
-        text, intent: intent, context: turnContext, pending: pending,
+      let route = AskRouter.plan(
+        text, context: turnContext, pending: pending,
         savedDraft: proposals.last.map { $0.status != .open } ?? false,
-        editItems: { editItems() }, now: sentAt, calendar: runtime.calendar)
-      let agentOpen = agent?.hasOpenCards ?? false
-      // An answer to FastLane's own open preview ("make it 5pm", "never mind") stays with the rules;
-      // it never applies an agent card (§4.2).
-      // A question-shaped time answer ("How about 5pm?") counts; other conversation never edits a card.
-      let answer =
-        FastLane.timeAnswer(text, hasTimeContext: hasLocalTimeContext)
-        ?? (intent == .conversation ? nil : text)
-      // It runs before the one-off gate too: "make it 4pm" edits the open preview, it is not a new
-      // reminder titled "it". A new request ("Remind me to call Mom at 5pm") is not a refinement.
-      let answersPreview: Bool
-      switch decision {
-      case .notFastLane, .directReminder: answersPreview = !agentOpen
-      case .clarifyCorrection, .continuation: answersPreview = false
-      }
-      if answersPreview, let answer, answerOpenPreview(answer) {
+        agentHasOpenCards: agent?.hasOpenCards ?? false,
+        hasLocalTimeContext: hasLocalTimeContext, editItems: { editItems() },
+        now: sentAt, calendar: runtime.calendar)
+      let decision = route.decision
+      if let answer = route.previewAnswer, answerOpenPreview(answer) {
         recordTurn("answer", text)
         return
       }
       // Everything else FastLane doesn't take goes to the agent (§4.1).
-      if AgentRouting.useAgent(decision, agentHasOpenCards: agentOpen) {
+      if route.useAgent {
         // Not signed in to Luna AI: rules only, no request (§4.7 #3).
         guard agentModel.isAvailable() else {
           runLocally(text, typed: typed, error: .unavailable)
