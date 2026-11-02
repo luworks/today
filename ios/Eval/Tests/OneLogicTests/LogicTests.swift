@@ -126,14 +126,25 @@ final class AlarmPlanTests: XCTestCase {
     cal.date(from: DateComponents(year: 2026, month: 10, day: day, hour: h, minute: m))!
   }
 
-  func testNextTenMinutes() {
-    XCTAssertEqual(AlarmPlan.nextTenMinutes(after: at(12, 10, 56), calendar: cal), at(12, 11, 0))
-    XCTAssertEqual(AlarmPlan.nextTenMinutes(after: at(12, 10, 41), calendar: cal), at(12, 10, 50))
+  func testNextFiveMinutes() {
+    XCTAssertEqual(AlarmPlan.nextFiveMinutes(after: at(12, 10, 56), calendar: cal), at(12, 11, 0))
+    XCTAssertEqual(AlarmPlan.nextFiveMinutes(after: at(12, 10, 41), calendar: cal), at(12, 10, 45))
+    XCTAssertEqual(AlarmPlan.nextFiveMinutes(after: at(12, 10, 52), calendar: cal), at(12, 10, 55))
     XCTAssertEqual(
-      AlarmPlan.nextTenMinutes(after: at(12, 10, 50), calendar: cal), at(12, 11, 0),
+      AlarmPlan.nextFiveMinutes(after: at(12, 10, 50), calendar: cal), at(12, 10, 55),
       "on a mark, the next one")
-    XCTAssertEqual(AlarmPlan.nextTenMinutes(after: at(12, 10, 0), calendar: cal), at(12, 10, 10))
-    XCTAssertEqual(AlarmPlan.nextTenMinutes(after: at(12, 23, 55), calendar: cal), at(13, 0, 0))
+    XCTAssertEqual(AlarmPlan.nextFiveMinutes(after: at(12, 10, 0), calendar: cal), at(12, 10, 5))
+    XCTAssertEqual(AlarmPlan.nextFiveMinutes(after: at(12, 23, 55), calendar: cal), at(13, 0, 0))
+    XCTAssertEqual(AlarmPlan.nextFiveMinutes(after: at(12, 23, 58), calendar: cal), at(13, 0, 0))
+  }
+
+  func testAlarmMinuteStep() {
+    XCTAssertEqual(AlarmPlan.minuteStep(forAlarmMinute: nil), 5, "a new alarm: 00, 05 … 55")
+    XCTAssertEqual(AlarmPlan.minuteStep(forAlarmMinute: 0), 5)
+    XCTAssertEqual(AlarmPlan.minuteStep(forAlarmMinute: 35), 5)
+    XCTAssertEqual(
+      AlarmPlan.minuteStep(forAlarmMinute: 42), 1, "off the grid: every minute, so 42 stays")
+    XCTAssertEqual(AlarmPlan.minuteStep(forAlarmMinute: 7), 1)
   }
 
   func testNextQuarterHour() {

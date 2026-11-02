@@ -595,8 +595,10 @@ final class CRUDTests: XCTestCase {
     XCTAssertTrue(created.waitForExistence(timeout: 5), "the new alarm is listed")
     XCTAssertEqual(alarmRows.count, 5)
     XCTAssertTrue(
-      [":00", ":10", ":20", ":30", ":40", ":50"].contains { created.label.contains($0) },
-      "opens on a ten-minute mark: \(created.label)")
+      stride(from: 0, to: 60, by: 5).contains {
+        created.label.contains(String(format: ":%02d", $0))
+      },
+      "opens on a five-minute mark: \(created.label)")
 
     // Update: minutes and label (right away: a just-created alarm must keep its editor open).
     created.tap()

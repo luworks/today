@@ -576,11 +576,20 @@ public enum AlarmPlan {
     }.joined(separator: ", ")
   }
 
-  /// The next ten-minute mark after `date` (10:56 → 11:00, 10:41 → 10:50): where Add Alarm opens, on the
-  /// alarm wheel's ten-minute minute column.
-  public static func nextTenMinutes(after date: Date, calendar: Calendar = .current) -> Date {
+  /// The alarm wheel's minute step: rows 00, 05 … 55.
+  public static let wheelMinuteStep = 5
+
+  /// The minute column's step for an alarm at `minute` (nil = a new alarm): `wheelMinuteStep`, or 1 when the
+  /// minute is off that grid (7:42), so opening and saving the alarm never moves its minute.
+  public static func minuteStep(forAlarmMinute minute: Int?) -> Int {
+    (minute ?? 0) % wheelMinuteStep == 0 ? wheelMinuteStep : 1
+  }
+
+  /// The next five-minute mark after `date` (10:56 → 11:00, 10:41 → 10:45): where Add Alarm opens, on the
+  /// alarm wheel's five-minute minute column.
+  public static func nextFiveMinutes(after date: Date, calendar: Calendar = .current) -> Date {
     let c = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: date)
-    let next = ((c.minute ?? 0) / 10 + 1) * 10
+    let next = ((c.minute ?? 0) / wheelMinuteStep + 1) * wheelMinuteStep
     let base =
       calendar.date(
         from: DateComponents(year: c.year, month: c.month, day: c.day, hour: c.hour, minute: 0))

@@ -24,7 +24,7 @@
     /// Change it to show `minutes` again (a new trial), stopping any motion.
     var resetID: Int
     var adaptiveMinutes: Bool
-    /// The minute column's step: 1 = every minute, 10 = 00, 10 … 50. `minutes` must be a multiple of it.
+    /// The minute column's step: 1 = every minute, 5 = 00, 05 … 55. `minutes` must be a multiple of it.
     var minuteStep: Int
     var locale: Locale
     var onEvent: (TimeWheelEvent, Double) -> Void
@@ -123,7 +123,7 @@
     var minutes: Int { hours.value * 60 + mins.minuteValue }
 
     func configure(adaptive: Bool, locale: Locale) {
-      // A coarse step has only a few rows: nothing to compress.
+      // A coarse step has only 12 rows, each already labelled 00, 05 …: nothing to compress.
       mins.setAdaptive(adaptive && minuteStep == 1)
       guard locale != self.locale else { return }
       self.locale = locale
@@ -215,7 +215,7 @@
     private var link: CADisplayLink?
     private var labelStep = 1
     private var reportedValue: Int
-    /// Minutes per row in the minute column (10 → 00, 10 … 50); 1 for hours.
+    /// Minutes per row in the minute column (5 → 00, 05 … 55); 1 for hours.
     private let step: Int
 
     init(kind: Kind, value: Int, adaptive: Bool, step: Int = 1) {

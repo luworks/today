@@ -361,6 +361,24 @@ final class TimeWheelTests: XCTestCase {
     XCTAssertEqual(h.wheel.value, 12, "11 AM → 12 PM: the hour column carries AM/PM")
   }
 
+  /// The alarm editor's five-minute column: 12 rows (00, 05 … 55), one slow row is one step, and it wraps.
+  func testFiveMinuteColumnStepsOneRowAndWraps() {
+    let rows = 60 / AlarmPlan.wheelMinuteStep
+    XCTAssertEqual(rows, 12)
+    var f = Finger(TimeWheelColumn(count: rows, value: 6))
+    f.down()
+    f.move(-row, over: 0.3)
+    f.up()
+    f.settle()
+    XCTAssertEqual(f.wheel.value * AlarmPlan.wheelMinuteStep, 35, "30 → 35")
+    f.wheel.set(value: rows - 1)
+    f.down(after: 0.1)
+    f.move(-row, over: 0.3)
+    f.up()
+    f.settle()
+    XCTAssertEqual(f.wheel.value, 0, "55 → 00")
+  }
+
   func testFixedColumnNeverCompresses() {
     var h = Finger(TimeWheelColumn(count: 24, value: 7, adaptive: false))
     h.down()

@@ -118,8 +118,8 @@
     let alarm: OneAlarm?
 
     @State private var time: Date
-    /// The minute wheel's step: 10 (00, 10 … 50), or 1 when the alarm being edited is not on a ten-minute mark, so
-    /// opening and saving it never moves its minute.
+    /// The minute wheel's step: 5 (00, 05 … 55), or 1 when the alarm being edited is not on a five-minute mark, so
+    /// opening and saving it never moves its minute (`AlarmPlan.minuteStep`).
     @State private var minuteStep: Int
     @State private var label: String
     @State private var weekdays: Set<Int>
@@ -145,14 +145,14 @@
       self.soundPreview = soundPreview
       self.runtime = runtime
       self.onCreated = onCreated
-      // A new alarm starts at the next ten-minute mark (10:56 → 11:00), so it still rings today when saved straight away.
+      // A new alarm starts at the next five-minute mark (10:52 → 10:55), so it still rings today when saved straight away.
       _time = State(
         initialValue: alarm.map {
           runtime.calendar.date(
             bySettingHour: $0.hour, minute: $0.minute, second: 0, of: runtime.now())
             ?? runtime.now()
-        } ?? AlarmPlan.nextTenMinutes(after: runtime.now(), calendar: runtime.calendar))
-      _minuteStep = State(initialValue: (alarm?.minute ?? 0) % 10 == 0 ? 10 : 1)
+        } ?? AlarmPlan.nextFiveMinutes(after: runtime.now(), calendar: runtime.calendar))
+      _minuteStep = State(initialValue: AlarmPlan.minuteStep(forAlarmMinute: alarm?.minute))
       _label = State(initialValue: alarm?.label ?? "")
       _weekdays = State(initialValue: Set(alarm?.weekdays ?? []))
       // A new alarm starts like one made in the chat or by Siri (Settings > Alarms); an existing one keeps its own.
