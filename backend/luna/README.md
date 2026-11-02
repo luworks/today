@@ -92,15 +92,14 @@ Pinned dev dependencies and security overrides are in package-lock.json. The loc
 Miniflare test compatibility date is2026-07-30 (its stable runtime); deployed Worker
 compatibility is2026-10-29. No date-specific Worker feature is used.
 
-`python3 smoke.py --output <fresh-private-results>/https-e2e.json` performs one paid
-synthetic request after registration/login, verifies usage, logout and deletion,
-and always attempts deletion of its synthetic account. It refuses to overwrite a
-receipt and never prints passwords/tokens. Requests identify the client honestly as
-TodayAPISmoke; the default Python-urllib user agent is rejected by Cloudflare1010.
+`python3 smoke.py --output <fresh-private-results>/https-e2e.json` is the one live
+end-to-end check: register and log in a synthetic account, send one paid agent step
+(`tools_version: v1`, a fresh `run_id`), verify `runsUsed` is 1, log out, delete the
+account and confirm both sessions are rejected. It always attempts deletion of its
+synthetic account, refuses to overwrite a receipt and never prints passwords/tokens.
+Each run uses one of the 3 registrations/day/IP. Requests identify the client honestly as
+TodayAPISmoke; the default Python-urllib user agent is rejected by Cloudflare 1010.
 The app uses Today-iOS as its client identifier. No Cloudflare security setting was widened.
-
-`python3 agent_probe.py --output <fresh-private-results>/probe.jsonl` runs the bounded
-P0 real-request checks (synthetic data only; see `docs/qa/agent-p0-20261031.md`).
 
 Deployment uses the existing authorized Wrangler profile, `wrangler d1 execute DB
 --remote --file schema.sql` and `wrangler deploy`. Schema is additive/idempotent;
@@ -108,10 +107,5 @@ its INSERT OR IGNORE never resets existing accounting. Upload secret values thro
 private stdin, never command-line literals or committed files. Reapply no schema or
 secret unless required by a reviewed change.
 
-Retained evidence: primary checkout tests/results/luna-production-20261029/:
-`https-e2e-v2.json`, `https-quota.json`, redacted secret-upload.log. E2E observed distinct
-sessions, one real GPT medium response, usage1/40, logout→401, delete→401 and test-user
-cleanup. A second synthetic account was saturated through the admin-owned D1 counter;
-seven real HTTPS calls returned429, zero paid calls were created and budget stayed
-unchanged. Both synthetic users/sessions were deleted. No phone install/UI test was run
-by this implementation owner; root owns same-SHA CI/smoke and phone acceptance.
+Evidence of the deployed agent mode is in the dated QA reports
+`docs/qa/agent-p0-20261031.md` and `docs/qa/agent-p4-20261101.md`.
