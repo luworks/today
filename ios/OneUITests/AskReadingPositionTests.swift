@@ -31,7 +31,7 @@ final class AskReadingPositionTests: XCTestCase {
     .allElementsBoundByIndex.first { $0.isHittable && scroll.frame.contains($0.frame) }
     XCTAssertNotNil(earlier, "A real upward history pan must reveal an earlier message")
     guard let earlier else { return }
-    let reply = app.staticTexts["This is a slow scripted answer. Nothing was changed."]
+    let reply = app.staticTexts["This is a slow scripted answer."]
     XCTAssertFalse(reply.exists, "The scripted answer must still be pending after the real pan")
     let before = earlier.frame.minY
     // Wait beyond the 12 s delay; this tests a real gesture, not setContentOffset. The list is lazy, so the answer

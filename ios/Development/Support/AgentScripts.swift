@@ -18,12 +18,12 @@
       switch name {
       // A plain answer, no cards.
       case "reply":
-        return [ScriptedModelClient.reply("This is a scripted answer. Nothing was changed.")]
+        return [ScriptedModelClient.reply("This is a scripted answer.")]
       // The same, 12 seconds late: what the chat does while an answer is still coming.
       case "slow-reply":
         return [
           ScriptedModelClient.reply(
-            "This is a slow scripted answer. Nothing was changed.", delay: .seconds(12))
+            "This is a slow scripted answer.", delay: .seconds(12))
         ]
       // Signed in, but the request fails: the rules take over.
       case "offline":

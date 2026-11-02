@@ -74,7 +74,9 @@ final class AIReminderRecoveryTests: XCTestCase {
     open("Costco wrong chat")
     send("setting reminder")
     assertAdded()
-    send("one off")
+    // After Added, "one off" is not a continuation (#270): it never adds a second reminder.
+    // Not signed in, it gets the sign-in reply and the draft goes back.
+    sendKeepingDraft("one off")
     assertAdded()
     XCTAssertEqual(app.buttons.matching(identifier: "capture-open").count, 1)
     app.buttons["Close"].firstMatch.tap()
@@ -89,7 +91,7 @@ final class AIReminderRecoveryTests: XCTestCase {
         .firstMatch.exists)
     app.buttons["Cancel"].tap()
     app.buttons["capture-undo"].firstMatch.tap()
-    send("one off")
+    sendKeepingDraft("one off")
     XCTAssertFalse(
       app.buttons["capture-open"].exists, "A continuation cannot recreate an undone reminder")
   }
@@ -113,7 +115,11 @@ final class AIReminderRecoveryTests: XCTestCase {
     send("11点去 costco 加油 买 粒粒")
     XCTAssertTrue(app.buttons["Add"].firstMatch.waitForExistence(timeout: 5))
     XCTAssertFalse(app.buttons["capture-open"].exists, "A failed save is never Added")
-    app.buttons["Add"].firstMatch.tap()
+    // The closed first chat stays built (hidden); tap this chat's own Add.
+    let add = app.buttons.matching(identifier: "Add").allElementsBoundByIndex.first(
+      where: \.isHittable)
+    XCTAssertNotNil(add)
+    add?.tap()
     assertAdded()
     XCTAssertEqual(app.buttons.matching(identifier: "capture-open").count, 1)
     app.buttons["capture-undo"].firstMatch.tap()
@@ -148,6 +154,19 @@ final class AIReminderRecoveryTests: XCTestCase {
     app.buttons["ask-send"].tap()
     XCTAssertTrue(app.buttons["ask-send"].waitForNonExistence(timeout: 5))
     XCTAssertTrue(app.staticTexts["Thinking…"].waitForNonExistence(timeout: 15))
+  }
+  /// A message the rules don't take while not signed in: the reply asks to sign in, the draft returns.
+  private func sendKeepingDraft(_ text: String) {
+    let field = app.textViews["Ask AI or add anything"].firstMatch
+    field.tap()
+    field.typeText(text)
+    app.buttons["ask-send"].tap()
+    XCTAssertTrue(
+      app.staticTexts.containing(NSPredicate(format: "label BEGINSWITH 'Sign in to Luna AI'"))
+        .firstMatch.waitForExistence(timeout: 5))
+    let draft = app.textViews["Ask AI or add anything"].firstMatch
+    draft.tap()
+    draft.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: text.count))
   }
   private func assertAdded() {
     XCTAssertTrue(app.buttons["capture-open"].firstMatch.waitForExistence(timeout: 8))

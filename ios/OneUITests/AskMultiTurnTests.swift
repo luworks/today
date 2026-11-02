@@ -47,12 +47,4 @@ final class AskMultiTurnTests: XCTestCase {
       label(containing: "Call Alex").exists && label(containing: "16:00").exists,
       "with the edited time")
   }
-
-  func testFollowUpMakesItAnAlarm() {
-    send("Call Alex tomorrow at 3pm every week")
-    XCTAssertTrue(app.buttons["Add"].waitForExistence(timeout: 90))
-    send("make it an alarm")
-    XCTAssertTrue(label(containing: "Alarm ").waitForExistence(timeout: 10))
-    XCTAssertTrue(label(containing: "New alarm").exists, "the card is an alarm now")
-  }
 }

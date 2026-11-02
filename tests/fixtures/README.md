@@ -225,3 +225,8 @@ They are not reusable UI datasets; the production retention policy lives in
 `ask-reading-history.json` contains 36 synthetic long chat messages for `AskReadingPositionTests`. The Mock-only `-uiTestingAskReplyDelay` capability delays replies and capture parsing by twelve seconds so a real history pan can finish before a reply/card arrives. `AskInteractionTests` keeps short native text-input and injected Calendar read fixtures inline beside its tests.
 
 `ChatPanelTests.swift` keeps its small unsent English/Chinese draft and Hello interaction inline. Long-history panel scrolling reuses `ask-reading-history.json`; failed creation and exact Undo/Open reuse `ai-oneoff-reminder-ui.json`. No private data is required.
+
+`ios/Eval/Tests/OneLogicTests/AskRouterTests.swift` keeps the migrated Ask sentence matrix,
+English dinner alarm corrections and annual-booking rename inline with a fixed 2026-11-01
+09:00 UTC clock. These exercise production AskRouter and FastLane continuation/refinement;
+UI persistence, navigation, accessibility and Undo still use the existing Ask/AI fixtures.

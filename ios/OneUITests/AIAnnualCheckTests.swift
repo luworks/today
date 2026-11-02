@@ -64,15 +64,6 @@ final class AIAnnualCheckTests: XCTestCase {
     XCTAssertTrue(app.buttons["capture-add-again"].exists)
   }
 
-  func testEnglishBookingAndFollowupKeepPersonalAction() {
-    send("Next August book a doctor for an annual check")
-    assertBookingPreview("book a doctor for an annual check")
-    send("call it Book annual check")
-    XCTAssertEqual(app.buttons["capture-title"].label, "Book annual check")
-    XCTAssertTrue(app.buttons["Add"].exists)
-    XCTAssertFalse(app.descendants(matching: .any)["capture-added"].exists)
-  }
-
   /// Not signed in, a report or a question gets no rule preview: the AI is unavailable and the draft goes back.
   func testBookedReportAndQuestionDoNotPrepareAnotherTask() {
     ask("明年8月 我已经预约医生做 annual check 了", expecting: "需要登录 Luna AI")

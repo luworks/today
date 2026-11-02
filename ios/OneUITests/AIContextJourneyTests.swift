@@ -10,7 +10,9 @@ final class AIContextJourneyTests: XCTestCase {
     await MainActor.run {
       continueAfterFailure = false
       app = XCUIApplication()
-      app.launchArguments = TestData.fixtureArguments("ai-context-ui.json")
+      // A fixed morning clock: "今天晚上6点" / "6pm tonight" must still be ahead.
+      app.launchArguments =
+        TestData.fixtureArguments("ai-context-ui.json") + ["-uiTestingNow", "09:11"]
       app.launch()
     }
   }
@@ -30,22 +32,6 @@ final class AIContextJourneyTests: XCTestCase {
     send("我需要你来帮我设定闹钟哦")
     assertPreview(title: title, kind: "New alarm", day: "Today", hour: 18)
     keepScreenshot("Chinese U3 - alarm still awaits Add")
-    assertNoPlannerWrites()
-  }
-
-  func testEnglishAlarmClarificationAndDateTimeCorrectionsPreserveTitle() {
-    openNewChat()
-    send("At 6pm tonight, remind me not to eat dinner again every day.")
-    let title = assertPreview(
-      titleContaining: "Do not eat dinner again", kind: "New reminder", day: "Today", hour: 18)
-    send("No, just add an alarm.")
-    assertPreview(title: title, kind: "New alarm", day: "Today", hour: 18)
-    send("I need you to help me set that alarm.")
-    assertPreview(title: title, kind: "New alarm", day: "Today", hour: 18)
-    send("Make it tomorrow instead.")
-    assertPreview(title: title, kind: "New alarm", day: "Tomorrow", hour: 18)
-    send("Actually, 7pm.")
-    assertPreview(title: title, kind: "New alarm", day: "Tomorrow", hour: 19)
     assertNoPlannerWrites()
   }
 
@@ -77,7 +63,9 @@ final class AIContextJourneyTests: XCTestCase {
         .firstMatch.exists,
       "The new thread cannot borrow the old thread's 6pm time")
     XCTAssertFalse(app.descendants(matching: .any)["capture-added"].exists)
-    XCTAssertEqual(app.buttons.matching(identifier: "Add").count, 1)
+    // Only this thread offers an Add (the closed thread stays built, hidden).
+    XCTAssertEqual(
+      app.buttons.matching(identifier: "Add").allElementsBoundByIndex.filter(\.isHittable).count, 1)
 
     closeChatToSidebar()
     tapStoredThread()
@@ -186,6 +174,7 @@ final class AIContextJourneyTests: XCTestCase {
     closeChatToSidebar()
     let activity = app.buttons["Activity"].firstMatch
     XCTAssertTrue(activity.waitForExistence(timeout: 5))
+    if !activity.isHittable { app.openSidebar() }
     activity.tap()
     XCTAssertTrue(
       app.staticTexts["No activity yet"].waitForExistence(timeout: 5),
