@@ -103,9 +103,10 @@
     package var subtitle: String { AlarmPlan.rowSubtitle(label: label, weekdays: weekdays) }
 
     /// Everything that changes what AlarmKit has to ring, as a string (a `Hasher` seed changes per launch).
-    /// `la1`: alarms carry `AlarmMeta` for the Live Activity; the suffix makes the next sync reschedule older ones.
+    /// `la2`: alarms carry `AlarmMeta` for the Live Activity and a Stop intent that records the stop; bumping the prefix makes
+    /// the next sync reschedule older ones.
     package var scheduleSignature: String {
-      "la1|\(isOn)|\(hour):\(minute)|\(weekdays.sorted())|\(label)|\(snooze)|\(sound)|\(snoozeMinutes)"
+      "la2|\(isOn)|\(hour):\(minute)|\(weekdays.sorted())|\(label)|\(snooze)|\(sound)|\(snoozeMinutes)"
     }
 
     /// Switching on a one-time alarm sets it for the next occurrence of its time, like Clock does.

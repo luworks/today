@@ -35,7 +35,7 @@ public enum ActivityTier: Int, CaseIterable, Identifiable, Codable {
     case .usage:
       "Which screens you open and how long a quick add takes. No titles and no search text."
     case .system:
-      "Things that happen without a tap: Share imports, Shortcuts runs, sync conflicts and errors."
+      "Things that happen around the app: Share imports, Shortcuts runs, alarm stops, sync conflicts and errors."
     }
   }
 }
@@ -62,6 +62,8 @@ public enum ActivityKind {
   public static let sysIntentRun = "sys.intent.run"
   public static let sysSyncConflict = "sys.sync.conflict"
   public static let sysError = "sys.error"
+  /// An alarm's Stop was tapped (AlarmKit's stop intent); `subject_ref` is the AlarmKit id, `title` the label.
+  public static let sysAlarmStopped = "sys.alarm.stopped"
 
   /// The tier a kind belongs to; unknown kinds are system events.
   public static func tier(of kind: String) -> ActivityTier {

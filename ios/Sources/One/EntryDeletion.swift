@@ -42,9 +42,11 @@
           return
         }
         calendar.refresh()
+        // Start and end let a past day still show an event that was deleted after it happened (`DayHistory`).
         let logged = ledger.record(
           .deleted, kind: "event", title: entry.title,
           before: plannerDayLabel(entry.start, runtime: runtime),
+          beforeDate: entry.start, afterDate: entry.end,
           snapshot: restorable
             ? EventSnapshot(
               title: entry.title, start: entry.start,
@@ -125,6 +127,7 @@
         let logged = ledger.record(
           .deleted, kind: "event", title: backup.title,
           before: plannerDayLabel(entry.start, runtime: runtime),
+          beforeDate: entry.start, afterDate: entry.end,
           snapshot: restorable
             ? EventSnapshot(
               title: backup.title, start: backup.start, durationMinutes: backup.durationMinutes,

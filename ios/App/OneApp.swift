@@ -125,6 +125,9 @@ struct OneApp: App {
       } else {
         SampleData.insertIfNeeded(context)
       }
+      LaunchTestConfiguration.seedPastDayForTests(
+        context: context, store: composition.session.activity.store,
+        arguments: composition.arguments, runtime: composition.session.runtime)
       return true
     }
   #endif

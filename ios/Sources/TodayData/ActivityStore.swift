@@ -231,7 +231,11 @@ public final class ActivityStore: ActivityStoring, @unchecked Sendable {
       PRIMARY KEY (day, kind, actor)
     ) WITHOUT ROWID;
     CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT);
+    """,
+    // 2: a past day's deleted events, found by when they were (`before_ts`), not when they were deleted.
     """
+    CREATE INDEX event_kind_before ON event(kind, before_ts) WHERE before_ts IS NOT NULL;
+    """,
   ]
 
   private func migrate() throws {
@@ -367,6 +371,68 @@ public final class ActivityStore: ActivityStoring, @unchecked Sendable {
       "SELECT \(Self.columns) FROM event e" + Self.whereClause(conds)
       + " ORDER BY e.ts DESC, e.id DESC LIMIT ?"
     return try rows(sql, args + [max(1, limit)]) { Self.event($0) }
+  }
+
+  /// One local day's events of these kinds (`day` is the yyyymmdd stamped when written), newest first, a page at a time.
+  /// Uses `event_kind_day`.
+  public func dayPage(
+    kinds: [String], day: Int, after cursor: ActivityCursor? = nil, limit: Int = 200
+  ) throws -> [ActivityEvent] {
+    let (sql, args) = Self.daySQL(kinds: kinds, day: day, cursor: cursor)
+    return try rows(
+      "SELECT \(Self.columns) FROM event e" + sql + " LIMIT ?", args + [max(1, limit)]
+    ) { Self.event($0) }
+  }
+
+  /// Events of one kind whose `before_ts` lies in `[startMs, endMs)`, newest first, a page at a time: a deleted calendar
+  /// event carries its start there, so a past day finds the events it had whenever they were deleted. Uses `event_kind_before`.
+  public func beforePage(
+    kind: String, startMs: Int64, endMs: Int64, after cursor: ActivityCursor? = nil,
+    limit: Int = 200
+  ) throws -> [ActivityEvent] {
+    let (sql, args) = Self.beforeSQL(kind: kind, startMs: startMs, endMs: endMs, cursor: cursor)
+    return try rows(
+      "SELECT \(Self.columns) FROM event e" + sql + " LIMIT ?", args + [max(1, limit)]
+    ) { Self.event($0) }
+  }
+
+  /// Query plans of `dayPage` and `beforePage` (tests check both use their index).
+  public func historyPlans() throws -> [String] {
+    let cursor = ActivityCursor(ts: 5, id: 5)
+    return try [
+      Self.daySQL(kinds: ["change.completed", "change.reopened"], day: 20_261_030, cursor: cursor),
+      Self.beforeSQL(kind: "change.deleted", startMs: 0, endMs: 1, cursor: cursor),
+    ].map { sql, args in
+      try rows("EXPLAIN QUERY PLAN SELECT e.id FROM event e" + sql, args) { $0.text(3) ?? "" }
+        .joined(separator: "\n")
+    }
+  }
+
+  private static func daySQL(kinds: [String], day: Int, cursor: ActivityCursor?) -> (
+    String, [Any?]
+  ) {
+    var conds = [
+      "e.kind IN (" + Array(repeating: "?", count: max(1, kinds.count)).joined(separator: ",")
+        + ")", "e.day = ?",
+    ]
+    var args: [Any?] = (kinds.isEmpty ? [""] : kinds) + [day]
+    if let cursor {
+      conds.append("(e.ts < ? OR (e.ts = ? AND e.id < ?))")
+      args += [cursor.ts, cursor.ts, cursor.id]
+    }
+    return (whereClause(conds) + " ORDER BY e.ts DESC, e.id DESC", args)
+  }
+
+  private static func beforeSQL(kind: String, startMs: Int64, endMs: Int64, cursor: ActivityCursor?)
+    -> (String, [Any?])
+  {
+    var conds = ["e.kind = ?", "e.before_ts >= ?", "e.before_ts < ?"]
+    var args: [Any?] = [kind, startMs, endMs]
+    if let cursor {
+      conds.append("(e.ts < ? OR (e.ts = ? AND e.id < ?))")
+      args += [cursor.ts, cursor.ts, cursor.id]
+    }
+    return (whereClause(conds) + " ORDER BY e.ts DESC, e.id DESC", args)
   }
 
   public func count(_ query: ActivityQuery = ActivityQuery()) throws -> Int {

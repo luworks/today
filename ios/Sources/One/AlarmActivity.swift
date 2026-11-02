@@ -3,6 +3,7 @@
     import AlarmKit
     import AppIntents
     import Foundation
+    import TodayShared
 
     // Shared by the app and the TodayWidgets extension: the metadata on every AlarmKit alarm (so both sides agree on
     // the `AlarmAttributes<AlarmMeta>` Live Activity type), and the buttons on that Live Activity.
@@ -41,6 +42,31 @@
 
       func perform() async throws -> some IntentResult {
         if let id = UUID(uuidString: alarmID) { try AlarmManager.shared.resume(id: id) }
+        return .result()
+      }
+    }
+
+    /// The alarm's own Stop (AlarmKit's `stopIntent`): stops it and leaves a `sys.alarm.stopped` event in the Activity outbox,
+    /// so the day it rang shows it stopped (`DayHistory`). The outbox, not the store: this may run before the app is up.
+    struct AlarmStoppedIntent: LiveActivityIntent {
+      static let title: LocalizedStringResource = "Stop"
+      static let isDiscoverable = false
+
+      @Parameter(title: "Alarm ID") var alarmID: String
+      @Parameter(title: "Label") var label: String
+
+      init(alarmID: UUID, label: String) {
+        self.alarmID = alarmID.uuidString
+        self.label = label
+      }
+      init() {}
+
+      func perform() async throws -> some IntentResult {
+        // As Apple's AlarmKit sample does: the intent stops the alarm itself.
+        if let id = UUID(uuidString: alarmID) { try? AlarmManager.shared.stop(id: id) }
+        ActivityOutbox.append(
+          kind: "sys.alarm.stopped", actor: "you", channel: "notification", subjectKind: "alarm",
+          subjectRef: alarmID, title: label)
         return .result()
       }
     }

@@ -151,7 +151,7 @@
         } ?? ""
       let entry = ledger.record(
         .completed, task: task, title: task.title, after: next.map { _ in "Next one added" } ?? "",
-        actor: actor, channel: channel, context: context)
+        beforeDate: oldDue, actor: actor, channel: channel, context: context)
       toast?.show("Completed “\(task.title)”" + suffix) {
         guard !task.isDeleted, task.modelContext != nil else { return }
         let undoDone = task.isDone
