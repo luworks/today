@@ -1,0 +1,8 @@
+{
+  "timeZone": "America/Los_Angeles",
+  "cases": [
+    {"settled": "2026-10-21T06:59:00Z", "midnight": "2026-10-21T07:00:00Z"},
+    {"settled": "2026-03-08T08:05:00Z", "midnight": "2026-03-09T07:00:00Z"},
+    {"settled": "2026-11-01T07:05:00Z", "midnight": "2026-11-02T08:00:00Z"}
+  ]
+}

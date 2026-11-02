@@ -98,6 +98,7 @@
           Label("Edit", systemImage: "pencil")
         }
       }
+      if let attention { Section { attention.menu } }
       if attention == nil || canDelete {
         Section {
           Button(role: .destructive) {

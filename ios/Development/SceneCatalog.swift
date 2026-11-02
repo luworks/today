@@ -234,8 +234,12 @@
         "activity-\(runtime.nextID().uuidString).\(format == .csv ? "csv" : "jsonl")")
     }
     func reset(_ context: ModelContext) {
-      DataReset.run(
-        context, reminders: services.reminders, ledger: services.ledger, inbox: SceneEmptyInbox())
+      if !DataReset.run(
+        context, reminders: services.reminders, ledger: services.ledger, inbox: SceneEmptyInbox(),
+        focus: services.actions.focus)
+      {
+        toast.showNotice("Couldn't clear saved Focus choices. Your local data was kept. Try again.")
+      }
     }
     func alarmCreated(_ alarm: OneAlarm, context: ModelContext) {
       AlarmActions.recordCreated(

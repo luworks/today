@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "about": "Controlled two-day Focus release journey, loaded at the injected clock. No live sync.",
+  "lists": [{"name": "Release work", "color": 2}],
+  "reminders": [{"title": "Normal overdue", "list": "Release work", "due": {"day": -1}}, {"title": "Old settled reminder", "list": "Release work", "due": {"day": 0, "time": "12:00"}}, {"title": "New day task", "list": "Release work", "due": {"day": 1}}],
+  "events": [
+    {"title": "Old settled occurrence", "start": {"day": 0, "time": "10:00"}, "minutes": 30},
+    {"title": "Old explicitly restored occurrence", "start": {"day": 0, "time": "11:00"}, "minutes": 30},
+    {"title": "New day meeting", "start": {"day": 1, "time": "10:00"}, "minutes": 30}
+  ],
+  "alarms": [], "chats": []
+}

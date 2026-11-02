@@ -18,6 +18,7 @@
     private var eventCreationDrafts: [UUID: OneEvent] = [:]
     private var eventCreationReceipts:
       [UUID: (id: PersistentIdentifier, entry: LedgerItem, localOnly: Bool)] = [:]
+    package let focus: TodayFocus
     private let calendar: any CalendarService
     private let reminders: any ReminderService
     private let alarms: any AlarmService
@@ -31,6 +32,7 @@
       defaults: UserDefaults = .standard
     ) {
       self.defaults = defaults
+      focus = TodayFocus(ledger: ledger, runtime: runtime)
       self.calendar = calendar
       self.reminders = reminders
       self.alarms = alarms
