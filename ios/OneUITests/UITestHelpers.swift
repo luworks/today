@@ -317,7 +317,7 @@ extension XCTestCase {
 }
 
 extension XCUIApplication {
-  /// The alarm editor's minute wheel (ten-minute steps, or every minute for an off-grid alarm): a slow drag moves it
+  /// The alarm editor's minute wheel (five-minute steps, or every minute for an off-grid alarm): a slow drag moves it
   /// one row, so drag until it reads `target` ("00", "30"). The wheel wraps, so a full turn is at most 60 drags.
   @MainActor
   func setAlarmMinutes(_ target: String, file: StaticString = #filePath, line: UInt = #line) {

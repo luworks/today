@@ -234,13 +234,13 @@ final class AlarmsTabTests: XCTestCase {
   }
 }
 
-/// Add Alarm opens on the next ten-minute mark of Today's clock (pinned to 10:56, so 11:00), not on a whole hour.
+/// Add Alarm opens on the next five-minute mark of Today's clock (pinned to 10:52, so 10:55), not on a whole hour.
 @MainActor
 final class AlarmDefaultTimeTests: XCTestCase {
-  func testAddAlarmOpensOnTheNextTenMinuteMark() {
+  func testAddAlarmOpensOnTheNextFiveMinuteMark() {
     continueAfterFailure = false
     let app = XCUIApplication()
-    app.launchArguments = ["-uiTesting", "-uiTestingNow", "10:56"]
+    app.launchArguments = ["-uiTesting", "-uiTestingNow", "10:52"]
     app.launch()
     app.buttons["Clock"].firstMatch.tap()
     XCTAssertTrue(app.buttons["New"].waitForExistence(timeout: 5))
@@ -249,9 +249,9 @@ final class AlarmDefaultTimeTests: XCTestCase {
     let hours = app.descendants(matching: .any)["wheelLab.hours"].firstMatch
     let minutes = app.descendants(matching: .any)["wheelLab.minutes"].firstMatch
     XCTAssertTrue(hours.waitForExistence(timeout: 5))
-    // 12- or 24-hour clock: the hour reads "11" on both, the minutes "00".
-    XCTAssertEqual(hours.value as? String, "11")
-    XCTAssertEqual(minutes.value as? String, "00")
+    // 12- or 24-hour clock: the hour reads "10" on both, the minutes "55".
+    XCTAssertEqual(hours.value as? String, "10")
+    XCTAssertEqual(minutes.value as? String, "55")
   }
 }
 

@@ -3,7 +3,7 @@
   import UIKit
 
   /// Apple's wheel `DatePicker`, hours and minutes: version A of the alarm wheel lab. The alarm editor itself uses
-  /// the custom wheel (`TimeWheelPicker`, version C with ten-minute minutes). The caller sets the calendar, locale
+  /// the custom wheel (`TimeWheelPicker`, version C with five-minute minutes). The caller sets the calendar, locale
   /// and time zone in the environment.
   struct AlarmTimePicker: View {
     @Binding var time: Date
