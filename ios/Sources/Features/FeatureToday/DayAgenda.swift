@@ -253,13 +253,14 @@
                 event: $0, pendingDelete: $pendingDelete, open: openEvent, calendar: calendar,
                 travel: travel,
                 attention: attention(
-                  target($0, start: $0.occurs(on: day, calendar: cal).first ?? $0.start))
+                  target($0, start: $0.occurs(on: day, calendar: cal).first ?? $0.start),
+                  canDelete: canDelete($0))
               )
             }
             ForEach(items.externalAllDay) {
               ExternalEventRow(
                 event: $0, pendingDelete: $pendingDelete, calendar: calendar, travel: travel,
-                attention: attention(target($0))
+                attention: attention(target($0), canDelete: canDelete($0))
               )
             }
           } header: {
@@ -300,7 +301,7 @@
         ForEach(items.anytime) { task in
           TaskRow(
             task: task, compact: true, agendaDay: day, onDelete: { requestDelete(task) },
-            open: openTask, attention: attention(target(task))
+            open: openTask, attention: attention(target(task), canDelete: canDelete(task))
           )
         }
       }
@@ -313,23 +314,25 @@
         EventRow(
           event: event, start: start, pendingDelete: $pendingDelete, open: openEvent,
           calendar: calendar, travel: travel,
-          attention: attention(target(event, start: start), on: rowDay)
+          attention: attention(
+            target(event, start: start), canDelete: canDelete(event), on: rowDay)
         )
       case .external(let e):
         ExternalEventRow(
           event: e, pendingDelete: $pendingDelete, calendar: calendar, travel: travel,
-          attention: attention(target(e), on: rowDay)
+          attention: attention(target(e), canDelete: canDelete(e), on: rowDay)
         )
       case .due(let task):
         TaskRow(
           task: task, showsTime: true, time: task.due, compact: true, agendaDay: rowDay,
           onDelete: { requestDelete(task) }, open: openTask,
-          attention: attention(target(task), on: rowDay)
+          attention: attention(target(task), canDelete: canDelete(task), on: rowDay)
         )
       case .alarm(let alarm, let date, let stoppedAt):
         AlarmMarkRow(
           alarm: alarm, date: date, open: openAlarm,
-          attention: attention(target(alarm, fireDate: date), on: rowDay),
+          attention: attention(
+            target(alarm, fireDate: date), canDelete: true, on: rowDay),
           onDelete: showsWeekStrip
             ? nil : { _ = actions.delete(alarm, context: context, toast: toast) },
           stoppedAt: stoppedAt)
@@ -338,7 +341,7 @@
           task: task, showsTime: true, time: doneAt, compact: true, agendaDay: rowDay,
           onDelete: { requestDelete(task) }, open: openTask,
           // A past day: never Settle (`SettleGate`), so this only carries whether Delete is allowed.
-          attention: attention(target(task), on: rowDay)
+          attention: attention(target(task), canDelete: canDelete(task), on: rowDay)
         )
       case .completed(let c):
         PastDayRow(
@@ -523,19 +526,43 @@
 
     private var settlesHere: Bool { settles() }
 
-    private func attention(_ target: FocusTarget, on rowDay: Date? = nil) -> TodayRowAttention? {
+    /// `target` is built only when the row can be settled; `canDelete` comes straight from the row's own model.
+    private func attention(
+      _ target: @autoclosure () -> FocusTarget, canDelete: Bool, on rowDay: Date? = nil
+    ) -> TodayRowAttention? {
       guard !showsWeekStrip else { return nil }
-      return TodayRowAttention(
-        settle: target.identity == nil || !showsSettle || !settles(on: rowDay)
-          ? nil : { _ = changeFocus(.settled, target: target, on: rowDay ?? day) },
-        canDelete: canDeleteAttention(target))
+      var settle: (() -> Void)?
+      if showsSettle, settles(on: rowDay) {
+        let target = target()
+        if target.identity != nil {
+          settle = { _ = changeFocus(.settled, target: target, on: rowDay ?? day) }
+        }
+      }
+      return TodayRowAttention(settle: settle, canDelete: canDelete)
+    }
+
+    /// Whether the source accepts a delete (a read-only calendar, or a reminder whose source can't be reached, does not).
+    private func canDelete(_ task: OneTask) -> Bool {
+      switch reminders.focusIdentity(task) {
+      case .available, .localOnly: true
+      default: false
+      }
+    }
+
+    private func canDelete(_ event: OneEvent) -> Bool {
+      event.externalID == nil || calendar.cachedCanDelete(externalID: event.externalID)
+    }
+
+    private func canDelete(_ event: ExternalEvent) -> Bool {
+      calendar.cachedCanDelete(externalID: event.eventIdentifier)
     }
 
     /// Settled items leave today's timeline. A past or future day shows every row, whatever was settled on it.
     /// (An older Snooze record no longer hides anything.)
-    private func isHidden(_ target: FocusTarget, on rowDay: Date? = nil) -> Bool {
-      settles(on: rowDay)
-        && actions.focus.state(for: target.identity, now: now, on: rowDay ?? day) == .settled
+    private func isHidden(_ target: @autoclosure () -> FocusTarget, on rowDay: Date? = nil) -> Bool
+    {
+      settles(on: rowDay) && !actions.focus.records.isEmpty
+        && actions.focus.state(for: target().identity, now: now, on: rowDay ?? day) == .settled
     }
 
     private func isHidden(_ item: TimelineItem, on rowDay: Date) -> Bool {
@@ -590,7 +617,7 @@
       ForEach(overdue) { task in
         TaskRow(
           task: task, compact: true, agendaDay: day, onDelete: { requestDelete(task) },
-          open: openTask, attention: attention(target(task))
+          open: openTask, attention: attention(target(task), canDelete: canDelete(task))
         )
       }
     }
