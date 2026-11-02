@@ -8,5 +8,6 @@
   "workers_dev": true,
   "preview_urls": false,
   "observability": {"enabled": false},
+  "triggers": {"crons": ["17 4 * * *"]},
   "d1_databases": [{"binding":"DB","database_name":"today-luna-api","database_id":"f57f74d0-359c-4ab2-ab83-ba3f9b1a4915"}]
 }

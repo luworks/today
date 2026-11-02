@@ -58,6 +58,21 @@ function checkItem(item,version) {
   if(!nonempty(item.call_id)||typeof item.output!=='string')fail('invalid_item');
  } else if(type!=='reasoning')fail('invalid_item');
 }
+// Minute-window rate-limit rows (`<prefix>:<id>:<minute>`) are inert once their minute passes.
+// The daily cron deletes them in small batches; `signup:<ip>` rows enforce the registration
+// limit and are never touched. The minute is parsed from the end of the key (8 digits).
+const WINDOWED = ['login:','account-login:','agent-minute:'], EXPIRE_BATCH = 500, EXPIRE_ROUNDS = 20;
+export async function expireBuckets(db,now) {
+ const before=Math.floor(now/60)-10; let total=0;
+ const sql="DELETE FROM buckets WHERE key IN (SELECT key FROM buckets WHERE ("+WINDOWED.map(()=>"substr(key,1,?)=?").join(" OR ")+
+  ") AND substr(key,-9,1)=':' AND substr(key,-8) GLOB '[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]' AND CAST(substr(key,-8) AS INTEGER)<? LIMIT ?)";
+ const args=[...WINDOWED.flatMap(p=>[p.length,p]),before,EXPIRE_BATCH];
+ for(let i=0;i<EXPIRE_ROUNDS;i++){
+  const n=(await db.prepare(sql).bind(...args).run()).meta.changes;total+=n;
+  if(n<EXPIRE_BATCH)break;
+ }
+ return total;
+}
 // Agent mode: the client sends only replayed items; prompt, tools, model and limits are fixed here.
 export function prepareAgent(body) {
  if(!body||typeof body!=='object'||Array.isArray(body))fail('invalid_request');
@@ -133,7 +148,8 @@ async function pump(body,db,id) {
  await settle(db,id,final?.usage,final?.status);
 }
 const sse = {"content-type":"text/event-stream","cache-control":"no-store","x-content-type-options":"nosniff"};
-export default {async fetch(request,env,ctx) {
+export default {async scheduled(controller,env,ctx) {ctx.waitUntil(expireBuckets(env.DB,Math.floor(controller.scheduledTime/1000)));},
+async fetch(request,env,ctx) {
  const now=Math.floor(Date.now()/1000), path=new URL(request.url).pathname,db=env.DB;
  try {
   if(path==="/health"&&request.method==="GET")return json({ok:true,model:"gpt-6-luna",agent:{tools_versions:Object.keys(AGENT),effort:"low",max_steps:MAX_STEPS,daily_runs:DAILY_RUNS}});
