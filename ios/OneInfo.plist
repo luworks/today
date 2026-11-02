@@ -13,7 +13,7 @@
 	<true/>
 	<key>BGTaskSchedulerPermittedIdentifiers</key>
 	<array>
-		<string>com.luworks.one.widgetRefresh</string>
+		<string>com.luworks.today.widgetRefresh</string>
 	</array>
 	<key>UIBackgroundModes</key>
 	<array>
@@ -27,7 +27,7 @@
 	<array>
 		<dict>
 			<key>CFBundleURLName</key>
-			<string>com.luworks.one</string>
+			<string>com.luworks.today</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>today</string>
@@ -42,7 +42,7 @@
 			<key>UIApplicationShortcutItemTitle</key>
 			<string>Ask Today</string>
 			<key>UIApplicationShortcutItemType</key>
-			<string>com.luworks.one.ask</string>
+			<string>com.luworks.today.ask</string>
 		</dict>
 		<dict>
 			<key>UIApplicationShortcutItemIconSymbolName</key>
@@ -50,7 +50,7 @@
 			<key>UIApplicationShortcutItemTitle</key>
 			<string>New task</string>
 			<key>UIApplicationShortcutItemType</key>
-			<string>com.luworks.one.newTask</string>
+			<string>com.luworks.today.newTask</string>
 		</dict>
 		<dict>
 			<key>UIApplicationShortcutItemIconSymbolName</key>
@@ -58,7 +58,7 @@
 			<key>UIApplicationShortcutItemTitle</key>
 			<string>New alarm</string>
 			<key>UIApplicationShortcutItemType</key>
-			<string>com.luworks.one.newAlarm</string>
+			<string>com.luworks.today.newAlarm</string>
 		</dict>
 		<dict>
 			<key>UIApplicationShortcutItemIconSymbolName</key>
@@ -66,7 +66,7 @@
 			<key>UIApplicationShortcutItemTitle</key>
 			<string>New event</string>
 			<key>UIApplicationShortcutItemType</key>
-			<string>com.luworks.one.newEvent</string>
+			<string>com.luworks.today.newEvent</string>
 		</dict>
 	</array>
 </dict>

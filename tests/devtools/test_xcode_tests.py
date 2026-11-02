@@ -14,7 +14,7 @@ from scripts.devtools import commands, xcode_tests  # noqa: E402
 from scripts.devtools.cli import main  # noqa: E402
 
 CONTRACT = commands.testing_contract(ROOT)
-METHOD = 'TodayTests/StoreUpgradeTests/baselineStorePreservesAllFieldsAcrossReopenAndMutation'
+METHOD = 'TodayTests/StoreUpgradeTests/oldStoreOpensWithCurrentSchema'
 
 
 def tree(ids, status='Passed'):
@@ -39,7 +39,7 @@ class XcodeTests(unittest.TestCase):
             xcode_tests.selected(CONTRACT, ROOT, ['unit'])
 
     def test_swift_testing_and_xctest_dispatch_use_their_actual_identifiers(self):
-        swift = 'TodayTests/StoreUpgradeTests/baselineStorePreservesAllFieldsAcrossReopenAndMutation'
+        swift = 'TodayTests/StoreUpgradeTests/oldStoreOpensWithCurrentSchema'
         xctest = 'TodaySnapshotTests/NativeSnapshotTests/testHealthStepsLight'
         self.assertEqual(xcode_tests.execution_selectors(CONTRACT, ROOT, [swift, xctest]), [swift + '()', xctest])
         with self.assertRaisesRegex(ValueError, 'Missing execution framework'):

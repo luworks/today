@@ -310,7 +310,7 @@ class ReleaseTests(unittest.TestCase):
     def test_profile_wildcard_only_allows_the_products_own_keychain_group(self):
         app = self.f.args.archive / 'Products/Applications/One.app'
         key = 'keychain-access-groups'
-        self.f.entitlements[str(app)][key] = [self.f.args.team + '.com.luworks.one']
+        self.f.entitlements[str(app)][key] = [self.f.args.team + '.com.luworks.today']
         self.f.profiles[str(app / 'embedded.mobileprovision')]['Entitlements'][key] = [self.f.args.team + '.*']
         self.validate()
         self.f.entitlements[str(app)][key] = [self.f.args.team + '.com.other.app']

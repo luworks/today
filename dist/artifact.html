@@ -491,7 +491,7 @@ h1,h2,h3,p{margin:0}
 </div>
 <script>'use strict';
 /* one. V8 — iOS-feel interactive prototype. Local sample data only; no network calls. */
-const D0='2026-10-12', NOW=9*60+41, KEY='one-v8', H0=7, H1=23, HPX=56;
+const D0='2026-10-12', NOW=9*60+41, KEY='today-v8', H0=7, H1=23, HPX=56;
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const clone=o=>JSON.parse(JSON.stringify(o));
@@ -1101,5 +1101,5 @@ function focusAsk(){if(ui.sheet)closeSheet();if(ui.drawer)closeDrawer();if(ui.ta
 const q=new URLSearchParams(location.search);if(['today','calendar','tasks','alarms'].includes(q.get('tab')))ui.tab=q.get('tab');
 render();
 if(q.get('open')==='ai')openSheet('ai',{});if(q.get('open')==='compose')openSheet('composer',{text:'',items:[]});if(q.get('open')==='draft')openSheet('draft');if(q.get('open')==='system')openSheet('system');if(q.get('open')==='ring')showRing('a4');
-window.oneV8={go:goTab,openDrawer,closeDrawer,get data(){return clone(data)},parse,needs,repairs,overlaps,sendAI,A,reset:()=>{data=seed();msgs=[];taught={};save();render()}};
+window.todayV8={go:goTab,openDrawer,closeDrawer,get data(){return clone(data)},parse,needs,repairs,overlaps,sendAI,A,reset:()=>{data=seed();msgs=[];taught={};save();render()}};
 </script>

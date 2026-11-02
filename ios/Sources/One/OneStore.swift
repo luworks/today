@@ -4,6 +4,7 @@
   import EventKit
   import UserNotifications
   import WidgetKit
+  import os
   import TodayCore
   import TodayData
   import TodayShared
@@ -23,12 +24,7 @@
         let runtime = PlannerRuntime(
           now: { Date.now }, nextID: { UUID() },
           calendar: .autoupdatingCurrent, locale: .autoupdatingCurrent)
-        // Preserve the installed store's module, schema and default configuration identity.
-        let container = try ModelContainer(
-          for: OneTask.self, OneEvent.self, OneAlarm.self, OneList.self,
-          Habit.self, ChatThread.self, LedgerEntry.self, AIGrant.self,
-          ShareImportReceipt.self,
-          configurations: ModelConfiguration())
+        let (container, wasReset) = try OneStore.openContainer()
         let calendar = CalendarSync(
           defaults: defaults, runtime: runtime, arguments: [], makeStore: { EKEventStore() })
         let reminders = RemindersSync(
@@ -55,6 +51,8 @@
           travel: { travel.widgetFields(eventID: $0, start: $1, isAllDay: $2, place: $3, now: $4) },
           save: { $0.save() }, reload: { WidgetCenter.shared.reloadAllTimelines() })
         travel.didUpdateEstimate = { [weak widget] in widget?.rewriteFromStore() }
+        // A fresh store must re-import from Apple Reminders, never mirror the empty store there.
+        if wasReset { reminders.forgetLink() }
         reminders.configure(container, ledger: ledger)
         notifications.configure(container)
         widget.registerBackgroundRefresh()
@@ -74,9 +72,31 @@
           activity.dispose()
         }
       } catch {
-        // Never replace or delete the SwiftData store when opening fails.
         fatalError("Could not open the data store: \(error)")
       }
     }()
+
+    /// Opens the default store. SwiftData migrates removed models and fields by itself; when a store still cannot be
+    /// opened, it is deleted and a fresh one starts (owner decision 2026-11-01: losing local-only data is accepted; Apple
+    /// Calendar and Apple Reminders are the source of truth and sync back in).
+    private static func openContainer() throws -> (ModelContainer, wasReset: Bool) {
+      let schema = Schema([
+        OneTask.self, OneEvent.self, OneAlarm.self, OneList.self, ChatThread.self,
+        ShareImportReceipt.self,
+      ])
+      let configuration = ModelConfiguration()
+      do {
+        return (try ModelContainer(for: schema, configurations: configuration), false)
+      } catch {
+        Logger(subsystem: "com.luworks.today", category: "store").error(
+          "Store could not be opened, starting fresh: \(String(describing: error), privacy: .public)"
+        )
+        let path = configuration.url.path
+        for file in [path, path + "-wal", path + "-shm"] {
+          try? FileManager.default.removeItem(atPath: file)
+        }
+        return (try ModelContainer(for: schema, configurations: configuration), true)
+      }
+    }
   }
 #endif

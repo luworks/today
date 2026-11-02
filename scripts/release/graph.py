@@ -73,9 +73,9 @@ def check(root, run, require):
         xvisited.add(name)
         target = project['targets'][name]
         cfg = settings(root / 'ios' / target['configFiles']['Release'])
-        identities = {'Today': ('One', 'TodayApp', 'com.luworks.one', 'One.entitlements'),
-                      'TodayWidgets': ('TodayWidgets', 'TodayWidgets', 'com.luworks.one.widgets', 'TodayWidgets.entitlements'),
-                      'TodayShare': ('ShareExtension', 'ShareExtension', 'com.luworks.one.share', 'ShareExtension.entitlements')}
+        identities = {'Today': ('One', 'TodayApp', 'com.luworks.today', 'One.entitlements'),
+                      'TodayWidgets': ('TodayWidgets', 'TodayWidgets', 'com.luworks.today.widgets', 'TodayWidgets.entitlements'),
+                      'TodayShare': ('ShareExtension', 'ShareExtension', 'com.luworks.today.share', 'ShareExtension.entitlements')}
         require(name in identities, 'unexpected_release_target')
         require(tuple(cfg.get(key) for key in ('PRODUCT_NAME', 'PRODUCT_MODULE_NAME',
                 'PRODUCT_BUNDLE_IDENTIFIER', 'CODE_SIGN_ENTITLEMENTS')) == identities[name], 'source_product_identity_mismatch')
@@ -103,7 +103,7 @@ def check(root, run, require):
 
     cfg = xvisit('Today')
     require(cfg['PRODUCT_NAME'] == 'One' and cfg['PRODUCT_MODULE_NAME'] == 'TodayApp' and
-            cfg['PRODUCT_BUNDLE_IDENTIFIER'] == 'com.luworks.one', 'source_app_identity_mismatch')
+            cfg['PRODUCT_BUNDLE_IDENTIFIER'] == 'com.luworks.today', 'source_app_identity_mismatch')
     require('One' in visited, 'model_identity_module_missing')
     embeds = {d['target'] for d in project['targets']['Today']['dependencies'] if d.get('embed')}
     require(embeds == {'TodayWidgets', 'TodayShare'}, 'source_extension_embeds_mismatch')

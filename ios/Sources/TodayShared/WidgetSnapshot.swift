@@ -97,7 +97,7 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
   /// Today, tomorrow and the day after: at 00:05 "today" is the old tomorrow and "Tomorrow" is the old day after.
   public static let days = 3
 
-  public static let appGroup = "group.com.luworks.one"
+  public static let appGroup = "group.com.luworks.today"
   public static let fileName = "widget-snapshot.json"
 
   public static var fileURL: URL? {

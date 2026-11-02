@@ -11,14 +11,14 @@ SPEC.loader.exec_module(settings)
 class EquivalenceTests(unittest.TestCase):
     def test_only_developer_names_and_build_paths_may_change(self):
         old = [{'target': 'One', 'buildSettings': {'PRODUCT_MODULE_NAME': 'One',
-                'PRODUCT_BUNDLE_IDENTIFIER': 'com.luworks.one', 'TARGET_NAME': 'One',
+                'PRODUCT_BUNDLE_IDENTIFIER': 'com.luworks.today', 'TARGET_NAME': 'One',
                 'TARGET_TEMP_DIR': '/build/One.build/Debug/One.build'}}]
         new = [{'target': 'Today', 'buildSettings': {'PRODUCT_MODULE_NAME': 'One',
-                'PRODUCT_BUNDLE_IDENTIFIER': 'com.luworks.one', 'TARGET_NAME': 'Today',
+                'PRODUCT_BUNDLE_IDENTIFIER': 'com.luworks.today', 'TARGET_NAME': 'Today',
                 'TARGET_TEMP_DIR': '/build/Today.build/Debug/Today.build'}}]
         self.assertTrue(settings.compare(old, new)['equivalent'])
         for key, wrong in [('PRODUCT_MODULE_NAME', 'Today'),
-                           ('PRODUCT_BUNDLE_IDENTIFIER', 'com.luworks.today')]:
+                           ('PRODUCT_BUNDLE_IDENTIFIER', 'com.luworks.other')]:
             new[0]['buildSettings'][key] = wrong
             self.assertFalse(settings.compare(old, new)['equivalent'])
             new[0]['buildSettings'][key] = old[0]['buildSettings'][key]

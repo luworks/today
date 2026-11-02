@@ -13,7 +13,7 @@ async def main():
     pg.on('pageerror',lambda e: errs.append('PAGEERR '+str(e)))
     await pg.goto(''+BASE+'/'); await pg.wait_for_timeout(400)
     cdp=await c.new_cdp_session(pg)
-    D=lambda: pg.evaluate("oneV8.data")
+    D=lambda: pg.evaluate("todayV8.data")
     async def task(i): return [t for t in (await D())['tasks'] if t['id']==i][0]
     try:
       await pg.screenshot(path=S+'40_home.png')

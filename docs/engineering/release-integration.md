@@ -9,7 +9,7 @@ privacy-and-licenses and the release README.
 ## Identity and graph proof
 
 `ios/Config/Today-Release.xcconfig` declares `PRODUCT_NAME=One`, executable module
-`TodayApp`, ID `com.luworks.one` and `One.entitlements`. `ios/Package.swift` keeps
+`TodayApp`, ID `com.luworks.today` and `One.entitlements`. `ios/Package.swift` keeps
 its `One` library target and the persistent models/intent identities it owns.
 `TodayMock` uses executable module `TodayMockApp`; it is a separate developer
 assembly, never a production archive target. `check_signing` now requires

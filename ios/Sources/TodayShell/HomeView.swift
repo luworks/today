@@ -614,10 +614,10 @@
           guard let type else { return }
           QuickAction.shared.pending = nil
           switch type {
-          case "com.luworks.one.ask": openAsk(nil)
-          case "com.luworks.one.newTask": presentNewItem(.task)
-          case "com.luworks.one.newAlarm": presentNewItem(.alarm)
-          case "com.luworks.one.newEvent": newEvent()
+          case "com.luworks.today.ask": openAsk(nil)
+          case "com.luworks.today.newTask": presentNewItem(.task)
+          case "com.luworks.today.newAlarm": presentNewItem(.alarm)
+          case "com.luworks.today.newEvent": newEvent()
           default: break
           }
         }
@@ -706,10 +706,8 @@
       #endif
       Self.seedUITestReminder(context)
       importShared()
-      // The old SwiftData ledger is copied into the Activity store once; then expired activity is dropped.
-      LedgerMigration.run(context: context, ledger: session.ledger)
       session.activity.importOutbox()
-      session.ledger.prune(context, now: session.runtime.now())
+      session.ledger.prune(now: session.runtime.now())
       await FirstRun.calendar(
         session.calendar, defaults: session.defaults, arguments: composition.arguments)
       if PerformanceTrace.enabled { PerformanceTrace.shared.finishBootstrap() }

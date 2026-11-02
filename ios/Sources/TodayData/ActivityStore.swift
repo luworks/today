@@ -486,20 +486,6 @@ public final class ActivityStore: ActivityStoring, @unchecked Sendable {
     return out
   }
 
-  /// How many of these uids are stored (used to check an import).
-  public func existingCount(uids: [String]) throws -> Int {
-    var n = 0
-    for chunk in stride(from: 0, to: uids.count, by: 400).map({
-      Array(uids[$0..<min($0 + 400, uids.count)])
-    }) {
-      let marks = Array(repeating: "?", count: chunk.count).joined(separator: ",")
-      n += Int(
-        try rows("SELECT COUNT(*) FROM event WHERE uid IN (\(marks))", chunk) { $0.int(0) ?? 0 }
-          .first ?? 0)
-    }
-    return n
-  }
-
   public func rollups(day: Int? = nil) throws -> [(
     day: Int, kind: String, actor: String, n: Int, sumMs: Int
   )] {

@@ -24,29 +24,25 @@
     @State private var exportFailed = false
     @State private var benchmark: String?
     @State private var benchmarking = false
-    @State private var legacyRows = 0
 
     private let activity: ActivityCenter
     private let exportDestination: @MainActor (ActivityExportFormat) throws -> URL
     private let readSummary: @MainActor () -> ActivityCenter.Summary
     private let clear: @MainActor () -> Void
     private let exportFile: @MainActor (ActivityExportFormat, URL) async throws -> URL
-    private let legacyRowCount: @MainActor () -> Int
 
     package init(
       activity: ActivityCenter,
       exportDestination: @escaping @MainActor (ActivityExportFormat) throws -> URL,
       summary: @escaping @MainActor () -> ActivityCenter.Summary,
       clear: @escaping @MainActor () -> Void,
-      export: @escaping @MainActor (ActivityExportFormat, URL) async throws -> URL,
-      legacyRowCount: @escaping @MainActor () -> Int
+      export: @escaping @MainActor (ActivityExportFormat, URL) async throws -> URL
     ) {
       self.activity = activity
       self.exportDestination = exportDestination
       self.readSummary = summary
       self.clear = clear
       self.exportFile = export
-      self.legacyRowCount = legacyRowCount
     }
 
     private struct ExportedFile: Identifiable {
@@ -168,10 +164,6 @@
             Button(benchmarking ? "Running…" : "Run speed test (100,000 rows)") { runBenchmark() }
               .disabled(benchmarking)
               .accessibilityIdentifier("activity.benchmark")
-            LabeledContent("Old ledger rows (SwiftData)") {
-              Text("\(legacyRows)").monospacedDigit().accessibilityIdentifier(
-                "activity.legacyCount")
-            }
             if let benchmark { Text(benchmark).font(.caption.monospaced()).textSelection(.enabled) }
           } header: {
             Text("Debug")
@@ -219,9 +211,6 @@
 
     private func refresh() {
       summary = readSummary()
-      #if DEBUG
-        legacyRows = legacyRowCount()
-      #endif
     }
 
     private func export(_ format: ActivityExportFormat) {

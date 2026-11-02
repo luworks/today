@@ -164,65 +164,6 @@ final class ActivityDataTests: XCTestCase {
     XCTAssertFalse(match.exists)
   }
 
-  /// An install from before the Activity store: the old SwiftData ledger rows are copied into the store at launch (the real
-  /// import path), listed in Activity with their Undo and Undone state, kept for that launch, and retired in the next one.
-  func testOldLedgerRowsAreImportedOnceAndRetiredInALaterLaunch() {
-    let store = "ledger-mig-" + UUID().uuidString.prefix(8)
-    let base = ["-uiTesting", "-uiTestingStore", store, "-uiTestingNow", "09:41"]
-    func legacyCount() -> String? {
-      app.buttons["Settings"].firstMatch.tap()
-      let row = app.buttons["settings.activityData"]
-      XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 5))
-      scrollTo(row, swipes: 10)
-      row.tap()
-      let count = app.staticTexts["activity.legacyCount"]
-      scrollTo(count)
-      let label = count.exists ? count.label : nil
-      app.navigationBars.buttons.element(boundBy: 0).tap()
-      app.buttons["Done"].tap()
-      return label
-    }
-    func checkActivity() {
-      openActivityFromSidebar()
-      XCTAssertTrue(
-        app.staticTexts["Deleted “Legacy deleted”"].waitForExistence(timeout: 5),
-        "the old ledger is listed")
-      XCTAssertTrue(app.staticTexts["Completed “Legacy done”"].exists)
-      XCTAssertTrue(app.staticTexts["Planned “Legacy plan”"].exists)
-      XCTAssertTrue(
-        app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'Today AI · Approved'"))
-          .firstMatch.exists, "approval survived")
-      XCTAssertTrue(
-        app.buttons["Undo Deleted “Legacy deleted”"].exists,
-        "the delete still has its Undo snapshot")
-      XCTAssertTrue(app.staticTexts["Undone"].exists, "the undo link survived")
-      app.buttons["Done"].tap()
-    }
-
-    app.launchArguments = base + ["-uiTestingLegacyLedgerRows", "12"]
-    app.launch()
-    XCTAssertTrue(app.buttons["Ask AI or add anything"].waitForExistence(timeout: 10))
-    sleep(2)
-    app.openSidebar()
-    checkActivity()
-    let before = legacyCount()
-    XCTAssertTrue(
-      before?.hasSuffix(", 12") ?? false,
-      "the old rows stay in the launch that copied them: \(before ?? "nil")")
-    app.terminate()
-
-    app.launchArguments = base
-    app.launch()
-    XCTAssertTrue(app.buttons["Ask AI or add anything"].waitForExistence(timeout: 10))
-    sleep(2)
-    app.openSidebar()
-    checkActivity()
-    let after = legacyCount()
-    XCTAssertTrue(
-      after?.hasSuffix(", 0") ?? false,
-      "retired in a later launch, after the copy was verified: \(after ?? "nil")")
-  }
-
   /// Export opens the system share sheet with a file.
   func testExportOpensTheShareSheet() {
     launch(["-uiTestingActivityRows", "3"])

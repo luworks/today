@@ -54,7 +54,7 @@ The DEBUG-only axe bootstrap recognizes `AXE_PREVIEW_SOCKET_PATH`, leaves a blan
 host for axe's injected preview, and bypasses `OneStore`, normal HomeView startup
 and background-refresh registration. The Reminders preview bypasses its
 first-run sync request. The app's model/schema and Activity database are unchanged.
-axe stages a separate `axe.com.luworks.one` app; it does not replace the original
+axe stages a separate `axe.com.luworks.today` app; it does not replace the original
 simulator app. There is no added Swift package, linked framework or app resource.
 
 `axe preview report --concurrency 1 --device <owned UDID>` captures three screens

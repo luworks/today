@@ -199,3 +199,18 @@ test('SSE passthrough settles the ledger after the stream, also when the client 
   assert.deepEqual(await settled(),{status:'unknown',charged:null});assert.equal(await used(db),before+10000);
  }finally{await mf.dispose();}
 });
+
+test('daily cron expires minute-window rate-limit rows and never touches signup rows',async()=>{
+ const {mf,db}=await setup(async()=>Response.json({}));
+ try{
+  const now=Date.UTC(2026,10,1,4,17), minute=Math.floor(now/60000);
+  const keep=['signup:'+'a'.repeat(64),'signup:2001:db8::1:00000000','login:ip:'+(minute-5),'agent-minute:user:'+minute,'other:x:'+(minute-100),'login:legacy'];
+  const stale=['login:ip:'+(minute-11),'account-login:'+'b'.repeat(64)+':'+(minute-60),'agent-minute:user:'+(minute-1440),'login:2001:db8::1:'+(minute-30)];
+  const bulk=Array.from({length:1203},(_,i)=>'agent-minute:u'+i+':'+(minute-20));
+  for(const k of [...keep,...stale,...bulk])await db.prepare('INSERT INTO buckets VALUES (?,1)').bind(k).run();
+  const worker=await mf.getWorker();
+  await worker.scheduled({scheduledTime:new Date(now),cron:'17 4 * * *'});
+  const left=(await db.prepare('SELECT key FROM buckets ORDER BY key').all()).results.map(r=>r.key);
+  assert.deepEqual(left,[...keep].sort());
+ }finally{await mf.dispose();}
+});

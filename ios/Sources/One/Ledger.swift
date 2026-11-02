@@ -188,17 +188,11 @@
       return try? JSONDecoder().decode(T.self, from: data)
     }
 
-    /// Drops expired activity (the changes ledger by the Settings choice: 90 days, 1 year or forever) and, in a launch after the
-    /// old ledger was copied and verified, the old SwiftData rows. Called at launch.
-    package func prune(_ context: ModelContext, now: Date) {
+    /// Drops expired activity (the changes ledger by the Settings choice: 90 days, 1 year or forever). Called at launch.
+    package func prune(now: Date) {
       let center = activity
       guard let store = center.store else { return }
       _ = try? store.prune(retention: center.settings.retention, now: now)
-      if LedgerImport.mayRemoveLegacy(store, session: center.recorder.session) {
-        try? context.delete(model: LedgerEntry.self)
-        try? context.save()
-        try? store.setMeta(LedgerImport.legacyRemovedKey, "1")
-      }
     }
 
     /// Changes recorded (tier 1).
@@ -207,18 +201,11 @@
       return (try? activity.store?.count(ActivityQuery(tiers: [.changes]))) ?? 0
     }
 
-    /// Clears the changes ledger (the old SwiftData rows too). Everything else: `activity.clear`.
-    package func clear(_ context: ModelContext) {
+    /// Clears every kind of activity; used by Delete All Data.
+    package func clearAll() {
       cancelPendingFlush()
       pending = []
-      activity.clear(tiers: [.changes], context: context)
-    }
-
-    /// Clears every kind of activity and the old rows; used by Delete All Data.
-    package func clearAll(_ context: ModelContext) {
-      cancelPendingFlush()
-      pending = []
-      activity.clear(tiers: nil, context: context)
+      activity.clear()
     }
 
     package static func snapshot(of t: OneTask) -> TaskSnapshot {
@@ -344,24 +331,4 @@
     }
   }
 
-  /// The one-time copy of the old SwiftData ledger into the Activity store, at launch (`LedgerImport` does the work and is tested).
-  /// Nothing is deleted here; the old rows go in a later launch (`Ledger.prune`) once the copy was verified.
-  @MainActor
-  package enum LedgerMigration {
-    package static func run(context: ModelContext, ledger: Ledger) {
-      let center = ledger.activity
-      guard let store = center.store, !LedgerImport.isMigrated(store) else { return }
-      let total = (try? context.fetchCount(FetchDescriptor<LedgerEntry>())) ?? 0
-      let outcome = try? LedgerImport.run(
-        into: store, total: total, session: center.recorder.session
-      ) { offset, limit in
-        var d = FetchDescriptor<LedgerEntry>(sortBy: [SortDescriptor(\.date), SortDescriptor(\.id)])
-        d.fetchOffset = offset
-        d.fetchLimit = limit
-        return ((try? context.fetch(d)) ?? []).map(\.legacyRow)
-      }
-      if let outcome, !outcome.verified { print("LEDGER import not verified: \(outcome)") }
-    }
-
-  }
 #endif

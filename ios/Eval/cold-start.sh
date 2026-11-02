@@ -9,8 +9,8 @@ APP=${1:-$(ls -d .build/xcode-test/Build/Products/Debug-iphonesimulator/One.app 
 [[ -n "$APP" ]] && xcrun simctl install "$SIM" "$APP"
 TMP=$(mktemp -d)
 for i in 1 2 3 4; do
-  xcrun simctl terminate "$SIM" com.luworks.one 2>/dev/null || true
-  xcrun simctl launch --console-pty "$SIM" com.luworks.one -uiTesting > "$TMP/$i.txt" 2>&1 &
+  xcrun simctl terminate "$SIM" com.luworks.today 2>/dev/null || true
+  xcrun simctl launch --console-pty "$SIM" com.luworks.today -uiTesting > "$TMP/$i.txt" 2>&1 &
   sleep 5
   kill $! 2>/dev/null || true
 done

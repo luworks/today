@@ -22,7 +22,7 @@
     /// Bumped when an estimate lands or location permission changes, so rows redraw.
     package private(set) var version = 0
 
-    @ObservationIgnored private let log = Logger(subsystem: "com.luworks.one", category: "travel")
+    @ObservationIgnored private let log = Logger(subsystem: "com.luworks.today", category: "travel")
     @ObservationIgnored private var cache: [String: TravelEstimate] = [:]
     @ObservationIgnored private var queued: [String: Job] = [:]
     @ObservationIgnored private var inFlight: Set<String> = []

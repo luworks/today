@@ -52,7 +52,7 @@
     private var container: ModelContainer?
 
     /// Background refresh: rewrites the snapshot while the app isn't open (at midnight, and whenever iOS allows).
-    package nonisolated static let refreshTaskID = "com.luworks.one.widgetRefresh"
+    package nonisolated static let refreshTaskID = "com.luworks.today.widgetRefresh"
 
     package func update(
       tasks: [OneTask], events: [OneEvent], alarms: [OneAlarm], now: Date, calendar: Calendar

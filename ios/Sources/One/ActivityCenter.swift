@@ -135,17 +135,11 @@
 
     // MARK: Clear and export
 
-    /// Deletes recorded activity (all of it, or some categories). Also the old SwiftData ledger rows when everything goes, and
-    /// anything still waiting to be written. Never touches reminders, events, alarms, Apple Calendar or Apple Reminders.
-    package func clear(tiers: Set<ActivityTier>? = nil, context: ModelContext?) {
+    /// Deletes recorded activity (all of it, or some categories) and anything still waiting to be written. Never touches
+    /// reminders, events, alarms, Apple Calendar or Apple Reminders.
+    package func clear(tiers: Set<ActivityTier>? = nil) {
       recorder.discardBuffered()
       try? store?.clear(tiers: tiers)
-      if tiers == nil || tiers?.contains(.changes) == true {
-        if let context {
-          try? context.delete(model: LedgerEntry.self)
-          try? context.save()
-        }
-      }
       NotificationCenter.default.post(name: didChange, object: self)
     }
 

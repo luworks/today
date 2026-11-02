@@ -89,7 +89,7 @@ class Fixture:
             self.uuid[str(bundle / name)] = uid
             self.uuid[str(dwarf)] = uid
         plist(archive / 'Info.plist', {'ApplicationProperties': {
-            'ApplicationPath': 'Applications/One.app', 'CFBundleIdentifier': 'com.luworks.one',
+            'ApplicationPath': 'Applications/One.app', 'CFBundleIdentifier': 'com.luworks.today',
             'CFBundleShortVersionString': '1.2.3', 'CFBundleVersion': '42'}})
         shutil.copyfile(root / 'ios/PrivacyInfo.xcprivacy', app / 'PrivacyInfo.xcprivacy')
         shutil.copyfile(root / 'LICENSE', app / 'LICENSE')

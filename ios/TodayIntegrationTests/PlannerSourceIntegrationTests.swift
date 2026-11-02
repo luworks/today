@@ -44,7 +44,7 @@
       #expect(!calendar.hasAccess && !calendar.isOn)
       await calendar.setEnabled(true)
       #expect(requests == 1 && calendar.hasAccess && calendar.isOn)
-      #expect(a.defaults.bool(forKey: "one.calendarSync.enabled"))
+      #expect(a.defaults.bool(forKey: "today.calendarSync.enabled"))
       status = .denied
       #expect(!calendar.hasAccess && !calendar.isOn)
       status = .notDetermined
@@ -82,7 +82,7 @@
       let runtime = a.services.runtime
       let today = runtime.calendar.startOfDay(for: a.now)
       a.defaults.set(true, forKey: "today.remindersSync.enabled")
-      a.defaults.set(true, forKey: "one.calendarSync.enabled")
+      a.defaults.set(true, forKey: "today.calendarSync.enabled")
       a.defaults.set(false, forKey: SettingsKey.healthSummary)
       a.defaults.set(false, forKey: SettingsKey.jumpToNow)
       a.defaults.set(false, forKey: Preferences.showFreeTimeKey)
@@ -291,8 +291,8 @@
         now: { instant }, nextID: { UUID() }, calendar: calendar,
         locale: Locale(identifier: "en_US_POSIX"))
       let schema = Schema([
-        OneTask.self, OneEvent.self, OneAlarm.self, OneList.self, Habit.self,
-        ChatThread.self, LedgerEntry.self, AIGrant.self, ShareImportReceipt.self,
+        OneTask.self, OneEvent.self, OneAlarm.self, OneList.self,
+        ChatThread.self, ShareImportReceipt.self,
       ])
       let container = try ModelContainer(
         for: schema,
