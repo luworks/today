@@ -58,7 +58,7 @@ The actual Share extension failure/error/retry UI was not exercised; its durable
 
 ## Reusable tests and durable evidence
 
-[The coverage matrix](coverage-matrix.md) maps journeys, tests and platform boundaries.
+The coverage matrix (`docs/qa/coverage-matrix.md`, deleted 2026-11-01; in git history) mapped journeys, tests and platform boundaries.
 `ios/Eval/run-e2e.py --only Suite/Method` runs narrow journeys with one owned simulator, reused derived data,
 command/result recording and final shutdown; `--full` is explicit. No second full UI run was performed.
 Logic uses `swift test` from `ios/`, with jobs 2/shared mutex during parallel work.

@@ -10,7 +10,7 @@ A minimal, AI-native planner for iPhone that puts calendar, reminders and alarms
 - **Roadmap (Yuan's words):** first **aggregate** (calendar + reminders + alarms in one place, with a very good Today tab that keeps people focused on now), then **optimize**, then **surpass**. Gestures and screens match Apple Calendar / Reminders as closely as possible before we improve on them.
 - **Information architecture (4 tabs):** Today · Calendar · Reminders · Clock. No habits. Calendar is 2 Day (default; two days on a time grid, one day per swipe), Month and Year (Year day taps open Month with that date selected and its agenda below; 2 Day headers and selected Month day taps open Today). Alarms lists real alarms (AlarmKit) plus items marked "Ring as alarm", with a kitchen timer on top. The bottom-right button is a **+** that opens the same menu on every page: New alarm / New reminder / New event (built). Top left is a menu button that opens the sidebar: Search, AI chat history, New chat, Settings.
 - **Gestures follow Apple:** tap the circle to complete; swipe left for Delete (with Undo) and Flag, with one shared look for swipe actions in every list; long-press menu (Show Details / Flag / Today / Tomorrow / Delete); system events open in Apple's own event viewer. Events are never moved by drag; only flexible tasks move.
-- **Next phase after aggregation:** Apple Intelligence (on-device Foundation Models) turns what the user types into reminders and events and helps tidy overdue items, always as a preview the user confirms. (Capture and edit are built; tidy overdue is not.)
+- **Next phase after aggregation (optimize):** an AI agent turns what the user types into reminders, events and alarms, edits existing items and tidies overdue reminders, always as a preview the user confirms. A rules-only fast lane (`FastLane`) handles the clear cases on the phone; everything else goes to one agent loop on the hosted Luna model with typed tools whose writes are only proposals (`docs/engineering/ai-agent-architecture.md`). Capture, edit and Tidy overdue are built (P4, November 2026).
 - **Style:** Notion / Linear / ChatGPT mobile. Calm, dense, monochrome with one accent, system semantic colors, Dynamic Type.
 - **Coverage:** what people use Apple Calendar, Apple Reminders and Clock for, without their complexity.
 - **AI-native:** one typed or spoken line is the fastest way to do anything. AI prepares, the user decides: every AI change is a preview the user confirms (product principles in `CLAUDE.md`).
@@ -195,11 +195,11 @@ Round 1 failing claims, weakest first: Alarms (2–10), Reliability (3–5, 8–
 ## How to run the eval
 
 ```bash
-ios/Eval/run-eval.sh       # logic tests, NL-capture train/test scores, app build warnings
-ios/Eval/run-eval.sh --ui  # plus the UI journeys on a simulator (J5 is now "add a reminder to a list"; the old habit check-in test is gone)
+./dev test unit                                  # logic tests, including the NL-capture ratchet
+./dev test ui --only TodayUITests/<Suite>/<Method>  # one UI journey on a simulator
 ```
 
-The NL-capture cases live in `ios/Eval/Tests/OneLogicTests/capture-cases.json` (split fixed; never read test failures while fixing). The ratchet is `CaptureEvalTests.ratchet`.
+The NL-capture cases live in `ios/Eval/Tests/OneLogicTests/capture-cases.json` (split fixed; never read test failures while fixing). The ratchet is `CaptureEvalTests.ratchet`. The agent is measured on frozen dev/holdout cases (`tests/fixtures/agent-p3-dev.json`, `agent-p3-holdout.json`) against the targets in `docs/engineering/ai-agent-architecture.md` §4.3; the first run and how to repeat it are in `docs/qa/agent-p3-eval-20261101.md`.
 
 ## Plan
 
@@ -221,6 +221,6 @@ The NL-capture cases live in `ios/Eval/Tests/OneLogicTests/capture-cases.json` (
 - **Round 19 — re-scope** (docs only): rename to Today, 4-tab IA, Habits retired, Alarms and gesture claims rewritten.
 - ~~**Aggregate**~~ mostly done (rounds 20+): Reminders tab like Apple Reminders (smart lists with counts, pinned cards, My Lists with color/symbol, create/rename/delete/reorder/pin, Edit, inline New Reminder row), two-way EventKit sync with Apple Reminders, the + button (tap adds what fits, hold for the menu), Due-style quick add with local suggestions, sidebar with Search and chat history (auto-archive), shared swipe actions, tabs that keep their place, AlarmKit alarms and a kitchen timer, a shared test dataset (`tests/fixtures/today-dataset.json`) on one simulator (Today-Dogfood).
 - ~~**Still open in Aggregate**~~ done in round 21: Reminders sync tested both ways (complete / rename / delete / repeat), full UI suite run, J5 measured (3 taps). Left: Reminders claims 4 (inline date menu test), 6, 7 and 10.
-- **Optimize (in progress):** done: Apple Intelligence (Foundation Models, on-device) behind the one-line capture, multi-item capture, follow-ups and edits of existing items; "Tidy overdue" preview (new reminder date per row, Apply, Undo); Next Up widgets with background refresh; Live Activities for the timer and snoozing alarms; Siri / Shortcuts (App Intents); Share extension. Next: fill the full claim checklist (screenshots for design) and score every dimension.
+- **Optimize (in progress):** done: the AI agent (FastLane plus the hosted Luna agent loop, P4 shipped 2026-11-01; P3 eval in `docs/qa/agent-p3-eval-20261101.md`) behind the one-line capture, multi-item capture, follow-ups and edits of existing items; "Tidy overdue" preview (new reminder date per row, Apply, Undo); Next Up widgets with background refresh; Live Activities for the timer and snoozing alarms; Siri / Shortcuts (App Intents); Share extension. Next: fill the full claim checklist (screenshots for design) and score every dimension.
 - **Then — Surpass:** improve on Apple's screens only after parity is demonstrated.
 - Then run a full eval, restart the score log from the new dimensions, and keep climbing whatever is weakest.

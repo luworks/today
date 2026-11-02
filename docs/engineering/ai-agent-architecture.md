@@ -189,7 +189,7 @@ AgentRunner ─ModelClient─ Worker ─ Luna  │
 
 请求体带 `tools_version` 就是 agent 模式；P4 起 strict JSON 模式已删除，不带 `tools_version` 的请求返回 `tools_version_required`。实现细节以 `backend/luna/README.md` 为准。
 
-整个 agent 都建在 **OpenAI Responses API**（`POST https://api.openai.com/v1/responses`）上。手机只和我们自己 Worker 上的 `/v1/responses` 通信，由 Worker 补上固定的模型、系统提示和工具清单，再转发给 OpenAI。迁移期间，这个接口同时支持两种请求：旧管线的"strict JSON、不带工具"和新 agent 的"items 加工具"。到 P4 删掉旧管线时，旧模式也一起删掉。
+整个 agent 都建在 **OpenAI Responses API**（`POST https://api.openai.com/v1/responses`）上。手机只和我们自己 Worker 上的 `/v1/responses` 通信，由 Worker 补上固定的模型、系统提示和工具清单，再转发给 OpenAI。这个接口只接受 agent 请求（items 加工具）。
 
 用到的 Responses 功能：
 
