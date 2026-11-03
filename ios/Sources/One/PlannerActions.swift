@@ -176,7 +176,8 @@
       guard capture.kind == .event else { throw CocoaError(.coderInvalidValue) }
       let event =
         eventCreationDrafts[requestID].flatMap { $0.externalID == nil ? nil : $0 }
-        ?? capture.makeEvent(calendar: runtime.calendar)
+        ?? capture.makeEvent(
+          calendar: runtime.calendar, alertMinutes: Preferences.newEventAlertMinutes(defaults))
       if event.externalID == nil { event.externalID = recoveryExternalID }
       eventCreationDrafts[requestID] = event
       if event.externalID == nil {

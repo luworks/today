@@ -6,8 +6,8 @@
   import SwiftUI
   import SwiftData
 
-  /// Create or edit a task. Edits are held locally and written back on Done.
-  /// Planned time and deadline are separate: changing one never changes the other.
+  /// Create or edit an event Today keeps itself (Calendar access off, or a UI test). With Calendar access on, a new
+  /// event uses Apple's editor and an existing one `ExistingCalendarEventEditor`, which add the calendar and alerts.
   package struct EventEditor: View {
     @Environment(PlannerPresentation.self) private var presentation
     @Environment(\.dismiss) private var dismiss
@@ -27,6 +27,10 @@
     @State private var repeatRule: RepeatRule?
     @State private var reminder: Int?
     @State private var ringsAsAlarm: Bool
+    @State private var location: String
+    @State private var url: String
+    @State private var busy: Bool
+    @State private var note: String
     @FocusState private var titleFocused: Bool
     /// Where a new event starts: the next full hour today, or 9:00 on the chosen day.
     private let defaultStart: Date
@@ -66,8 +70,14 @@
           ? slotEnd ?? start.addingTimeInterval(3600)
           : start.addingTimeInterval(TimeInterval((event?.durationMinutes ?? 60) * 60)))
       _repeatRule = State(initialValue: event?.repeats)
-      _reminder = State(initialValue: event == nil ? 10 : event?.reminderOffsetMinutes)
+      _reminder = State(
+        initialValue: event == nil
+          ? Preferences.newEventAlertMinutes(presentation.defaults) : event?.reminderOffsetMinutes)
       _ringsAsAlarm = State(initialValue: event?.ringsAsAlarm ?? false)
+      _location = State(initialValue: event?.location ?? "")
+      _url = State(initialValue: event?.url ?? "")
+      _busy = State(initialValue: event?.busy ?? true)
+      _note = State(initialValue: event?.note ?? "")
     }
 
     package var body: some View {
@@ -94,6 +104,8 @@
               .font(.headline)
               .focused($titleFocused)
               .accessibilityIdentifier("event.title")
+            TextField("Location", text: $location)
+              .accessibilityIdentifier("event.location")
           }
           Section {
             Toggle("All-day", isOn: $isAllDay.animation())
@@ -121,9 +133,21 @@
             if alarms.isAvailable, reminder != nil {
               Toggle(isOn: $ringsAsAlarm) { Label("Ring as alarm", systemImage: "alarm") }
             }
+            Picker(selection: $busy) {
+              Text("Busy").tag(true)
+              Text("Free").tag(false)
+            } label: {
+              Label("Show As", systemImage: "circle.lefthalf.filled")
+            }
+          }
+          Section("Details") {
+            TextField("URL", text: $url)
+              .keyboardType(.URL).textInputAutocapitalization(.never).autocorrectionDisabled()
+              .accessibilityIdentifier("event.url")
+            TextField("Notes", text: $note, axis: .vertical)
+              .accessibilityIdentifier("event.notes")
           }
           if let event {
-            if !event.note.isEmpty { Section("Notes") { Text(event.note) } }
             Section {
               Button(
                 event.repeats == nil ? "Delete event" : "Delete all occurrences", role: .destructive
@@ -193,6 +217,13 @@
       e.repeatRule = repeatRule?.rawValue
       e.reminderOffsetMinutes = reminder
       e.ringsAsAlarm = ringsAsAlarm && reminder != nil
+      let place = location.trimmingCharacters(in: .whitespacesAndNewlines)
+      e.location = place.isEmpty ? nil : place
+      let link = url.trimmingCharacters(in: .whitespacesAndNewlines)
+      e.url = link.isEmpty ? nil : link
+      // nil = never chosen (Busy, EventKit's default); only an actual choice is written.
+      if event?.busy != nil || !busy { e.busy = busy }
+      e.note = note
       if event == nil { context.insert(e) }
       do { try context.save() } catch {
         if event == nil { context.delete(e) }

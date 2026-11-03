@@ -18,14 +18,16 @@ public enum Preferences {
   public static let showSettleKey = "today.setting.showSettle"
   public static let showFreeTimeKey = "today.setting.showFreeTime"
   public static let newReminderListKey = "today.setting.newReminderList"
+  public static let newEventCalendarKey = "today.setting.newEventCalendar"
+  public static let newEventAlertKey = "today.setting.newEventAlert"
   public static let newAlarmSnoozeKey = "today.setting.newAlarmSnooze"
   public static let newAlarmSoundKey = "today.setting.newAlarmSound"
   public static let weatherSummaryKey = "today.setting.weatherSummary"
 
   static let allKeys = [
     compressEmptyHoursKey, dimPastDaysKey, firstWeekdayKey, weekNumbersKey, calendarStartKey,
-    showFreeTimeKey, newReminderListKey, newAlarmSnoozeKey, newAlarmSoundKey,
-    showSettleKey, weatherSummaryKey,
+    showFreeTimeKey, newReminderListKey, newEventCalendarKey, newEventAlertKey,
+    newAlarmSnoozeKey, newAlarmSoundKey, showSettleKey, weatherSummaryKey,
   ]
 
   // MARK: Defaults (the behaviour before these choices existed)
@@ -42,6 +44,12 @@ public enum Preferences {
   public static let newAlarmSnooze = AlarmPlan.defaultSnoozeMinutes
   /// "" = the system alarm sound.
   public static let newAlarmSound = ""
+  /// Calendar identifier for new events; "" = Auto (the calendar the request names, else the system default).
+  public static let newEventCalendar = ""
+  /// Minutes before a new event Today makes (Ask, the local editor); `noEventAlert` = none. Today always added 10.
+  public static let newEventAlert = 10
+  public static let noEventAlert = -1
+  public static let newEventAlertChoices = [noEventAlert, 0, 5, 10, 30, 60]
   public static let weatherSummary = false
 
   // MARK: Choices
@@ -130,6 +138,28 @@ public enum Preferences {
       names.contains(name)
     else { return nil }
     return name
+  }
+
+  /// The calendar a new event goes to when nothing else says (see `newEventCalendar`), only if it still exists and
+  /// can be written.
+  public static func newEventCalendar(writable ids: [String], _ defaults: UserDefaults = .standard)
+    -> String?
+  {
+    guard let id = defaults.string(forKey: newEventCalendarKey), !id.isEmpty, ids.contains(id)
+    else { return nil }
+    return id
+  }
+
+  /// Minutes before a new event's start for its alert, nil = no alert.
+  public static func newEventAlertMinutes(_ defaults: UserDefaults = .standard) -> Int? {
+    let stored = defaults.object(forKey: newEventAlertKey) as? Int ?? newEventAlert
+    guard stored != noEventAlert else { return nil }
+    return newEventAlertChoices.contains(stored) ? stored : newEventAlert
+  }
+
+  /// "None", "At time of event", "10 minutes before", "1 day before".
+  public static func newEventAlertLabel(_ minutes: Int) -> String {
+    minutes == noEventAlert ? "None" : EventAlert.label(TimeInterval(-minutes * 60), allDay: false)
   }
 
   public static func newAlarmSnoozeMinutes(_ defaults: UserDefaults = .standard) -> Int {

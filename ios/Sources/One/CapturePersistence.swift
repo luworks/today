@@ -45,7 +45,10 @@
       return alarm
     }
 
-    package func makeEvent(calendar: Calendar) -> OneEvent {
+    /// `alertMinutes`: the alert before the start (Settings → "New event alert"); nil = none.
+    package func makeEvent(calendar: Calendar, alertMinutes: Int? = Preferences.newEventAlert)
+      -> OneEvent
+    {
       let start =
         clockTime(calendar: calendar) ?? calendar.date(
           bySettingHour: 9, minute: 0, second: 0, of: day) ?? day
@@ -55,6 +58,7 @@
       e.note = notes ?? ""
       e.isAllDay = isAllDay
       e.repeatRule = repeatRule
+      e.reminderOffsetMinutes = alertMinutes
       return e
     }
 
