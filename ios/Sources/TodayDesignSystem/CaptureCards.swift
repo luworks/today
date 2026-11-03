@@ -10,10 +10,14 @@
       capture: Binding<Capture>, lists: [String] = [], status: CardStatus = .open,
       onAdd: @escaping () -> Void, onCancel: @escaping () -> Void, cancelTitle: String = "Cancel",
       onUndo: @escaping () -> Void = {}, onOpen: @escaping () -> Void = {},
-      onRename: @escaping (String) -> Bool = { _ in false }
+      onRename: @escaping (String) -> Bool = { _ in false },
+      calendars: [EventCalendarOption] = [],
+      onEventOptions: @escaping (String?, Int) -> Bool = { _, _ in true }
     ) {
       _capture = capture
       self.lists = lists
+      self.calendars = calendars
+      self.onEventOptions = onEventOptions
       self.status = status
       self.onAdd = onAdd
       self.onCancel = onCancel
@@ -34,6 +38,10 @@
     package var onOpen: () -> Void = {}
 
     package var onRename: (String) -> Bool = { _ in false }
+    /// Writable Apple calendars, for an event's calendar menu.
+    package var calendars: [EventCalendarOption] = []
+    /// Applies a new calendar / alert (minutes, `Preferences.noEventAlert` = none); true when the card may show it.
+    package var onEventOptions: (String?, Int) -> Bool = { _, _ in true }
 
     package enum Mode: Hashable, CaseIterable { case task, event, alarm }
 
@@ -112,6 +120,12 @@
               .secondary
             ).lineLimit(1)
           }
+        }
+        if capture.kind == .event {
+          EventOptionsMenu(
+            capture: $capture, calendars: calendars,
+            editable: status == .open || status == .added, apply: onEventOptions
+          ).font(.subheadline)
         }
         if status == .open {
           HStack {
@@ -334,4 +348,96 @@
     }
   }
 
+  /// One writable Apple calendar for the card's menu.
+  package struct EventCalendarOption: Identifiable, Hashable {
+    package let id: String
+    package let title: String
+    package let color: Color
+    package init(id: String, title: String, color: Color) {
+      self.id = id
+      self.title = title
+      self.color = color
+    }
+  }
+
+  /// "● Family · 10 minutes before" under an event card. Before Add it edits the card; after Added it changes the
+  /// event in place (`apply` writes it and says whether it worked), so the user never has to open Apple Calendar.
+  package struct EventOptionsMenu: View {
+    @Binding package var capture: Capture
+    package let calendars: [EventCalendarOption]
+    package let editable: Bool
+    package let apply: (String?, Int) -> Bool
+
+    private var alert: Int { capture.alertMinutes ?? Preferences.newEventAlert }
+    private var selected: EventCalendarOption? { calendars.first { $0.id == capture.calendarID } }
+    private var calendarName: String? { selected?.title ?? capture.calendarTitle }
+
+    package var body: some View {
+      if editable {
+        Menu {
+          if !calendars.isEmpty {
+            Picker(
+              "Calendar",
+              selection: Binding(
+                get: { capture.calendarID ?? "" },
+                set: { change(calendarID: $0, alert: alert) })
+            ) {
+              ForEach(calendars) { c in
+                Label {
+                  Text(c.title)
+                } icon: {
+                  Image(systemName: "circle.fill").foregroundStyle(c.color)
+                }.tag(c.id)
+              }
+            }
+            .pickerStyle(.menu)
+          }
+          Picker(
+            "Alert",
+            selection: Binding(
+              get: { alert }, set: { change(calendarID: capture.calendarID, alert: $0) })
+          ) {
+            ForEach(Preferences.newEventAlertChoices, id: \.self) {
+              Text(Preferences.newEventAlertLabel($0)).tag($0)
+            }
+          }
+          .pickerStyle(.menu)
+        } label: {
+          label
+        }
+        .accessibilityIdentifier("capture-event-options")
+        .accessibilityLabel(accessibility)
+      } else {
+        label.foregroundStyle(.secondary)
+          .accessibilityElement(children: .ignore)
+          .accessibilityLabel(accessibility)
+      }
+    }
+
+    private var label: some View {
+      HStack(spacing: 6) {
+        if let calendarName {
+          Image(systemName: "circle.fill").font(.caption2)
+            .foregroundStyle(selected?.color ?? .secondary)
+          Text(calendarName).lineLimit(1)
+          Text("·").foregroundStyle(.secondary)
+        }
+        Image(systemName: alert == Preferences.noEventAlert ? "bell.slash" : "bell")
+        Text(Preferences.newEventAlertLabel(alert)).lineLimit(1)
+      }
+    }
+
+    private var accessibility: String {
+      (calendarName.map { "Calendar: \($0). " } ?? "") + "Alert: "
+        + Preferences.newEventAlertLabel(alert)
+    }
+
+    private func change(calendarID: String?, alert: Int) {
+      guard apply(calendarID, alert) else { return }
+      capture.calendarID = calendarID
+      capture.calendarTitle =
+        calendars.first { $0.id == calendarID }?.title ?? capture.calendarTitle
+      capture.alertMinutes = alert
+    }
+  }
 #endif

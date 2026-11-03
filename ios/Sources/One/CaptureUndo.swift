@@ -113,6 +113,25 @@
       }
     }
 
+    /// Changes an added event's calendar and alert in place (the card's menu after Added). Undo still removes it.
+    package static func setEventOptions(
+      _ ref: String?, calendarID: String?, alertMinutes: Int?, in context: ModelContext,
+      calendar: any CalendarService
+    ) -> Bool {
+      guard case .event(let event) = resolve(ref, in: context) else { return false }
+      if let externalID = event.externalID {
+        guard
+          let id = calendar.setOptions(
+            externalID: externalID, occurrence: event.start, calendarID: calendarID,
+            alertMinutes: alertMinutes)
+        else { return false }
+        event.externalID = id
+      }
+      event.reminderOffsetMinutes = alertMinutes
+      do { try context.save() } catch { return false }
+      return true
+    }
+
     /// Resolving again at commit time prevents a deleted item from being resurrected by an open sheet or Undo toast.
     @discardableResult
     package static func rename(

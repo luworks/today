@@ -238,6 +238,9 @@
       event(externalID)?.title
     }
     package func rename(externalID: String, occurrence: Date?, to title: String) -> Bool { false }
+    package func setOptions(
+      externalID: String, occurrence: Date?, calendarID: String?, alertMinutes: Int?
+    ) -> String? { nil }
     package func dispose() {
       isDisposed = true
       enabled = false

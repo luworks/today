@@ -117,4 +117,18 @@ final class EventOptionsTests: XCTestCase {
     XCTAssertEqual(Preferences.newEventAlertLabel(Preferences.noEventAlert), "None")
     XCTAssertEqual(Preferences.newEventAlertLabel(60), "1 hour before")
   }
+
+  // MARK: Cards
+
+  func testEventCardsKeepTheirCalendarAndAlert() throws {
+    var c = Capture(title: "Family dinner", day: Date(timeIntervalSince1970: 0), hasDay: true)
+    c.kind = .event
+    let old = try JSONDecoder().decode(Capture.self, from: JSONEncoder().encode(c))
+    XCTAssertNil(old.calendarID, "cards saved before calendars decode as the default")
+    XCTAssertNil(old.alertMinutes)
+    c.calendarID = "family"
+    c.calendarTitle = "Family"
+    c.alertMinutes = Preferences.noEventAlert
+    XCTAssertEqual(try JSONDecoder().decode(Capture.self, from: JSONEncoder().encode(c)), c)
+  }
 }

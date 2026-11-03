@@ -53,6 +53,10 @@
     func removedMirrors(_ events: [OneEvent]) -> [OneEvent]
     func title(externalID: String, occurrence: Date?) -> String?
     func rename(externalID: String, occurrence: Date?, to title: String) -> Bool
+    /// Moves an event to `calendarID` (nil = keep) and replaces its alerts with one `alertMinutes` before (nil = none).
+    /// Returns the event's identifier afterwards (moving to another account can change it), nil when nothing was written.
+    func setOptions(externalID: String, occurrence: Date?, calendarID: String?, alertMinutes: Int?)
+      -> String?
     /// Read live state before presenting a user-confirmed move. Never authorizes a write by itself.
     func moveSnapshot(externalID: String, occurrence: Date) throws -> CalendarMoveSnapshot
     func moveEvent(expected: CalendarMoveSnapshot, to start: Date, acknowledgingAudience: Bool)

@@ -31,6 +31,12 @@ public struct Capture: Equatable, Codable, Sendable {
   public var isWorkBlock: Bool = false
   /// Verbatim context retained when a concise title separates action from motivation.
   public var notes: String? = nil
+  /// The Apple calendar an event goes to (`EKCalendar.calendarIdentifier`) and its name for the card; nil = the default.
+  /// Ask fills it from the user's words or Settings → "New events go to" (`EventCalendarChoice`).
+  public var calendarID: String? = nil
+  public var calendarTitle: String? = nil
+  /// An event's alert in minutes before its start, `Preferences.noEventAlert` = none; nil = Settings → "New event alert".
+  public var alertMinutes: Int? = nil
 
   /// An alarm without a chosen time remains a preview, never an ordinary reminder.
   public var isReadyToAdd: Bool { !ringsAsAlarm || hour != nil }

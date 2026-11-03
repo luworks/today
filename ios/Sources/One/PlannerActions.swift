@@ -177,11 +177,19 @@
       let event =
         eventCreationDrafts[requestID].flatMap { $0.externalID == nil ? nil : $0 }
         ?? capture.makeEvent(
-          calendar: runtime.calendar, alertMinutes: Preferences.newEventAlertMinutes(defaults))
+          calendar: runtime.calendar,
+          alertMinutes: capture.alertMinutes.map { $0 == Preferences.noEventAlert ? nil : $0 }
+            ?? Preferences.newEventAlertMinutes(defaults))
       if event.externalID == nil { event.externalID = recoveryExternalID }
       eventCreationDrafts[requestID] = event
       if event.externalID == nil {
-        let receipt = try calendar.create(event, calendarID: nil)
+        // A calendar the card named that has since gone falls back to the default, never fails the add.
+        let target = EventCalendarChoice.resolve(
+          explicit: capture.calendarID, preferred: nil,
+          calendars: calendar.calendars().map {
+            .init(id: $0.id, title: $0.title, writable: $0.allowsContentModifications)
+          })
+        let receipt = try calendar.create(event, calendarID: target)
         if case .committed(let id) = receipt { event.externalID = id }
       }
       let writeContext = ModelContext(context.container)
@@ -292,6 +300,13 @@
     }
 
     @discardableResult
+    package func setCaptureEventOptions(
+      _ ref: String?, calendarID: String?, alertMinutes: Int?, in context: ModelContext
+    ) -> Bool {
+      CaptureUndo.setEventOptions(
+        ref, calendarID: calendarID, alertMinutes: alertMinutes, in: context, calendar: calendar)
+    }
+
     package func renameCapture(_ ref: String?, to title: String, in context: ModelContext) -> Bool {
       CaptureUndo.rename(
         ref, to: title, in: context, calendar: calendar, reminders: reminders, alarms: alarms)

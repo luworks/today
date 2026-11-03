@@ -67,7 +67,11 @@
       ForEach(batches, id: \.self) { batch in
         CaptureStack(
           proposals: batchBinding(batch), lists: lists.map(\.name),
-          onAdd: add, onSkip: skip, onAddAll: addAll, onUndo: undo, onOpen: open, onRename: rename
+          onAdd: add, onSkip: skip, onAddAll: addAll, onUndo: undo, onOpen: open, onRename: rename,
+          calendars: calendarSync.calendars().filter(\.allowsContentModifications).map {
+            EventCalendarOption(id: $0.id, title: $0.title, color: $0.color)
+          },
+          onEventOptions: eventOptions
         )
         .id(batch)
       }
@@ -269,6 +273,36 @@
         refreshCardTitles()
       }
       return true
+    }
+
+    /// The calendar / alert menu on an event card. Before Add it only edits the card; after Added it moves the event and
+    /// replaces its alert in place, recorded in Activity. Undo and Open keep working on the same event.
+    func eventOptions(_ id: UUID, calendarID: String?, alert: Int) -> Bool {
+      guard let p = proposals.first(where: { $0.id == id }) else { return false }
+      switch p.status {
+      case .open: return true
+      case .added:
+        let minutes = alert == Preferences.noEventAlert ? nil : alert
+        guard
+          actions.setCaptureEventOptions(
+            p.itemRef, calendarID: calendarID, alertMinutes: minutes, in: context)
+        else {
+          toast?.showNotice("Couldn’t change “\(p.capture.title)” in Calendar.")
+          return false
+        }
+        let name = { (id: String?) in
+          calendarSync.calendars().first { $0.id == id }?.title ?? "Calendar"
+        }
+        ledger.record(
+          .edited, kind: "event", title: p.capture.title,
+          before: name(p.capture.calendarID) + " · "
+            + Preferences.newEventAlertLabel(p.capture.alertMinutes ?? Preferences.newEventAlert),
+          after: name(calendarID) + " · " + Preferences.newEventAlertLabel(alert),
+          channel: .ask, context: context)
+        DispatchQueue.main.async { persistCards() }
+        return true
+      default: return false
+      }
     }
 
     func refreshCardTitles() {

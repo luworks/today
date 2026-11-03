@@ -6,6 +6,7 @@
   import TodayDesignSystem
   import SwiftUI
   import SwiftData
+  import EventKit
 
   /// Change cards: an edit of the attached item, a saved reminder's repeat, and new items; all applied
   /// with Undo unless they reach other people.
@@ -335,6 +336,7 @@
     /// A task goes to the list it clearly belongs to, else the list chosen in Settings > Reminders ("New reminders go to"),
     /// else the Inbox. Never silently to whatever list is the default.
     func filed(_ capture: Capture) -> Capture {
+      if capture.kind == .event { return eventFiled(capture) }
       guard capture.kind == .task, !capture.ringsAsAlarm, capture.listName == nil else {
         return capture
       }
@@ -348,6 +350,27 @@
       c.listName =
         ListGuess.guess(c.title, lists: candidates).list ?? Preferences.newReminderList(
           existing: names, presentation.defaults) ?? ListGuess.inbox(in: names)
+      return c
+    }
+
+    /// An event goes to the calendar the user's words name ("family dinner" → Family), else Settings → "New events go
+    /// to", else the system default, and starts with Settings → "New event alert". The card shows both and can change them.
+    func eventFiled(_ capture: Capture) -> Capture {
+      var c = capture
+      let calendars = calendarSync.calendars().filter(\.allowsContentModifications)
+      if c.calendarID == nil, !calendars.isEmpty {
+        let candidates = calendars.map { EventCalendarChoice.Candidate(id: $0.id, title: $0.title) }
+        let words = [c.title, messages.last(where: { $0.role == .user })?.text ?? ""]
+          .joined(separator: " ")
+        c.calendarID =
+          EventCalendarChoice.named(in: words, calendars: candidates)
+          ?? (calendarSync as? any NativeCalendarService)?.calendarForNewEvents?.calendarIdentifier
+      }
+      if let id = c.calendarID { c.calendarTitle = calendars.first { $0.id == id }?.title }
+      if c.alertMinutes == nil {
+        c.alertMinutes =
+          Preferences.newEventAlertMinutes(presentation.defaults) ?? Preferences.noEventAlert
+      }
       return c
     }
   }
