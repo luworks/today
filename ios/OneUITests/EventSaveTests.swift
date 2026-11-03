@@ -169,9 +169,12 @@ final class EventSaveTests: XCTestCase {
     XCTAssertTrue(editor.waitForExistence(timeout: 5))
     XCTAssertTrue(
       app.staticTexts["https://example.com/calendar-save"].exists, "unedited URL survives saving")
-    XCTAssertEqual(
-      app.descendants(matching: .any)["event.alerts"].firstMatch.value as? String, "2 alerts",
-      "all original alerts survive saving")
+    for (index, alert) in ["30 minutes before", "5 minutes before"].enumerated() {
+      let row = app.descendants(matching: .any)["event.alert.\(index)"].firstMatch
+      XCTAssertTrue(
+        row.exists && (row.label + " " + String(describing: row.value ?? "")).contains(alert),
+        "original alert \(index + 1) survives saving: \(row.label)")
+    }
     XCTAssertTrue(
       app.textViews.matching(NSPredicate(format: "value == %@", "Preserve event notes")).firstMatch
         .exists

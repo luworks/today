@@ -733,6 +733,18 @@
       return (e, store)
     }
 
+    /// Settings → "New events go to" when that calendar still exists and is writable, else the system default.
+    package var calendarForNewEvents: EKCalendar? {
+      let writable = store.calendars(for: .event).filter(\.allowsContentModifications)
+      if let id = Preferences.newEventCalendar(
+        writable: writable.map(\.calendarIdentifier), defaults),
+        let chosen = writable.first(where: { $0.calendarIdentifier == id })
+      {
+        return chosen
+      }
+      return store.defaultCalendarForNewEvents
+    }
+
     package func create(_ event: OneEvent, calendarID: String? = nil) throws
       -> CalendarCreationReceipt
     {
@@ -743,7 +755,7 @@
         calendarID: calendarID, connected: isOn,
         resolve: { id in
           if let id { return self.store.calendar(withIdentifier: id) }
-          return self.store.defaultCalendarForNewEvents
+          return self.calendarForNewEvents
         },
         writable: { $0.allowsContentModifications },
         save: { calendar in
@@ -772,7 +784,7 @@
     /// Saves a copy of `event` to the default calendar and returns its identifier.
     /// `span` is what a repeating event's change applies to; the default keeps the old behavior, AI edits pass `.thisEvent`.
     package func save(_ event: OneEvent, span: EKSpan = .futureEvents) -> String? {
-      guard isOn, let calendar = store.defaultCalendarForNewEvents else {
+      guard isOn, let calendar = calendarForNewEvents else {
         log.error(
           "save skipped isOn=\(self.isOn) default=\(self.store.defaultCalendarForNewEvents != nil)")
         return nil
@@ -1191,7 +1203,7 @@
         let event = EKEvent(eventStore: sync.eventStore)
         event.startDate = start
         event.endDate = end ?? start.addingTimeInterval(3600)
-        event.calendar = sync.eventStore.defaultCalendarForNewEvents
+        event.calendar = sync.calendarForNewEvents
         vc.event = event
       }
       let d = Delegate(owner: self, onComplete: onComplete)
@@ -1270,9 +1282,11 @@
     }
   }
 
-  /// A narrow fallback for the iOS 27 remote editor's disabled unchanged Done.
-  /// Retains the original EventKit item: attendees, recurrence, structured location,
-  /// attachments and all other unedited properties are never reconstructed.
+  /// Today's editor for an existing Apple Calendar event, with Apple's fields in iOS 27's order: title, location, dates,
+  /// repeat, invitees, calendar, alerts, Show As, URL and notes. (Apple's remote editor disables Done for an unchanged
+  /// event, so it is reached only through More Options, for invitees and travel time, which EventKit cannot write.)
+  /// Retains the original EventKit item: only the fields the user changed are written; attendees, structured location,
+  /// attachments, location alerts and everything else stay as they are.
   private struct ExistingCalendarEventEditor: View {
     let event: EKEvent
     let store: EKEventStore
@@ -1280,28 +1294,51 @@
     let onComplete: ((EKEventEditViewAction) -> Void)?
     let simulateSaveFailure: Bool
     @Environment(\.dismiss) private var dismiss
-    @State private var title: String
-    @State private var start: Date
-    @State private var end: Date
-    @State private var location: String
-    @State private var notes: String
+    @State private var draft: Draft
     @State private var error: String?
     @State private var chooseScope = false
     private let original: Draft
+    /// The alarms the event had, for alerts the editor shows but cannot rebuild (a fixed date or a place).
+    private let originalAlarms: [EKAlarm]
+    private let calendars: [EKCalendar]
+
+    /// One alert row: an offset from the start, or an original alarm kept exactly as it is.
+    enum AlertSlot: Hashable {
+      case relative(TimeInterval)
+      case kept(Int)
+    }
 
     private struct Draft: Equatable {
       var title: String
+      var location: String
+      var allDay: Bool
       var start: Date
       var end: Date
-      var allDay: Bool
-      var location: String
+      /// RepeatRule raw value; "" = Never, nil = a rule this editor cannot show (left alone).
+      var repeatRule: String?
+      var calendarID: String
+      var alerts: [AlertSlot]
+      var availability: Int
+      var url: String
       var notes: String
       init(_ event: EKEvent) {
         title = event.title ?? ""
+        location = event.location ?? ""
+        allDay = event.isAllDay
         start = event.startDate
         end = event.endDate
-        allDay = event.isAllDay
-        location = event.location ?? ""
+        if event.hasRecurrenceRules {
+          repeatRule = RemindersSync.repeatRule(from: event.recurrenceRules)?.rawValue
+        } else {
+          repeatRule = ""
+        }
+        calendarID = event.calendar?.calendarIdentifier ?? ""
+        alerts = (event.alarms ?? []).enumerated().map { i, a in
+          a.absoluteDate == nil && a.structuredLocation == nil
+            ? .relative(a.relativeOffset) : .kept(i)
+        }
+        availability = event.availability.rawValue
+        url = event.url?.absoluteString ?? ""
         notes = event.notes ?? ""
       }
     }
@@ -1317,57 +1354,96 @@
       self.store = store
       let draft = Draft(event)
       original = draft
-      _title = State(initialValue: draft.title)
-      _start = State(initialValue: draft.start)
-      _end = State(initialValue: draft.end)
-      _location = State(initialValue: draft.location)
-      _notes = State(initialValue: draft.notes)
+      originalAlarms = event.alarms ?? []
+      calendars = store.calendars(for: .event).filter(\.allowsContentModifications)
+      _draft = State(initialValue: draft)
     }
 
-    private var changed: Bool {
-      title != original.title || start != original.start || end != original.end
-        || location != original.location || notes != original.notes
-    }
+    private var changed: Bool { draft != original }
     private var writable: Bool { event.calendar.allowsContentModifications }
+    private var repeats: Bool { event.hasRecurrenceRules }
+    /// Moving an invitation to another calendar would send cancellations from one account and invitations from another.
+    private var canChangeCalendar: Bool { writable && !event.hasAttendees }
+    /// Changing the calendar or the rule applies to the series from here on, as in Apple Calendar.
+    private var seriesOnly: Bool {
+      draft.calendarID != original.calendarID || draft.repeatRule != original.repeatRule
+    }
+    private var selectedCalendar: EKCalendar? {
+      calendars.first { $0.calendarIdentifier == draft.calendarID } ?? event.calendar
+    }
     private var allDayDates: String {
-      let first = start.formatted(date: .abbreviated, time: .omitted)
+      let first = draft.start.formatted(date: .abbreviated, time: .omitted)
       // EventKit's end is exclusive; a one-day event ends at tomorrow's midnight.
-      let last = end.addingTimeInterval(-1).formatted(date: .abbreviated, time: .omitted)
+      let last = lastDay.formatted(date: .abbreviated, time: .omitted)
       return (first == last ? first : "\(first) – \(last)") + " · All day"
     }
+    private var lastDay: Date { max(draft.start, draft.end.addingTimeInterval(-1)) }
+    private var titleIsEmpty: Bool {
+      draft.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+    private var datesAreValid: Bool { draft.end > draft.start }
 
     var body: some View {
       NavigationStack {
         Form {
           Section {
-            TextField("Title", text: $title)
+            TextField("Title", text: $draft.title)
               .accessibilityIdentifier("title-field")
-            if original.allDay {
-              LabeledContent("When", value: allDayDates)
-                .accessibilityElement(children: .ignore)
+            TextField("Location", text: $draft.location)
+              .accessibilityIdentifier("event.location")
+          }.disabled(!writable)
+          Section {
+            Toggle("All-day", isOn: allDay.animation())
+            DatePicker(
+              "Starts", selection: startKeepingLength,
+              displayedComponents: draft.allDay ? .date : [.date, .hourAndMinute])
+            DatePicker(
+              "Ends", selection: endBinding, in: draft.start...,
+              displayedComponents: draft.allDay ? .date : [.date, .hourAndMinute])
+            repeatPicker
+          } footer: {
+            if draft.allDay {
+              Text(allDayDates)
                 .accessibilityLabel("When").accessibilityValue(allDayDates)
                 .accessibilityIdentifier("event.allDayDates")
-            } else {
-              DatePicker(
-                "Starts",
-                selection: Binding(
-                  get: { start },
-                  set: { value in
-                    end = value.addingTimeInterval(end.timeIntervalSince(start))
-                    start = value
-                  }), displayedComponents: [.date, .hourAndMinute])
-              DatePicker("Ends", selection: $end, displayedComponents: [.date, .hourAndMinute])
             }
           }.disabled(!writable)
-          Section("Location") { TextField("Location", text: $location) }.disabled(!writable)
-          Section("Notes") { TextField("Notes", text: $notes, axis: .vertical) }.disabled(!writable)
+          if let attendees = event.attendees, !attendees.isEmpty {
+            Section {
+              ForEach(Array(attendees.enumerated()), id: \.offset) { _, person in
+                Label(
+                  person.name
+                    ?? person.url.absoluteString.replacingOccurrences(
+                      of: "mailto:", with: ""),
+                  systemImage: "person.crop.circle")
+              }
+            } header: {
+              Text("Invitees")
+            } footer: {
+              Text("Add or remove invitees in More Options.")
+            }
+          }
           Section {
-            LabeledContent("Calendar", value: event.calendar.title)
-            LabeledContent("Alerts", value: "\(event.alarms?.count ?? 0) alerts")
-              .accessibilityElement(children: .ignore)
-              .accessibilityLabel("Alerts").accessibilityValue("\(event.alarms?.count ?? 0) alerts")
-              .accessibilityIdentifier("event.alerts")
-            if let url = event.url { Text(url.absoluteString) }
+            calendarPicker
+            alertRows
+            availabilityPicker
+          } header: {
+            Text("Options")
+          } footer: {
+            if event.hasAttendees {
+              Text("An event with invitees stays in its calendar.")
+            }
+          }.disabled(!writable)
+          Section {
+            TextField("URL", text: $draft.url)
+              .keyboardType(.URL).textInputAutocapitalization(.never).autocorrectionDisabled()
+              .accessibilityIdentifier("event.url")
+            TextField("Notes", text: $draft.notes, axis: .vertical)
+              .accessibilityIdentifier("event.notes")
+          } header: {
+            Text("Details")
+          }.disabled(!writable)
+          Section {
             Button("More Options…") {
               sync.edit(
                 identifier: event.eventIdentifier, start: event.startDate, end: nil,
@@ -1381,8 +1457,8 @@
           } footer: {
             Text(
               changed
-                ? "Save or cancel these changes before opening all event options."
-                : "All event options, including all-day dates, alerts, repeat, invitees and deletion, are available in the system editor."
+                ? "Save or cancel these changes before opening Apple’s editor."
+                : "Invitees, travel time, attachments and Delete Event are in Apple’s editor."
             )
           }
           if !writable {
@@ -1407,29 +1483,224 @@
           }
           ToolbarItem(placement: .confirmationAction) {
             Button("Done") {
-              if changed && event.hasRecurrenceRules {
+              if changed && repeats {
                 chooseScope = true
               } else {
                 save(span: .thisEvent)
               }
             }
-            .disabled(
-              changed
-                && (!writable || title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                  || end <= start)
-            )
+            .disabled(changed && (!writable || titleIsEmpty || !datesAreValid))
           }
         }
         .confirmationDialog(
           "Save repeating event", isPresented: $chooseScope, titleVisibility: .visible
         ) {
-          Button("Save This Event") { save(span: .thisEvent) }
+          if !seriesOnly { Button("Save This Event") { save(span: .thisEvent) } }
           Button("Save All Future Events") { save(span: .futureEvents) }
           Button("Cancel", role: .cancel) {}
+        } message: {
+          if seriesOnly { Text("A new calendar or repeat applies to this and all future events.") }
         }
       }
       .interactiveDismissDisabled(changed)
     }
+
+    // MARK: Rows
+
+    @ViewBuilder private var repeatPicker: some View {
+      Picker("Repeat", selection: $draft.repeatRule) {
+        Text("Never").tag(String?.some(""))
+        ForEach(
+          RepeatRule.choices(including: original.repeatRule.flatMap { RepeatRule(rawValue: $0) }),
+          id: \.self
+        ) {
+          Text($0.label).tag(String?.some($0.rawValue))
+        }
+        if original.repeatRule == nil { Text("Custom").tag(String?.none) }
+      }
+      .accessibilityIdentifier("event.repeat")
+    }
+
+    @ViewBuilder private var calendarPicker: some View {
+      let groups = Dictionary(grouping: calendars) { $0.source?.title ?? "" }
+      Picker(selection: $draft.calendarID) {
+        if !calendars.contains(where: { $0.calendarIdentifier == original.calendarID }) {
+          calendarLabel(event.calendar).tag(original.calendarID)
+        }
+        ForEach(groups.keys.sorted(), id: \.self) { source in
+          Section(source) {
+            ForEach(groups[source] ?? [], id: \.calendarIdentifier) {
+              calendarLabel($0).tag($0.calendarIdentifier)
+            }
+          }
+        }
+      } label: {
+        Label("Calendar", systemImage: "calendar")
+      }
+      .pickerStyle(.navigationLink)
+      .disabled(!canChangeCalendar)
+      .accessibilityIdentifier("event.calendar")
+    }
+
+    private func calendarLabel(_ calendar: EKCalendar?) -> some View {
+      HStack(spacing: 8) {
+        Image(systemName: "circle.fill")
+          .font(.caption2)
+          .foregroundStyle(Color(cgColor: calendar?.cgColor ?? CGColor(gray: 0.5, alpha: 1)))
+          .accessibilityHidden(true)
+        Text(calendar?.title ?? "Calendar")
+      }
+    }
+
+    @ViewBuilder private var alertRows: some View {
+      ForEach(Array(draft.alerts.enumerated()), id: \.offset) { index, alert in
+        switch alert {
+        case .relative(let offset):
+          Picker(selection: alertBinding(at: index)) {
+            Text("None").tag(TimeInterval?.none)
+            ForEach(EventAlert.choices(allDay: draft.allDay, including: offset), id: \.self) {
+              Text(EventAlert.label($0, allDay: draft.allDay)).tag(TimeInterval?.some($0))
+            }
+          } label: {
+            Label("Alert", systemImage: "bell")
+          }
+          .accessibilityIdentifier("event.alert.\(index)")
+        case .kept(let i):
+          LabeledContent {
+            Text(keptLabel(originalAlarms[i]))
+          } label: {
+            Label("Alert", systemImage: "bell")
+          }
+          .accessibilityIdentifier("event.alert.\(index)")
+        }
+      }
+      if draft.alerts.count < EventAlert.maximum {
+        Picker(selection: addAlert) {
+          Text("None").tag(TimeInterval?.none)
+          ForEach(EventAlert.choices(allDay: draft.allDay), id: \.self) {
+            Text(EventAlert.label($0, allDay: draft.allDay)).tag(TimeInterval?.some($0))
+          }
+        } label: {
+          Label("Alert", systemImage: "bell")
+        }
+        .accessibilityIdentifier("event.alert.\(draft.alerts.count)")
+      }
+    }
+
+    private func keptLabel(_ alarm: EKAlarm) -> String {
+      if let date = alarm.absoluteDate {
+        return date.formatted(date: .abbreviated, time: .shortened)
+      }
+      return alarm.proximity == .leave ? "When leaving a place" : "When arriving at a place"
+    }
+
+    @ViewBuilder private var availabilityPicker: some View {
+      let supported = selectedCalendar?.supportedEventAvailabilities ?? []
+      let all: [(String, EKEventAvailability)] = [
+        ("Busy", .busy), ("Free", .free), ("Tentative", .tentative), ("Away", .unavailable),
+      ]
+      let options = all.filter { _, value in
+        switch value {
+        case .busy: supported.contains(.busy)
+        case .free: supported.contains(.free)
+        case .tentative: supported.contains(.tentative)
+        case .unavailable: supported.contains(.unavailable)
+        default: false
+        }
+      }
+      if !options.isEmpty, draft.availability != EKEventAvailability.notSupported.rawValue {
+        Picker(selection: $draft.availability) {
+          ForEach(options, id: \.1.rawValue) { Text($0.0).tag($0.1.rawValue) }
+        } label: {
+          Label("Show As", systemImage: "circle.lefthalf.filled")
+        }
+        .accessibilityIdentifier("event.availability")
+      }
+    }
+
+    // MARK: Bindings
+
+    /// Moving the start moves the end with it, so the event keeps its length, like Apple Calendar.
+    private var startKeepingLength: Binding<Date> {
+      Binding(
+        get: { draft.start },
+        set: { value in
+          draft.end = value.addingTimeInterval(draft.end.timeIntervalSince(draft.start))
+          draft.start = value
+        })
+    }
+
+    /// An all-day end is shown as its last day; EventKit stores the end of that day.
+    private var endBinding: Binding<Date> {
+      Binding(
+        get: { draft.allDay ? lastDay : draft.end },
+        set: { value in
+          if draft.allDay {
+            let cal = Calendar.current
+            draft.end = cal.date(byAdding: .day, value: 1, to: cal.startOfDay(for: value)) ?? value
+          } else {
+            draft.end = value
+          }
+        })
+    }
+
+    private var allDay: Binding<Bool> {
+      Binding(
+        get: { draft.allDay },
+        set: { on in
+          let cal = Calendar.current
+          if on {
+            let first = cal.startOfDay(for: draft.start)
+            let last = cal.startOfDay(for: max(draft.start, draft.end.addingTimeInterval(-1)))
+            draft.start = first
+            draft.end = cal.date(byAdding: .day, value: 1, to: last) ?? last
+          } else {
+            // Like Apple Calendar: a day that becomes timed starts at 9:00 and lasts an hour.
+            let start =
+              cal.date(bySettingHour: 9, minute: 0, second: 0, of: draft.start) ?? draft.start
+            draft.start = start
+            draft.end = start.addingTimeInterval(3600)
+          }
+          // Offsets mean different things for timed and all-day events; keep only those that still are choices.
+          draft.alerts = draft.alerts.map { (alert: AlertSlot) -> AlertSlot in
+            guard case .relative(let offset) = alert,
+              !EventAlert.choices(allDay: on).contains(offset)
+            else { return alert }
+            return .relative(on ? EventAlert.allDay[1] : -30 * 60)
+          }
+          draft.allDay = on
+        })
+    }
+
+    private func alertBinding(at index: Int) -> Binding<TimeInterval?> {
+      Binding(
+        get: {
+          guard index < draft.alerts.count, case .relative(let o) = draft.alerts[index] else {
+            return nil
+          }
+          return o
+        },
+        set: { value in
+          guard index < draft.alerts.count else { return }
+          if let value {
+            draft.alerts[index] = .relative(value)
+          } else {
+            draft.alerts.remove(at: index)
+          }
+        })
+    }
+
+    private var addAlert: Binding<TimeInterval?> {
+      Binding(
+        get: { nil },
+        set: { value in
+          if let value, draft.alerts.count < EventAlert.maximum {
+            draft.alerts.append(.relative(value))
+          }
+        })
+    }
+
+    // MARK: Save
 
     private func save(span: EKSpan) {
       // Completing an unchanged event must not write metadata or notify invitees.
@@ -1448,11 +1719,40 @@
         error = "This event is no longer available. Cancel and reopen it from Calendar."
         return
       }
-      if title != original.title { event.title = title }
-      if start != original.start { event.startDate = start }
-      if end != original.end { event.endDate = end }
-      if location != original.location { event.location = location }
-      if notes != original.notes { event.notes = notes }
+      if draft.title != original.title { event.title = draft.title }
+      if draft.location != original.location { event.location = draft.location }
+      if draft.allDay != original.allDay { event.isAllDay = draft.allDay }
+      if draft.start != original.start || draft.allDay != original.allDay {
+        event.startDate = draft.start
+      }
+      if draft.end != original.end || draft.allDay != original.allDay { event.endDate = draft.end }
+      if draft.repeatRule != original.repeatRule, let raw = draft.repeatRule {
+        event.recurrenceRules =
+          RepeatRule(rawValue: raw).map { [RemindersSync.recurrence(for: $0)] } ?? nil
+      }
+      if draft.calendarID != original.calendarID,
+        let calendar = calendars.first(where: { $0.calendarIdentifier == draft.calendarID })
+      {
+        event.calendar = calendar
+      }
+      if draft.alerts != original.alerts {
+        event.alarms = draft.alerts.map { alert in
+          switch alert {
+          case .relative(let offset): EKAlarm(relativeOffset: offset)
+          case .kept(let i): originalAlarms[i].copy() as? EKAlarm ?? originalAlarms[i]
+          }
+        }
+      }
+      if draft.availability != original.availability,
+        let value = EKEventAvailability(rawValue: draft.availability)
+      {
+        event.availability = value
+      }
+      if draft.url != original.url {
+        let trimmed = draft.url.trimmingCharacters(in: .whitespacesAndNewlines)
+        event.url = trimmed.isEmpty ? nil : URL(string: trimmed)
+      }
+      if draft.notes != original.notes { event.notes = draft.notes }
       do {
         #if DEBUG
           if simulateSaveFailure {
@@ -1461,7 +1761,7 @@
               userInfo: [NSLocalizedDescriptionKey: "Calendar is temporarily unavailable."])
           }
         #endif
-        try store.save(event, span: span, commit: true)
+        try store.save(event, span: seriesOnly && repeats ? .futureEvents : span, commit: true)
         sync.refresh()
         onComplete?(.saved)
         dismiss()
@@ -1517,7 +1817,7 @@
         let event = EKEvent(eventStore: sync.eventStore)
         event.startDate = start
         event.endDate = start.addingTimeInterval(3600)
-        event.calendar = sync.eventStore.defaultCalendarForNewEvents
+        event.calendar = sync.calendarForNewEvents
         vc.event = event
       }
       vc.editViewDelegate = context.coordinator

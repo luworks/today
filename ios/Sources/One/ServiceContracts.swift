@@ -66,6 +66,8 @@
   @MainActor
   package protocol NativeCalendarService: CalendarService {
     var eventStore: EKEventStore { get }
+    /// Settings → "New events go to" when that calendar still exists and is writable, else the system default.
+    var calendarForNewEvents: EKCalendar? { get }
     func nativeEvent(identifier: String, occurrence: Date?) -> (EKEvent, EKEventStore)?
     func edit(
       identifier: String?, start: Date, end: Date?, fullOptions: Bool,

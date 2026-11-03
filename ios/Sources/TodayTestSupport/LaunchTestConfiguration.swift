@@ -99,6 +99,7 @@ public enum LaunchTestConfiguration {
     Preferences.calendarStartKey,
     Preferences.showSettleKey,
     Preferences.showFreeTimeKey, Preferences.newReminderListKey,
+    Preferences.newEventCalendarKey, Preferences.newEventAlertKey,
     Preferences.newAlarmSnoozeKey, Preferences.newAlarmSoundKey,
     Preferences.weatherSummaryKey,
   ]

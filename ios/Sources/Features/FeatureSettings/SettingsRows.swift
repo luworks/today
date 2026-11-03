@@ -32,7 +32,14 @@
 
   /// Settings > Calendar: how 2 Day, Month and Year look and where Calendar opens.
   package struct CalendarSettingsSection: View {
-    package init() {}
+    /// Writable Apple calendars for "New events go to"; empty when Calendar access is off (the row is hidden).
+    package init(calendars: [SystemCalendar] = []) {
+      self.calendars = calendars.filter { $0.allowsContentModifications }
+    }
+    private let calendars: [SystemCalendar]
+    @AppStorage(Preferences.newEventCalendarKey) private var newEventCalendar = Preferences
+      .newEventCalendar
+    @AppStorage(Preferences.newEventAlertKey) private var newEventAlert = Preferences.newEventAlert
     @AppStorage(Preferences.compressEmptyHoursKey) private var compressesEmptyHours =
       Preferences.compressEmptyHours
     @AppStorage(Preferences.dimPastDaysKey) private var dimsPast = Preferences.dimPastDays
@@ -70,6 +77,33 @@
             set: { calendarStart = $0.rawValue }),
           caption: "Applies when the app starts. Last used reopens the view you left.",
           label: { $0.title }, identifier: { "settings.calendarStart.\($0.rawValue)" })
+        if !calendars.isEmpty {
+          MenuChoiceRow(
+            title: "New events go to", selection: $newEventCalendar,
+            caption:
+              "Auto uses the calendar an Ask request names (“family dinner” goes to Family), else your default calendar. Events you already have stay where they are.",
+            identifier: "settings.newEventCalendar"
+          ) {
+            Text("Auto").tag("")
+            ForEach(calendars) { c in
+              Text(c.sourceTitle.isEmpty ? c.title : "\(c.title) (\(c.sourceTitle))").tag(c.id)
+            }
+          }
+        }
+        MenuChoiceRow(
+          title: "New event alert",
+          selection: Binding(
+            get: {
+              Preferences.newEventAlertChoices.contains(newEventAlert)
+                ? newEventAlert : Preferences.newEventAlert
+            }, set: { newEventAlert = $0 }),
+          caption: "The alert an event added by Ask starts with. Each event can still be changed.",
+          identifier: "settings.newEventAlert"
+        ) {
+          ForEach(Preferences.newEventAlertChoices, id: \.self) {
+            Text(Preferences.newEventAlertLabel($0)).tag($0)
+          }
+        }
       } header: {
         Text("Calendar")
       }
