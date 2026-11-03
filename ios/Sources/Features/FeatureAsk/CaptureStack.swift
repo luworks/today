@@ -73,14 +73,20 @@
     package var onOpen: (UUID) -> Void
 
     package var onRename: (UUID, String) -> Bool
+    package var calendars: [EventCalendarOption]
+    package var onEventOptions: (UUID, String?, Int) -> Bool
 
     package init(
       proposals: Binding<[CaptureProposal]>, lists: [String], onAdd: @escaping (UUID) -> Void,
       onSkip: @escaping (UUID) -> Void, onAddAll: @escaping () -> Void,
       onUndo: @escaping (UUID) -> Void, onOpen: @escaping (UUID) -> Void,
-      onRename: @escaping (UUID, String) -> Bool
+      onRename: @escaping (UUID, String) -> Bool,
+      calendars: [EventCalendarOption] = [],
+      onEventOptions: @escaping (UUID, String?, Int) -> Bool = { _, _, _ in true }
     ) {
       _proposals = proposals
+      self.calendars = calendars
+      self.onEventOptions = onEventOptions
       self.lists = lists
       self.onAdd = onAdd
       self.onSkip = onSkip
@@ -102,7 +108,8 @@
             capture: binding(only.id), lists: lists, status: only.status,
             onAdd: { onAdd(only.id) }, onCancel: { onSkip(only.id) },
             onUndo: { onUndo(only.id) }, onOpen: { onOpen(only.id) },
-            onRename: { onRename(only.id, $0) })
+            onRename: { onRename(only.id, $0) }, calendars: calendars,
+            onEventOptions: { onEventOptions(only.id, $0, $1) })
         } else {
           list
         }
@@ -156,7 +163,8 @@
           capture: binding(p.id), lists: lists,
           onAdd: { onAdd(p.id) }, onCancel: { onSkip(p.id) }, cancelTitle: "Skip",
           onUndo: { onUndo(p.id) }, onOpen: { onOpen(p.id) },
-          onRename: { onRename(p.id, $0) })
+          onRename: { onRename(p.id, $0) }, calendars: calendars,
+          onEventOptions: { onEventOptions(p.id, $0, $1) })
       } else {
         CompactCaptureRow(
           capture: binding(p.id), lists: lists, status: p.status,

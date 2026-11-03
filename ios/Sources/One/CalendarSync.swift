@@ -1151,6 +1151,31 @@
       }
     }
 
+    package func setOptions(
+      externalID: String, occurrence: Date?, calendarID: String?, alertMinutes: Int?
+    ) -> String? {
+      guard let (event, store) = nativeEvent(identifier: externalID, occurrence: occurrence),
+        event.calendar.allowsContentModifications
+      else { return nil }
+      if let calendarID, calendarID != event.calendar.calendarIdentifier {
+        // An invitation stays in its account: moving it would cancel and re-invite everyone.
+        guard !event.hasAttendees, let target = store.calendar(withIdentifier: calendarID),
+          target.allowsContentModifications
+        else { return nil }
+        event.calendar = target
+      }
+      event.alarms = alertMinutes.map { [EKAlarm(relativeOffset: TimeInterval(-$0 * 60))] } ?? []
+      do {
+        try store.save(event, span: event.hasRecurrenceRules ? .futureEvents : .thisEvent)
+        refresh()
+        return event.eventIdentifier
+      } catch {
+        event.reset()
+        log.error("set options failed \((error as NSError).code, privacy: .public)")
+        return nil
+      }
+    }
+
   }
 
   /// Shows Apple's event editor the way UIKit expects: presented over the top screen, not embedded in a SwiftUI sheet.
