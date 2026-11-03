@@ -220,8 +220,7 @@
                     if case .system(let id) = hit.opened {
                       if let native = calendar as? any NativeCalendarService {
                         native.edit(
-                          identifier: id, start: hit.start, end: nil, fullOptions: false,
-                          onComplete: nil)
+                          identifier: id, start: hit.start, end: nil, onComplete: nil)
                       } else {
                         opened = hit.opened
                       }

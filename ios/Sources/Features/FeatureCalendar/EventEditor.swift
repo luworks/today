@@ -7,7 +7,7 @@
   import SwiftData
 
   /// Create or edit an event Today keeps itself (Calendar access off, or a UI test). With Calendar access on, a new
-  /// event uses Apple's editor and an existing one `ExistingCalendarEventEditor`, which add the calendar and alerts.
+  /// event and an existing one both open in Apple's own Edit Event (`NativeEvents.edit`).
   package struct EventEditor: View {
     @Environment(PlannerPresentation.self) private var presentation
     @Environment(\.dismiss) private var dismiss

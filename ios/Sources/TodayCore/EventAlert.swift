@@ -1,47 +1,11 @@
 import Foundation
 
-/// An event alert as Apple Calendar offers it: a relative offset in seconds from the start (negative = before).
-/// Timed events count from their start; all-day events from midnight, so Apple's "On day of event (9:00)" is +9 h.
-/// Plain Swift so the tables run under `./dev test unit`; the editor maps a choice to `EKAlarm(relativeOffset:)`.
+/// An event alert's words, as Apple Calendar says them: `offset` seconds from the start (negative = before).
 public enum EventAlert {
-  /// Apple's event editors show at most this many alerts in our editor (Apple's own allows more; extra ones are kept).
-  public static let maximum = 3
-
-  /// Apple Calendar's choices for a timed event, in its order.
-  public static let timed: [TimeInterval] = [
-    0, -5 * 60, -10 * 60, -15 * 60, -30 * 60, -3600, -2 * 3600, -86400, -2 * 86400, -7 * 86400,
-  ]
-
-  /// Apple Calendar's choices for an all-day event: 9:00 on the day, or 9:00 one or more days before.
-  public static let allDay: [TimeInterval] = [
-    9 * 3600, 9 * 3600 - 86400, 9 * 3600 - 2 * 86400, 9 * 3600 - 7 * 86400,
-  ]
-
-  /// The choices for an event, with `current` added when it is not one of them (an alert set elsewhere is never lost).
-  public static func choices(allDay isAllDay: Bool, including current: TimeInterval? = nil)
-    -> [TimeInterval]
-  {
-    let base = isAllDay ? allDay : timed
-    guard let current, !base.contains(current) else { return base }
-    return base + [current]
-  }
-
-  /// "10 minutes before", "At time of event", "1 day before (9:00)".
-  public static func label(_ offset: TimeInterval, allDay isAllDay: Bool) -> String {
+  /// "10 minutes before", "At time of event", "1 hour before".
+  public static func label(_ offset: TimeInterval) -> String {
     let seconds = Int(offset.rounded())
-    if isAllDay {
-      // Measured from midnight: whole days before plus a time of day.
-      let dayStart = Int((Double(seconds) / 86400).rounded(.down))
-      let timeOfDay = seconds - dayStart * 86400
-      let clock = String(format: "%d:%02d", timeOfDay / 3600, (timeOfDay % 3600) / 60)
-      switch dayStart {
-      case 0: return "On day of event (\(clock))"
-      case ..<0: return "\(plural(-dayStart, "day")) before (\(clock))"
-      default: return "\(plural(dayStart, "day")) after (\(clock))"
-      }
-    }
     if seconds == 0 { return "At time of event" }
-    let before = seconds < 0
     let magnitude = abs(seconds)
     let amount: String
     if magnitude % 604_800 == 0 {
@@ -53,7 +17,7 @@ public enum EventAlert {
     } else {
       amount = plural(max(1, magnitude / 60), "minute")
     }
-    return amount + (before ? " before" : " after")
+    return amount + (seconds < 0 ? " before" : " after")
   }
 
   private static func plural(_ n: Int, _ unit: String) -> String {
@@ -103,14 +67,5 @@ public enum EventCalendarChoice {
     }
     let ids = Set(hits.map(\.id))
     return ids.count == 1 ? ids.first : nil
-  }
-
-  /// The calendar the model named, matched to a writable calendar by title (case-insensitive), else nil.
-  public static func matching(title raw: String?, calendars: [Candidate]) -> String? {
-    guard let raw = raw?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
-      !raw.isEmpty
-    else { return nil }
-    let hits = calendars.filter { $0.writable && $0.title.lowercased() == raw }
-    return hits.count == 1 ? hits.first?.id : nil
   }
 }

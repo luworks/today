@@ -352,7 +352,7 @@
         {
           Button("Open in Calendar") {
             native.edit(
-              identifier: identifier, start: start, end: nil, fullOptions: true, onComplete: nil)
+              identifier: identifier, start: start, end: nil, onComplete: nil)
           }
           .buttonStyle(.bordered)
           .accessibilityIdentifier("ask-open-system-event")

@@ -119,7 +119,7 @@
       switch entry.source {
       case .system(let id):
         (calendar as? any NativeCalendarService)?.edit(
-          identifier: id, start: entry.start, end: nil, fullOptions: false, onComplete: nil)
+          identifier: id, start: entry.start, end: nil, onComplete: nil)
       case .task(let task): onOpenTask(task)
       case .alarm(let alarm): onOpenAlarm(alarm)
       case .local(let event): opened = .local(event)
@@ -131,7 +131,7 @@
     /// A long-press on an empty slot of the 2 Day grid: Apple's editor when Calendar access is on, else ours, prefilled.
     private func create(start: Date, end: Date) {
       if calendar.usesNativeEditor, let native = calendar as? any NativeCalendarService {
-        native.edit(identifier: nil, start: start, end: end, fullOptions: false, onComplete: nil)
+        native.edit(identifier: nil, start: start, end: end, onComplete: nil)
       } else {
         opened = .new(start: start, end: end)
       }

@@ -713,22 +713,6 @@
           "path": "ios/OneUITests/EventSaveTests.swift",
           "methods": [
             {
-              "name": "testExistingNativeEventUnchangedSaveCloses",
-              "line": 40
-            },
-            {
-              "name": "testExistingNativeEventChangedSaveClosesAndPersists",
-              "line": 44
-            },
-            {
-              "name": "testExistingNativeEventSaveFailureKeepsEditor",
-              "line": 48
-            },
-            {
-              "name": "testExistingAllDayNativeEventUnchangedSaveCloses",
-              "line": 52
-            },
-            {
               "name": "testExistingLocalEventUnchangedSaveCloses",
               "line": 121
             }

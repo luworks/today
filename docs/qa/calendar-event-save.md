@@ -1,6 +1,13 @@
 # Existing Calendar event save compatibility — issue #79
 
-Status: fixed through the iOS 27 existing-event compatibility entry. Focused build
+Status: superseded 2026-11-03. The owner asked for every Apple Calendar field
+(calendar, alerts, travel time, invitees, …) without leaving Today; EventKit has
+no API to write invitees or travel time, so existing events now open in Apple's
+own Edit Event and the compatibility editor below was deleted. As in Apple
+Calendar, its checkmark is grey until something changes; X closes an unchanged
+event. The record below is kept as history.
+
+Former status: fixed through the iOS 27 existing-event compatibility entry. Focused build
 and simulator journeys passed; the underlying native More Options service is not
 claimed repaired. No physical-device acceptance is claimed.
 
