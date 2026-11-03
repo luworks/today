@@ -144,16 +144,11 @@ belong in the persistent QA results directory, not this fixture catalog.
 ## Existing event save
 
 `event-save.json` supplies one local timed daily event at 13:45 for 60 minutes
-for `EventSaveTests`. Native tests reuse the existing simulator-only
-`-debugCreateSystemEvent` hook with a unique title, then reopen after a fresh
-in-memory launch to verify persistence. Inputs remain versioned here and inline
-in that suite; EventKit writes affect only its named simulator calendar.
-
-Event-save supplemental EventKit metadata is seeded by the versioned DEBUG hooks
-`-uiTestingCalendarSaveMetadata` (notes, URL, two alerts) and
-`-uiTestingCalendarSaveAllDay` (one current calendar day).
-`EventSaveTests` owns these synthetic events and cleanup;
-`-uiTestingEventSaveFailure` injects a local save error without user data.
+for `EventSaveTests` (the local editor's unchanged Done, and Ask moving an
+all-day Apple event). Apple events are made by the simulator-only
+`-debugCreateSystemEvent` hook with a unique title; `-uiTestingCalendarSaveAllDay`
+makes it one current calendar day. EventKit writes affect only the named
+simulator calendar, and the suite deletes what it made.
 
 ## Actionable reminder recovery
 

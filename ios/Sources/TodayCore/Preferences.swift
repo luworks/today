@@ -159,7 +159,7 @@ public enum Preferences {
 
   /// "None", "At time of event", "10 minutes before", "1 day before".
   public static func newEventAlertLabel(_ minutes: Int) -> String {
-    minutes == noEventAlert ? "None" : EventAlert.label(TimeInterval(-minutes * 60), allDay: false)
+    minutes == noEventAlert ? "None" : EventAlert.label(TimeInterval(-minutes * 60))
   }
 
   public static func newAlarmSnoozeMinutes(_ defaults: UserDefaults = .standard) -> Int {

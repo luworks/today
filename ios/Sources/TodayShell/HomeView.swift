@@ -857,7 +857,7 @@
         identifier: nil,
         start: EventEditor.defaultStart(
           for: tab == .calendar ? calendarDay : session.runtime.now(), now: session.runtime.now(),
-          calendar: session.runtime.calendar), end: nil, fullOptions: false, onComplete: nil)
+          calendar: session.runtime.calendar), end: nil, onComplete: nil)
     }
 
     /// On World Clock, + adds a city.

@@ -136,8 +136,6 @@ final class CalendarRecurringDeleteTests: XCTestCase {
     // Today scrolls to the now line just after it appears; a tap during that scroll can be lost on a slow simulator.
     if !editor.waitForExistence(timeout: 10) { row(app).tap() }
     XCTAssertTrue(editor.waitForExistence(timeout: 10), "the existing-event editor opens")
-    let fullOptions = app.buttons["More Options…"]
-    if fullOptions.waitForExistence(timeout: 2) { fullOptions.tap() }
     XCTAssertTrue(
       app.buttons["alert-cell"].waitForExistence(timeout: 20), "the full system editor is ready")
     let delete = app.buttons.matching(NSPredicate(format: "label CONTAINS[c] 'Delete Event'"))

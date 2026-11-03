@@ -71,20 +71,17 @@
       .modifier(TodayItemSurface(enabled: attention != nil))
       .onTapGesture {
         (calendar as? any NativeCalendarService)?.edit(
-          identifier: event.eventIdentifier, start: event.start, end: nil, fullOptions: false,
-          onComplete: nil)
+          identifier: event.eventIdentifier, start: event.start, end: nil, onComplete: nil)
       }
       .entryActions(
         entry, pendingDelete: $pendingDelete,
         open: { _ in
           (calendar as? any NativeCalendarService)?.edit(
-            identifier: event.eventIdentifier, start: event.start, end: nil, fullOptions: false,
-            onComplete: nil)
+            identifier: event.eventIdentifier, start: event.start, end: nil, onComplete: nil)
         },
         edit: { _ in
           (calendar as? any NativeCalendarService)?.edit(
-            identifier: event.eventIdentifier, start: event.start, end: nil, fullOptions: false,
-            onComplete: nil)
+            identifier: event.eventIdentifier, start: event.start, end: nil, onComplete: nil)
         }, calendar: calendar, attention: attention
       )
       .listRowSeparator(.hidden)

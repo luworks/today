@@ -73,10 +73,6 @@ final class SystemEventEditorTests: XCTestCase {
     row.tap()
     let navTitle = app.staticTexts["Edit Event"]
     XCTAssertTrue(navTitle.waitForExistence(timeout: 10), "Apple's Edit Event opens straight away")
-    sleep(1)
-    let fullOptions = app.buttons["More Options…"]
-    let hadQuickEditor = fullOptions.exists
-    if hadQuickEditor { fullOptions.tap() }
     XCTAssertTrue(
       app.buttons["alert-cell"].waitForExistence(timeout: 20), "the full system editor is ready")
     shot("1-opened")
@@ -100,7 +96,7 @@ final class SystemEventEditorTests: XCTestCase {
       deletes.count, 1,
       "exactly one Delete Event: \(deletes.allElementsBoundByIndex.map({ $0.label }))")
     // Close without changing anything. (The event stays in the simulator's own calendar, never a real one.)
-    // The unchanged native editor has disabled Done; the quick editor keeps Done enabled.
+    // Like Apple Calendar, the unchanged editor's Done is disabled; Cancel closes it.
     let nativeBar = app.navigationBars.containing(
       NSPredicate(
         format: "elementType == %ld AND label == 'Done' AND enabled == false",
@@ -109,14 +105,6 @@ final class SystemEventEditorTests: XCTestCase {
     XCTAssertTrue(
       nativeBar.waitForExistence(timeout: 5), "the native navigation bar is identifiable")
     nativeBar.buttons["Cancel"].tap()
-    if hadQuickEditor {
-      let returned = XCTNSPredicateExpectation(
-        predicate: NSPredicate(format: "exists == true AND hittable == true"), object: fullOptions)
-      XCTAssertEqual(
-        XCTWaiter.wait(for: [returned], timeout: 5), .completed,
-        "Cancel returns to the unchanged quick editor")
-      app.buttons["Cancel"].firstMatch.tap()
-    }
     XCTAssertTrue(navTitle.waitForNonExistence(timeout: 8))
   }
 }

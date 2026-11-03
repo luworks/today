@@ -770,7 +770,7 @@
       {
         native.edit(
           identifier: event.eventIdentifier, start: event.start, end: nil,
-          fullOptions: false, onComplete: nil)
+          onComplete: nil)
       } else {
         toast?.showNotice("This source is unavailable. Reconnect and try again.")
       }

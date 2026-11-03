@@ -74,7 +74,7 @@
     var calendarForNewEvents: EKCalendar? { get }
     func nativeEvent(identifier: String, occurrence: Date?) -> (EKEvent, EKEventStore)?
     func edit(
-      identifier: String?, start: Date, end: Date?, fullOptions: Bool,
+      identifier: String?, start: Date, end: Date?,
       onComplete: ((EKEventEditViewAction) -> Void)?)
   }
 

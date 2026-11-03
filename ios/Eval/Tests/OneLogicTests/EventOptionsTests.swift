@@ -2,7 +2,7 @@ import XCTest
 
 @testable import TodayCore
 
-/// The event editor's choices: Apple's alert tables, where a new event goes, and the new-event alert setting.
+/// New events: alert words, which calendar they go to, and the two Settings choices.
 final class EventOptionsTests: XCTestCase {
   private func freshDefaults() -> UserDefaults {
     let name = "EventOptionsTests-\(UUID().uuidString)"
@@ -13,35 +13,16 @@ final class EventOptionsTests: XCTestCase {
 
   // MARK: Alerts
 
-  func testTimedAlertsAreApplesChoicesInOrder() {
+  func testAlertsReadLikeAppleCalendar() {
+    let offsets: [TimeInterval] = [0, -300, -600, -3600, -7200, -86400, -604_800]
     XCTAssertEqual(
-      EventAlert.timed.map { EventAlert.label($0, allDay: false) },
+      offsets.map { EventAlert.label($0) },
       [
-        "At time of event", "5 minutes before", "10 minutes before", "15 minutes before",
-        "30 minutes before", "1 hour before", "2 hours before", "1 day before", "2 days before",
-        "1 week before",
+        "At time of event", "5 minutes before", "10 minutes before", "1 hour before",
+        "2 hours before", "1 day before", "1 week before",
       ])
-  }
-
-  func testAllDayAlertsCountFromMidnight() {
-    XCTAssertEqual(
-      EventAlert.allDay.map { EventAlert.label($0, allDay: true) },
-      [
-        "On day of event (9:00)", "1 day before (9:00)", "2 days before (9:00)",
-        "7 days before (9:00)",
-      ])
-    XCTAssertEqual(EventAlert.allDay[1], -15 * 3600, "9:00 the day before = 15 h before midnight")
-  }
-
-  func testAnAlertSetElsewhereStaysAChoice() {
-    let odd: TimeInterval = -45 * 60
-    XCTAssertEqual(EventAlert.choices(allDay: false, including: odd).last, odd)
-    XCTAssertEqual(EventAlert.label(odd, allDay: false), "45 minutes before")
-    XCTAssertEqual(
-      EventAlert.choices(allDay: false, including: -600), EventAlert.timed,
-      "a known choice is not listed twice")
-    XCTAssertEqual(EventAlert.label(600, allDay: false), "10 minutes after")
-    XCTAssertEqual(EventAlert.label(-90 * 60, allDay: false), "90 minutes before")
+    XCTAssertEqual(EventAlert.label(-90 * 60), "90 minutes before")
+    XCTAssertEqual(EventAlert.label(600), "10 minutes after")
   }
 
   // MARK: Which calendar
@@ -85,12 +66,6 @@ final class EventOptionsTests: XCTestCase {
     XCTAssertNil(
       EventCalendarChoice.named(in: "US Holidays party", calendars: calendars),
       "read-only calendars are not candidates")
-  }
-
-  func testModelNamedCalendarMatchesByTitle() {
-    XCTAssertEqual(EventCalendarChoice.matching(title: " work ", calendars: calendars), "work")
-    XCTAssertNil(EventCalendarChoice.matching(title: "Gym", calendars: calendars))
-    XCTAssertNil(EventCalendarChoice.matching(title: nil, calendars: calendars))
   }
 
   // MARK: Settings
