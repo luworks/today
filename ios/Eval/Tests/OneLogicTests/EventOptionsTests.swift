@@ -14,8 +14,9 @@ final class EventOptionsTests: XCTestCase {
   // MARK: Alerts
 
   func testAlertsReadLikeAppleCalendar() {
+    let offsets: [TimeInterval] = [0, -300, -600, -3600, -7200, -86400, -604_800]
     XCTAssertEqual(
-      [0, -5 * 60, -10 * 60, -3600, -2 * 3600, -86400, -7 * 86400].map { EventAlert.label($0) },
+      offsets.map { EventAlert.label($0) },
       [
         "At time of event", "5 minutes before", "10 minutes before", "1 hour before",
         "2 hours before", "1 day before", "1 week before",
