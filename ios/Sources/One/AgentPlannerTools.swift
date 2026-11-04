@@ -156,6 +156,8 @@
     package private(set) var cards: [String: AgentCard] = [:]
     package weak var sink: (any AgentCardSink)?
 
+    private var eveningTargetID: String?
+
     private let context: ModelContext
     private let calendar: any CalendarService
     private let actions: PlannerActions
@@ -1062,8 +1064,78 @@
 
     private func edit(_ a: JSONValue) -> AgentToolOutcome {
       let shortID = a["id"]?.string ?? ""
+      var fields = a
+      let answer = turn.text.trimmingCharacters(in: .whitespacesAndNewlines)
+      if eveningTargetID == shortID,
+        answer.range(of: #"^([1-9]|1[01])(?:[:：][0-5][0-9])?$"#, options: .regularExpression) != nil
+      {
+        let parts = answer.replacingOccurrences(of: "：", with: ":").split(separator: ":")
+        if let hour = Int(parts[0]), case .object(var object) = fields {
+          object["when_text"] = .string(
+            String(format: "%02d:%02d", hour + 12, parts.count > 1 ? Int(parts[1]) ?? 0 : 0))
+          fields = .object(object)
+          turn.askedForAction = true
+          turn.text = "move this item to " + answer + " pm"
+        }
+      }
+      if let words = a["when_text"]?.string,
+        ["evening", "tonight", "晚上", "改到晚上"].contains(words.lowercased())
+      {
+        eveningTargetID = shortID
+        let start: Date?
+        let duration: TimeInterval
+        switch resolve(shortID) {
+        case .event(let event)?:
+          start = event.start
+          duration = TimeInterval(event.durationMinutes * 60)
+        case .system(let identifier, let occurrence)?:
+          guard
+            let snapshot = try? calendar.moveSnapshot(
+              externalID: identifier, occurrence: occurrence)
+          else {
+            return .error("not_available", "Calendar access or this occurrence is unavailable.")
+          }
+          start = snapshot.start
+          duration = snapshot.end.timeIntervalSince(snapshot.start)
+        case .task(let task)?:
+          start = task.due
+          duration = TimeInterval(task.durationMinutes * 60)
+        case .alarm?:
+          start = now
+          duration = 0
+        case nil: return .error("unknown_id", "Resolve the target first.")
+        }
+        guard let start, let interval = cal.dateInterval(of: .day, for: start),
+          let evening = cal.date(bySettingHour: 18, minute: 0, second: 0, of: start)
+        else { return .error("missing_day", "Ask which day to use.") }
+        let busy = entries(in: interval, includeDone: false).filter {
+          self.id(for: $0) != shortID && !$0.isBackground && !$0.isTask && !$0.isAlarm
+        }.map { DateInterval(start: $0.start, end: max($0.start, $0.end)) }
+        let gaps = DaySchedule.freeGaps(
+          busy: busy, day: start, now: now, minimum: 1, calendar: cal)
+        guard
+          let slot = gaps.map({ max($0.start, evening) }).first(where: { candidate in
+            gaps.contains {
+              $0.start <= candidate && $0.end >= candidate.addingTimeInterval(max(60, duration))
+            }
+          })
+        else {
+          return .error(
+            "no_evening_gap",
+            "No full-duration evening slot is available on this date. Ask whether to use another day; do not move another item."
+          )
+        }
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.timeZone = cal.timeZone
+        f.dateFormat = "yyyy-MM-dd HH:mm"
+        if case .object(var object) = fields {
+          object["when_text"] = .string(f.string(from: slot))
+          fields = .object(object)
+        }
+      }
       let result = change(shortID) { start in
-        self.operation(a, kind: self.kindName(shortID), start: start, title: "")
+        self.operation(fields, kind: self.kindName(shortID), start: start, title: "")
       }
       switch result {
       case .failure(let e): return e
