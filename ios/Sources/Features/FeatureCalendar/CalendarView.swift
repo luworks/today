@@ -1209,6 +1209,9 @@
     @AppStorage(Preferences.weekNumbersKey) private var showsWeekNumbers = Preferences.weekNumbers
     @AppStorage(Preferences.compressEmptyHoursKey) private var compressEmptyHours =
       Preferences.compressEmptyHours
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var timeRevision = 0
+    @State private var didRevealNow = false
     @State private var expandedGaps: Set<CalendarGapLayout.Interval> = []
     /// Days from today of the first column.
     @State private var pos: Int? = 0
@@ -1235,13 +1238,14 @@
     }
 
     var body: some View {
+      let _ = timeRevision
       // The all-day items around the visible days, read once per day moved, not per frame of the swipe.
       let near = DateInterval(start: date(first - 2), end: date(first + Self.columns + 2))
       let allDay = CalendarEntries.make(
         in: near, events: events, tasks: tasks, alarms: alarms, calendarService: calendar,
         now: presentation.now, calendar: cal
       ).filter(\.isAllDay)
-      VStack(spacing: 0) {
+      return VStack(spacing: 0) {
         HStack(spacing: 0) {
           weekNumber
           DayStrip(scroll: scroll) { header(date($0)) }
@@ -1253,6 +1257,22 @@
           pendingDelete: $pendingDelete, open: open, edit: edit)
         Rectangle().fill(Color(.separator)).frame(height: 0.5)
         grid
+      }
+      .onReceive(Timer.publish(every: 60, on: .main, in: .common).autoconnect()) { _ in
+        timeRevision += 1
+      }
+      .onReceive(
+        NotificationCenter.default.publisher(for: UIApplication.significantTimeChangeNotification)
+      ) { _ in timeRevision += 1 }
+      .onReceive(NotificationCenter.default.publisher(for: .NSSystemTimeZoneDidChange)) { _ in
+        timeRevision += 1
+      }
+      .onChange(of: scenePhase) { _, phase in
+        if phase == .active { timeRevision += 1 }
+      }
+      .onChange(of: today) { _, _ in
+        pos = offset(of: day)
+        scroll.columns = CGFloat(offset(of: day))
       }
       .entryDeleteDialog($pendingDelete)
       .onChange(of: day) { _, new in
@@ -1377,11 +1397,20 @@
           }
           .frame(height: CGFloat(axis.height))
           .overlay(alignment: .top) { gapBands(axis) }
+          .overlay(alignment: .topLeading) { nowLine(axis) }
         }
         .padding(.top, 10)
         .padding(.bottom, 12)
       }
       .scrollIndicators(.hidden)
+      .onAppear {
+        guard !didRevealNow, (1 - Self.columns...0).contains(first) else { return }
+        didRevealNow = true
+        let minute = CalendarDayAxis.minute(presentation.now, calendar: cal)
+        if let gap = axis.gaps.first(where: { minute >= $0.start && minute < $0.end }) {
+          expandedGaps.insert(gap)
+        }
+      }
       // Two fingers zoom the hours; one finger still scrolls, swipes days, taps and long-presses.
       .simultaneousGesture(
         MagnifyGesture(minimumScaleDelta: 0.02)
@@ -1452,10 +1481,38 @@
           .accessibilityIdentifier("calendar.gap.\(Int(gap.start / 60)).\(Int(gap.end / 60))")
         }
         if (1 - Self.columns...0).contains(first) {
-          TimelineView(.everyMinute) { _ in nowLabel(axis) }
+          nowLabel(axis)
         }
       }
       .frame(width: gutter, height: CGFloat(axis.height), alignment: .topLeading)
+    }
+
+    private func nowLine(_ axis: CalendarGapLayout) -> some View {
+      GeometryReader { geometry in
+        let width = geometry.size.width / CGFloat(Self.columns)
+        let x = -scroll.columns * width
+        if x > -width && x < geometry.size.width,
+          let minute = CalendarDayAxis.currentMinute(
+            on: date(0), now: presentation.now, calendar: cal)
+        {
+          let y = CGFloat(axis.y(forMinute: minute))
+          HStack(spacing: 0) {
+            Circle().fill(.red).frame(width: 6, height: 6)
+            Rectangle().fill(.red).frame(height: 1)
+          }
+          .frame(width: width)
+          .offset(x: x, y: y - 3)
+          .accessibilityElement(children: .ignore)
+          .accessibilityLabel(
+            "Now "
+              + presentation.now.plannerFormatted(
+                date: .complete, time: .shortened, runtime: presentation.runtime)
+          )
+          .accessibilityIdentifier("calendar.nowLine")
+        }
+      }
+      .clipped()
+      .allowsHitTesting(false)
     }
 
     private func nowLabel(_ axis: CalendarGapLayout) -> some View {
@@ -1659,10 +1716,6 @@
                 .offset(x: r.minX, y: r.minY)
             }
           }
-          // The now line: strong on today, faint across the other days on screen with it.
-          if abs(fromToday) < TwoDayView.columns {
-            TimelineView(.everyMinute) { _ in nowLine(strong: fromToday == 0) }
-          }
           if let draft { draftBlock(draft, width: width) }
         }
         .frame(width: width, height: CGFloat(axis.height), alignment: .topLeading)
@@ -1685,16 +1738,6 @@
       .overlay(alignment: .leading) { Rectangle().fill(Color(.separator)).frame(width: 0.5) }
       .accessibilityHidden(true)
       .allowsHitTesting(false)
-    }
-
-    private func nowLine(strong: Bool) -> some View {
-      let y = CGFloat(axis.y(forMinute: CalendarDayAxis.minute(presentation.now, calendar: cal)))
-      return Rectangle()
-        .fill(strong ? Color.red : Color.red.opacity(0.35))
-        .frame(height: strong ? 1.5 : 1)
-        .offset(y: strong ? y - 0.5 : y)
-        .accessibilityHidden(true)
-        .allowsHitTesting(false)
     }
 
     struct Placed {

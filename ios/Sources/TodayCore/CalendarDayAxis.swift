@@ -3,6 +3,11 @@ import Foundation
 /// The fixed 00–24 clock axis used by Calendar 2 Day, independent of elapsed DST hours.
 /// Repeated local times share a coordinate; missing spring hours remain on the axis.
 public enum CalendarDayAxis {
+  /// Current-time markers belong only to the actual local day.
+  public static func currentMinute(on day: Date, now: Date, calendar: Calendar) -> Double? {
+    calendar.isDate(day, inSameDayAs: now) ? minute(now, calendar: calendar) : nil
+  }
+
   public static func minute(_ date: Date, calendar: Calendar) -> Double {
     let c = calendar.dateComponents([.hour, .minute, .second], from: date)
     return Double((c.hour ?? 0) * 60 + (c.minute ?? 0)) + Double(c.second ?? 0) / 60
