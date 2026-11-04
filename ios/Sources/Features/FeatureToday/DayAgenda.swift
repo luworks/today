@@ -124,6 +124,8 @@
         }
         .onChange(of: day) { _, _ in
           showsAllOverdue = false
+          timeRequest = nil
+          pendingTime = nil
           scrollToNow(proxy)
         }
       }
@@ -458,6 +460,11 @@
         case .due(let task):
           guard !task.isDone else { throw CocoaError(.userCancelled) }
           let snapshot = Ledger.snapshot(of: task)
+          guard snapshot.repeatRule == nil else {
+            timeError =
+              "This repeating reminder needs an occurrence-only change. Its series has not been changed. Open the reminder to edit it."
+            return
+          }
           timeRequest = TimelineMoveRequest(timing: timing) { date in
             let receipt = try actions.applyAttachedReminder(
               .move(date), task: task, expected: snapshot, context: context, actor: .you,

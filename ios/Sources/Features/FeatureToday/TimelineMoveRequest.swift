@@ -12,6 +12,7 @@
     let attendees: Int
     private let perform: (Date) async throws -> (() -> Void)
     private var busy = false
+    private var completed = false
 
     init(
       timing: TimelineDragTime, attendees: Int = 0,
@@ -23,12 +24,13 @@
     }
 
     func apply(_ date: Date, toast: UndoToast?) async throws {
-      guard !busy, date >= timing.earliest, date <= timing.latest else {
+      guard !busy, !completed, date >= timing.earliest, date <= timing.latest else {
         throw CocoaError(.validationDateTooLate)
       }
       busy = true
       defer { busy = false }
       let undo = try await perform(date)
+      completed = true
       toast?.show("Time changed", undo: undo)
     }
   }
