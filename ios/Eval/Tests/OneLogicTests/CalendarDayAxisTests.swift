@@ -3,6 +3,30 @@ import XCTest
 @testable import TodayCore
 
 final class CalendarDayAxisTests: XCTestCase {
+  func testNowBelongsOnlyToLocalTodayAndUsesFoldedAxis() throws {
+    var cal = Calendar(identifier: .gregorian)
+    cal.timeZone = try XCTUnwrap(TimeZone(identifier: "America/Los_Angeles"))
+    let now = try XCTUnwrap(ISO8601DateFormatter().date(from: "2026-11-01T09:45:00Z"))
+    let today = cal.startOfDay(for: now)
+    XCTAssertNil(
+      CalendarDayAxis.currentMinute(
+        on: cal.date(byAdding: .day, value: -1, to: today)!, now: now, calendar: cal))
+    XCTAssertNil(
+      CalendarDayAxis.currentMinute(
+        on: cal.date(byAdding: .day, value: 1, to: today)!, now: now, calendar: cal))
+    let minute = try XCTUnwrap(CalendarDayAxis.currentMinute(on: today, now: now, calendar: cal))
+    XCTAssertEqual(minute, 105)
+    let gap = CalendarGapLayout.Interval(start: 0, end: 1440)
+    for expanded: Set<CalendarGapLayout.Interval> in [[], [gap]] {
+      let axis = CalendarGapLayout(
+        days: [.init()], pointsPerHour: 60,
+        minimumGapMinutes: 120, compressedGapHeight: 44, expandedGaps: expanded)
+      XCTAssertEqual(axis.minute(atY: axis.y(forMinute: minute)), 105, accuracy: 0.001)
+      XCTAssertEqual(
+        axis.y(forMinute: minute), expanded.isEmpty ? 105 * 44 / 1440 : 105, accuracy: 0.001)
+    }
+  }
+
   private var calendar: Calendar {
     var c = Calendar(identifier: .gregorian)
     c.timeZone = TimeZone(identifier: "America/Los_Angeles")!

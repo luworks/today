@@ -13,6 +13,39 @@
   @Suite(.serialized)
   struct AgentPlannerToolsTests {
     @Test
+    func requestedEveningMoveUsesFullDurationAndPreservesTarget() async throws {
+      let a = try AgentFixture()
+      defer { a.dispose() }
+      let day = a.runtime.calendar.startOfDay(for: a.now.addingTimeInterval(86400))
+      let start = day.addingTimeInterval(9 * 3600)
+      let event = OneEvent(
+        title: "Move Apple benefit to Sunday at 9am", start: start, durationMinutes: 60)
+      let busy = OneEvent(
+        title: "Busy", start: day.addingTimeInterval(18 * 3600), durationMinutes: 120)
+      a.context.insert(event)
+      a.context.insert(busy)
+      try a.context.save()
+      let found = await a.call("find_items", ["query": "Apple benefit"])
+      let id = try #require(found["items"]?.array?.first?["id"]?.string)
+      a.tools.turn = AgentTurn(text: "改到晚上", chinese: true, runID: "evening")
+      let out = await a.call("propose_edit", ["id": .string(id), "when_text": "晚上"])
+      let proposal = try #require(out["proposal_id"]?.string)
+      let result = await a.tools.apply(proposal)
+      #expect(result.kind == .applied)
+      #expect(event.start == day.addingTimeInterval(20 * 3600))
+      #expect(event.durationMinutes == 60)
+      #expect(await result.undo?() == nil)
+      #expect(event.start == start)
+      a.tools.turn = AgentTurn(text: "8", chinese: true, runID: "evening-answer")
+      let answer = await a.call("propose_edit", ["id": .string(id), "when_text": "8"])
+      let answerID = try #require(answer["proposal_id"]?.string)
+      #expect(a.tools.cards[answerID]?.tier == .direct)
+      let answered = await a.tools.apply(answerID)
+      #expect(answered.kind == .applied)
+      #expect(event.start == day.addingTimeInterval(20 * 3600))
+    }
+
+    @Test
     func aStaleReminderCardIsVoidAtApplyAndWritesNothing() async throws {
       let a = try AgentFixture()
       defer { a.dispose() }

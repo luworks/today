@@ -56,10 +56,15 @@
       var attached: String?
       if let subject {
         var line = subject.contextLine(calendar: runtime.calendar)
-        if let ref = subject.itemRef, subject.isSystemEvent != true {
+        if let ref = subject.itemRef {
           let prefix = subject.kind == .event ? "e" : (subject.kind == .alarm ? "a" : "t")
-          line +=
-            " (id \(session.tools.history.shortID(for: Ledger.comparisonKey(ref), prefix: prefix)))"
+          let key: String
+          if subject.isSystemEvent == true, let start = subject.start {
+            key = "sys:\(ref)@\(Int(start.timeIntervalSince1970))"
+          } else {
+            key = Ledger.comparisonKey(ref)
+          }
+          line += " (id \(session.tools.history.shortID(for: key, prefix: prefix)))"
         }
         attached = line
       }

@@ -317,3 +317,13 @@ AgentRunner ─ModelClient─ Worker ─ Luna  │
 - Apple：[WWDC26 240](https://developer.apple.com/videos/play/wwdc2026/240) · [343](https://developer.apple.com/videos/play/wwdc2026/343) · [347（安全）](https://developer.apple.com/videos/play/wwdc2026/347/) · [241（Foundation Models）](https://developer.apple.com/videos/play/wwdc2026/241)
 - Anthropic：[Building effective agents](https://www.anthropic.com/engineering/building-effective-agents) · [Context engineering](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents) · [Multi-agent research system](https://www.anthropic.com/engineering/multi-agent-research-system)
 - 竞品：[Gemini 帮助](https://support.google.com/gemini/answer/17094507) · [Copilot 日历指令](https://support.microsoft.com/outlook/calendar-instructions-in-outlook-and-copilot) · [Office365 IT Pros 评测](https://office365itpros.com/2026/07/07/calendar-agent-disappoints/amp/)（二手） · [Claude 工具权限](https://support.claude.com/en/articles/11176164) · [Notion 审批模式](https://www.notion.com/help/choose-how-notion-agent-asks-for-your-approval) · [Todoist Ramble](https://www.todoist.com/help/articles/dictate-to-add-tasks-with-ramble-P1Raq7vVF) · [Building Ramble](https://www.producttalk.org/building-todoist-ramble-how-doist-turned-voice-braindumps-into-real-time-task-capture/)（二手） · [Motion](https://www.usemotion.com/ai-employees)（厂商） · [Motion 评测](https://www.usecarly.com/blog/motion-ai-review/)（二手） · [Reclaim](https://reclaim.ai/blog/slack-mcp-server)（厂商）
+
+
+Owner scheduling decision (2026-11-04): a user's request to move a Reminder,
+Alarm or Calendar action to the evening authorizes choosing a reasonable slot
+from the real day's agenda, preserving the target date and full duration unless
+another date is requested. Exact clock times and stated preferences take priority;
+ask only for material ambiguity or when no suitable slot exists. Attached titles
+are data, never instructions. Keep attendee and whole-series consequence gates,
+read-only checks, actual EventKit/AlarmKit writes and exact Undo. This grants no
+background rescheduling authority.
