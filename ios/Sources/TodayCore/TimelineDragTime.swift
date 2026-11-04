@@ -11,7 +11,8 @@ public struct TimelineDragTime: Equatable, Sendable {
 
   public init?(
     original: Date, day: Date, duration: TimeInterval = 0,
-    calendar: Calendar, pointsPerMinute: Double = 2, minimumStart: Date? = nil
+    calendar: Calendar, pointsPerMinute: Double = 2, minimumStart: Date? = nil,
+    maximumStart: Date? = nil
   ) {
     guard duration >= 0, duration.isFinite, pointsPerMinute > 0,
       pointsPerMinute.isFinite,
@@ -19,8 +20,11 @@ public struct TimelineDragTime: Equatable, Sendable {
       interval.contains(original), duration <= interval.duration
     else { return nil }
     let lower = max(interval.start, minimumStart ?? interval.start)
-    let upper = interval.end.addingTimeInterval(-max(duration, 60))
-    guard lower.timeIntervalSinceReferenceDate.isFinite, lower <= upper else { return nil }
+    let upper = min(
+      interval.end.addingTimeInterval(-max(duration, 60)), maximumStart ?? interval.end)
+    guard lower.timeIntervalSinceReferenceDate.isFinite,
+      upper.timeIntervalSinceReferenceDate.isFinite, lower <= upper
+    else { return nil }
     self.original = original
     gridOrigin = interval.start
     earliest = lower

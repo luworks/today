@@ -1,6 +1,6 @@
 # Today timeline drag V1 verification — 2026-11-04
 
-Issue #310, PR #311. Implementation is not yet accepted for merge: repeating Reminder scope still requires an owner decision, and connected Calendar mirror alert projections need final review. Phone installation belongs to the coordinating root after both features merge.
+Issue #310, PR #311. Implementation is not yet accepted for merge: repeating Reminder scope still requires an owner decision, and final exact-head CI is required. Phone installation belongs to the coordinating root after both features merge.
 
 ## Observed interaction: Mock only
 
@@ -16,8 +16,14 @@ Raw videos, screenshots, app logs and filmstrips are in the primary checkout at 
 
 ## Native integration: real SwiftData, source service spies
 
-Fifteen focused native cases passed across bounded batches. They cover Reminder move/Undo and failure, stale contexts, canonical Calendar projections, local occurrence persistence, one-off Alarm same-identity/settings restoration, expired original fire refusal, old-store migration, Calendar this-occurrence receipt/stale Undo, read-only failure, Reminder Activity Undo/source failure retry/later-change refusal, paused-Activity Alarm Undo, transient Calendar Undo retry and protected executing alarms. These tests use deterministic source adapters, not live Apple accounts.
+Nineteen focused native cases passed across bounded batches. They cover Reminder move/Undo and failure, stale contexts, canonical Calendar projections, local occurrence persistence, one-off Alarm same-identity/settings restoration, expired original fire refusal, old-store migration, Calendar this-occurrence receipt/stale Undo, read-only failure, Reminder Activity Undo/source failure retry/later-change refusal, paused-Activity Alarm Undo, transient Calendar Undo retry and protected executing alarms. These tests use deterministic source adapters, not live Apple accounts.
 
 Retained report directory IDs under `tests/results/devtools/logs/`: `d570cecf25de425c8a83a516b5c316bd-xcode` (initial Alarm failure retained), `22fc0e195e764e138c1287ff70a8d545-xcode` (Alarm fixes passed), `23f824c96a524161a48a75b111441913-xcode` (migration), `2722628042d543619bcd22305cefd326-xcode` (Calendar), `1bd8fef93f3b42b5b225c4021cd5e855-xcode` (five additional Undo/execution risks). The last batch also compiled the final UI overlay and gesture changes. Earlier compiler and failed-selection evidence remains intact.
 
 `./dev format` and `git diff --check` passed. Regular logic/build verification belongs to CI; the exact final head must pass `checks` and `today-required` before merge. The regular gate does not execute UI journeys. No full UI suite, install-smoke, signing changes or phone installation was run here.
+
+## Calendar mirror consistency follow-up
+
+Verified source moves now update only matching retained mirror times (or one recurring exception), preserving the series anchor and alert settings. Native detached identifiers follow an occurrence across later drags. The same receipt restores the mirror after verified system Undo. A local retry after system restoration never replays the source Undo; it first reads the restored source again. Later local changes block the source write or Undo. Save failures restore only touched mirror fields and retain a retryable state. A forward mirror save failure attempts guarded system compensation and never produces a success toast.
+
+Four additional native cases passed in `tests/results/devtools/logs/cde52a7101b24239a2073ce439982da4-xcode/TodayTests.report.json`: repeated moves of a detached recurring occurrence with exact alert restoration, interrupted Undo retry without another system write, mirror save failure/retry, and cross-context stale mirror rejection. The preceding `7ca7c88bc8154010be397c33fdf40327-xcode` report retains the initial stale-mirror test failure; the source was repaired without relaxing the assertion. Existing stale-source and transient-Undo cases also passed in that batch. Additional pure tests for source-window bounds and backward-compatible detached identifiers belong to CI.

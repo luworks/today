@@ -458,6 +458,171 @@
     }
 
     @Test
+    func aVerifiedCalendarMoveUpdatesOnlyItsMirrorOccurrenceAndUndoRestoresAlerts() throws {
+      let a = try RegistryFixture()
+      defer { a.dispose() }
+      let original = a.now.addingTimeInterval(3600)
+      let moved = original.addingTimeInterval(1800)
+      let event = OneEvent(
+        title: "Planning", start: original.addingTimeInterval(-86400), durationMinutes: 30)
+      event.externalID = "series"
+      event.repeatRule = "daily"
+      event.reminderOffsetMinutes = 10
+      event.ringsAsAlarm = true
+      a.context.insert(event)
+      try a.context.save()
+      let before = mirrorSnapshot(original, id: "series")
+      let after = mirrorSnapshot(moved, id: "detached")
+      let movedAgain = moved.addingTimeInterval(300)
+      let afterAgain = mirrorSnapshot(movedAgain, id: "detached-again")
+      var current = before
+      var moves = 0
+      var restores = 0
+      a.services.calendar.moveEventResult = { expected, start in
+        guard expected == current else { throw CalendarMoveError.stale }
+        moves += 1
+        let target = start == moved ? after : afterAgain
+        let receipt = CalendarMoveReceipt(before: current, after: target)
+        current = target
+        return .verified(receipt)
+      }
+      a.services.calendar.undoMoveResult = { receipt in
+        guard receipt.after == current else { throw CalendarMoveError.stale }
+        restores += 1
+        current = receipt.before
+        return .verified
+      }
+      a.services.calendar.moveSnapshotResult = { _, _ in current }
+      let result = ToolRegistry.apply(
+        .init(expected: before, start: moved), context: a.context,
+        calendar: a.services.calendar, ledger: a.services.ledger, actor: .you, channel: .app,
+        report: { _ in })
+      #expect(result.moved == after)
+      #expect(event.start == original.addingTimeInterval(-86400) && event.externalID == "series")
+      #expect(event.occurs(on: original, calendar: a.runtime.calendar) == [moved])
+      #expect(
+        event.occurs(on: original.addingTimeInterval(86400), calendar: a.runtime.calendar) == [
+          original.addingTimeInterval(86400)
+        ])
+      #expect(plannerReminderDate(event, runtime: a.runtime) == moved.addingTimeInterval(-600))
+      #expect(event.ringsAsAlarm && event.reminderOffsetMinutes == 10)
+      let undo = try #require(result.result.undo)
+      let second = ToolRegistry.apply(
+        .init(expected: after, start: movedAgain), context: a.context,
+        calendar: a.services.calendar, ledger: a.services.ledger, report: { _ in })
+      #expect(second.moved == afterAgain)
+      #expect(event.occurs(on: original, calendar: a.runtime.calendar) == [movedAgain])
+      undo.run()
+      #expect(restores == 0, "The earlier receipt must not undo the later drag")
+      let undoSecond = try #require(second.result.undo)
+      undoSecond.run()
+      #expect(event.occurs(on: original, calendar: a.runtime.calendar) == [moved])
+      undo.run()
+      #expect(event.occurrenceOverrides.isEmpty)
+      #expect(plannerReminderDate(event, runtime: a.runtime) == original.addingTimeInterval(-600))
+      undo.run()
+      #expect(moves == 2 && restores == 2, "An already committed Undo never writes twice")
+    }
+
+    @Test
+    func aCalendarUndoRetryOnlyFinishesTheMirrorAfterTheSourceWasRestored() throws {
+      let a = try RegistryFixture()
+      defer { a.dispose() }
+      let original = a.now.addingTimeInterval(3600)
+      let moved = original.addingTimeInterval(1800)
+      let event = OneEvent(title: "Planning", start: original, durationMinutes: 30)
+      event.externalID = "event"
+      a.context.insert(event)
+      try a.context.save()
+      let before = mirrorSnapshot(original, id: "event")
+      let after = mirrorSnapshot(moved, id: "moved-id")
+      let restored = mirrorSnapshot(original, id: "restored-id")
+      var restores = 0
+      a.services.calendar.moveEventResult = { _, _ in .verified(.init(before: before, after: after))
+      }
+      a.services.calendar.undoMoveResult = { _ in
+        restores += 1
+        return .verified
+      }
+      a.services.calendar.moveSnapshotResult = { _, _ in throw CalendarMoveError.unavailable }
+      let result = ToolRegistry.apply(
+        .init(expected: before, start: moved), context: a.context,
+        calendar: a.services.calendar, ledger: a.services.ledger, report: { _ in })
+      let undo = try #require(result.result.undo)
+      undo.run()
+      #expect(undo.canRetry?() == true && restores == 1)
+      #expect(event.start == moved && event.externalID == "moved-id")
+      a.services.calendar.moveSnapshotResult = { _, _ in restored }
+      undo.run()
+      #expect(undo.canRetry?() == false && restores == 1)
+      #expect(event.start == original && event.externalID == "restored-id")
+    }
+
+    @Test
+    func aCalendarMirrorSaveFailureRetainsThePriorTimeAndCanRetry() throws {
+      let a = try RegistryFixture()
+      defer { a.dispose() }
+      let original = a.now.addingTimeInterval(3600)
+      let moved = original.addingTimeInterval(1800)
+      let event = OneEvent(title: "Planning", start: original, durationMinutes: 30)
+      event.externalID = "event"
+      a.context.insert(event)
+      try a.context.save()
+      let mirrors = try CalendarMoveMirrors(
+        expected: mirrorSnapshot(original, id: "event"), context: a.context)
+      let receipt = CalendarMoveReceipt(
+        before: mirrorSnapshot(original, id: "event"),
+        after: mirrorSnapshot(moved, id: "changed-id"))
+      #expect(throws: (any Error).self) {
+        try mirrors.apply(receipt, save: { throw CocoaError(.fileWriteUnknown) })
+      }
+      #expect(event.start == original && event.externalID == "event")
+      try mirrors.apply(receipt)
+      #expect(event.start == moved && event.externalID == "changed-id")
+      #expect(throws: (any Error).self) {
+        try mirrors.restore(save: { throw CocoaError(.fileWriteUnknown) })
+      }
+      #expect(event.start == moved && event.externalID == "changed-id")
+      try mirrors.restore()
+      #expect(event.start == original && event.externalID == "event")
+    }
+
+    @Test
+    func aCalendarMirrorChangedInAnotherContextRejectsTheSystemWrite() throws {
+      let a = try RegistryFixture()
+      defer { a.dispose() }
+      let original = a.now.addingTimeInterval(3600)
+      let event = OneEvent(title: "Planning", start: original, durationMinutes: 30)
+      event.externalID = "event"
+      a.context.insert(event)
+      try a.context.save()
+      let other = ModelContext(a.context.container)
+      let saved = try #require(try other.fetch(FetchDescriptor<OneEvent>()).first)
+      saved.start = original.addingTimeInterval(900)
+      try other.save()
+      var writes = 0
+      a.services.calendar.moveEventResult = { _, _ in
+        writes += 1
+        throw CalendarMoveError.stale
+      }
+      let result = ToolRegistry.apply(
+        .init(
+          expected: mirrorSnapshot(original, id: "event"), start: original.addingTimeInterval(1800)),
+        context: a.context, calendar: a.services.calendar, ledger: a.services.ledger,
+        report: { _ in })
+      #expect(!result.result.applied && result.result.undo == nil && writes == 0)
+      #expect(try a.rows().isEmpty)
+    }
+
+    private func mirrorSnapshot(_ start: Date, id: String) -> CalendarMoveSnapshot {
+      CalendarMoveSnapshot(
+        externalID: id, calendarID: "work", sourceID: "fixture", itemID: id,
+        occurrence: start, start: start, end: start.addingTimeInterval(1800), isAllDay: false,
+        lastModified: start, title: "Planning", location: nil, notes: nil, url: nil,
+        audience: CalendarMoveAudience(attendeeCount: 0, isOrganizer: nil), participantIDs: [])
+    }
+
+    @Test
     func aSystemMoveExpectationCarriesItsLastModifiedTimeAndAudience() {
       let modified = Date(timeIntervalSince1970: 1_792_400_000)
       let start = modified.addingTimeInterval(86_400)

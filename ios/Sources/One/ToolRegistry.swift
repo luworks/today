@@ -392,10 +392,26 @@
       let snapshot = p.expected
       let start = p.start
       do {
+        let mirrors = try CalendarMoveMirrors(expected: snapshot, context: context)
         let outcome = try calendar.moveEvent(
           expected: snapshot, to: start, acknowledgingAudience: true)
         switch outcome {
         case .verified(let receipt):
+          do {
+            try mirrors.apply(receipt)
+          } catch {
+            let restored = try? calendar.undoMove(receipt, acknowledgingAudience: true)
+            result.applied = false
+            if case .verified? = restored {
+              result.replies.append(
+                "Today couldn't save its copy. The calendar time was restored; try again.")
+            } else {
+              result.replies.append(
+                "Calendar accepted the move, but Today couldn't save its copy or verify restoration. Open Calendar before trying again."
+              )
+            }
+            return (result, nil)
+          }
           let entry = ledger.record(
             .moved, kind: "event", title: snapshot.title,
             before: ledger.timeLabel(snapshot.start), after: ledger.timeLabel(start),
@@ -403,24 +419,49 @@
             approval: actor == .you ? .userMade : .asked, snapshot: receipt, context: context)
           result.replies.append("The calendar event was moved.")
           var retryAllowed = false
+          var sourceRestored = false
+          var finished = false
           result.undo = .init(
             label: "Moved the event. Calendar may notify attendees again.",
             run: {
               retryAllowed = false
+              guard !finished else { return }
               do {
-                switch try calendar.undoMove(receipt, acknowledgingAudience: true) {
-                case .verified:
-                  ledger.recordUndo(of: entry, channel: channel, context: context)
-                  report("The event was restored.")
-                case .committedUnverified:
-                  ledger.record(
-                    .edited, kind: "event", title: snapshot.title,
-                    after: "Undo committed; result not verified", actor: .you, channel: channel,
-                    approval: .userMade, snapshot: receipt, context: context)
-                  report(
-                    "Calendar accepted Undo, but the result couldn't be verified. Open Calendar to check it."
-                  )
+                try mirrors.validateMoved()
+                // A local save retry must not replay the already committed system Undo.
+                if !sourceRestored {
+                  switch try calendar.undoMove(receipt, acknowledgingAudience: true) {
+                  case .verified:
+                    sourceRestored = true
+                  case .committedUnverified:
+                    finished = true
+                    ledger.record(
+                      .edited, kind: "event", title: snapshot.title,
+                      after: "Undo committed; result not verified", actor: .you, channel: channel,
+                      approval: .userMade, snapshot: receipt, context: context)
+                    report(
+                      "Calendar accepted Undo, but the result couldn't be verified. Open Calendar to check it."
+                    )
+                    return
+                  }
                 }
+                var restoredID: String?
+                if !mirrors.isEmpty {
+                  let current =
+                    (try? calendar.moveSnapshot(
+                      externalID: receipt.after.externalID, occurrence: receipt.before.start))
+                    ?? (try? calendar.moveSnapshot(
+                      externalID: receipt.before.externalID, occurrence: receipt.before.start))
+                  guard let current else { throw CalendarMoveError.unavailable }
+                  guard CalendarMoveMirrors.isRestored(current, before: receipt.before) else {
+                    throw CalendarMoveError.stale
+                  }
+                  restoredID = current.externalID
+                }
+                try mirrors.restore(systemID: restoredID)
+                finished = true
+                ledger.recordUndo(of: entry, channel: channel, context: context)
+                report("The event was restored.")
               } catch {
                 if let failure = error as? CalendarMoveError {
                   retryAllowed =
@@ -428,7 +469,10 @@
                 } else {
                   retryAllowed = true
                 }
-                report("Couldn't undo the event change. Open Calendar to check it.")
+                report(
+                  sourceRestored
+                    ? "Calendar restored the original time, but Today couldn't save its copy. Try Undo again to save the copy."
+                    : "Couldn't undo the event change. Open Calendar to check it.")
               }
             }, canRetry: { retryAllowed })
           return (result, receipt.after)

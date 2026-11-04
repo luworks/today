@@ -371,6 +371,7 @@
               TimelineTimeAdjustment(
                 timing: timing,
                 begin: {
+                  guard !timeBusy else { return false }
                   prepareTime(item, timing: timing)
                   guard timeRequest != nil else { return false }
                   frozenDayItems = items
@@ -506,15 +507,21 @@
       default: return nil
       }
       let minimum: Date?
+      var maximum: Date?
       if case .due = item {
         // Midnight is the existing date-only sentinel, not a representable timed deadline.
         minimum = cal.startOfDay(for: day).addingTimeInterval(60)
+      } else if case .alarm(let alarm, _, _) = item, alarm.weekdays.isEmpty {
+        // The existing AlarmKit relative model can represent only the next matching clock time.
+        let minute = Date(timeIntervalSince1970: floor(now.timeIntervalSince1970 / 60) * 60)
+        minimum = minute.addingTimeInterval(60)
+        maximum = cal.date(byAdding: .day, value: 1, to: minute)
       } else {
         minimum = nil
       }
       return TimelineDragTime(
         original: item.start, day: day, duration: duration,
-        calendar: cal, minimumStart: minimum)
+        calendar: cal, minimumStart: minimum, maximumStart: maximum)
     }
 
     private func editTime(_ item: TimelineItem) {

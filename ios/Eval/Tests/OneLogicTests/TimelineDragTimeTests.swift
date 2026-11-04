@@ -47,4 +47,18 @@ struct TimelineDragTimeTests {
     #expect(drag.duration == 0)
   }
 
+  @Test func aSourceWindowNarrowsTheDayWithoutChangingItsMinuteGrid() throws {
+    let midnight = calendar.startOfDay(for: day)
+    let original = midnight.addingTimeInterval(11 * 3600 + 31 * 60)
+    let lower = midnight.addingTimeInterval(10 * 3600 + 60)
+    let upper = midnight.addingTimeInterval(14 * 3600 + 120)
+    let drag = try #require(
+      TimelineDragTime(
+        original: original, day: day, calendar: calendar,
+        minimumStart: lower, maximumStart: upper))
+    #expect(drag.target(translation: -10000) == lower)
+    #expect(drag.target(translation: 10000) == upper)
+    #expect(drag.target(translation: 58) == midnight.addingTimeInterval(12 * 3600))
+  }
+
 }

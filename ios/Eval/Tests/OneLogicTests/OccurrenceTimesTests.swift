@@ -4,6 +4,23 @@ import Testing
 @testable import TodayCore
 
 struct OccurrenceTimesTests {
+  @Test func detachedIdentityFollowsRepeatedMovesAndOldSnapshotsRemainReadable() throws {
+    let original = Date(timeIntervalSinceReferenceDate: 3600)
+    let moved = original.addingTimeInterval(600)
+    let first = OccurrenceTimes.moving([], from: original, to: moved, externalID: "detached")
+    let again = OccurrenceTimes.moving(
+      first, from: moved, to: moved.addingTimeInterval(300), externalID: "detached-again")
+    #expect(again.count == 1 && again[0].original == original)
+    #expect(again[0].externalID == "detached-again")
+    let restored = OccurrenceTimes.moving(
+      again, from: moved.addingTimeInterval(300), to: original, externalID: "restored")
+    #expect(restored.count == 1 && restored[0].start == original)
+    #expect(restored[0].externalID == "restored")
+    let old = try JSONDecoder().decode(
+      OccurrenceTimeOverride.self, from: Data(#"{"original":3600,"start":4200}"#.utf8))
+    #expect(old.original == original && old.externalID == nil)
+  }
+
   @Test func aMovedOccurrenceKeepsEarlierAndLaterSeriesTimes() throws {
     var calendar = Calendar(identifier: .gregorian)
     calendar.timeZone = try #require(TimeZone(secondsFromGMT: 0))

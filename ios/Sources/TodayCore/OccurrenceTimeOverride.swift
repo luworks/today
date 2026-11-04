@@ -4,9 +4,11 @@ import Foundation
 public struct OccurrenceTimeOverride: Codable, Equatable, Sendable {
   public let original: Date
   public let start: Date
-  public init(original: Date, start: Date) {
+  public let externalID: String?
+  public init(original: Date, start: Date, externalID: String? = nil) {
     self.original = original
     self.start = start
+    self.externalID = externalID
   }
 }
 
@@ -36,12 +38,16 @@ public enum OccurrenceTimes {
   }
 
   public static func moving(
-    _ overrides: [OccurrenceTimeOverride], from current: Date, to target: Date
+    _ overrides: [OccurrenceTimeOverride], from current: Date, to target: Date,
+    externalID: String? = nil
   )
     -> [OccurrenceTimeOverride]
   {
-    let original = overrides.first(where: { $0.start == current })?.original ?? current
+    let existing = overrides.first(where: { $0.start == current })
+    let original = existing?.original ?? current
+    let identity = externalID ?? existing?.externalID
     let retained = overrides.filter { $0.original != original }
-    return target == original ? retained : retained + [.init(original: original, start: target)]
+    return target == original && identity == nil
+      ? retained : retained + [.init(original: original, start: target, externalID: identity)]
   }
 }
