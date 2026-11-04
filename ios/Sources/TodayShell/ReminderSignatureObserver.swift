@@ -43,6 +43,10 @@
         h.combine(e.start)
         h.combine(e.reminderOffsetMinutes)
         h.combine(e.repeatRule)
+        for occurrence in e.occurrenceOverrides {
+          h.combine(occurrence.original)
+          h.combine(occurrence.start)
+        }
         h.combine(e.isAllDay)
         h.combine(e.ringsAsAlarm)
       }

@@ -413,7 +413,8 @@
       let c = cal
       let now = presentation.now
       let system = await calendar.loadEvents(
-        in: interval, excluding: Set(events.compactMap(\.externalID)))
+        in: interval,
+        excluding: calendar.usesSystemEventSnapshots ? [] : Set(events.compactMap(\.externalID)))
       guard !Task.isCancelled, self.signature == signature else { return }
       var tints: [Color] = []
       var indexes: [Color: Int] = [:]
@@ -425,6 +426,7 @@
         return index
       }
       let local: [MonthLocalSnapshot] = events.compactMap { e in
+        guard e.externalID == nil || !calendar.usesSystemEventSnapshots else { return nil }
         guard !calendar.isHidden(externalID: e.externalID) else { return nil }
         return MonthLocalSnapshot(
           start: e.start, duration: e.duration, rule: e.repeats,
@@ -917,7 +919,8 @@
       defer { if marks.loading[year] == signature { marks.loading[year] = nil } }
       let interval = DateInterval(start: start, end: end)
       let system = await calendar.loadEvents(
-        in: interval, excluding: Set(events.compactMap(\.externalID)))
+        in: interval,
+        excluding: calendar.usesSystemEventSnapshots ? [] : Set(events.compactMap(\.externalID)))
       guard !Task.isCancelled else { return }
       let (entries, tints) = yearEntries(in: interval, system: system, calendar: cal)
       let sets = YearMarkSettings.sets(holidaySetting, locale: presentation.locale)

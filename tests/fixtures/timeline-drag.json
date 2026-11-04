@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "lists": [{"name": "Work", "color": 1}],
+  "reminders": [
+    {"title": "Review notes", "list": "Work", "due": {"day": 0, "time": "11:31"}},
+    {"title": "Daily review", "list": "Work", "due": {"day": 0, "time": "16:00"}, "repeat": "daily"}
+  ],
+  "events": [
+    {"title": "Planning", "start": {"day": 0, "time": "10:00"}, "minutes": 30},
+    {"title": "Daily check-in", "start": {"day": -1, "time": "12:00"}, "minutes": 30, "repeat": "daily"}
+  ],
+  "alarms": [
+    {"time": "14:00", "label": "Tea", "systemID": "194F5F61-6603-4F52-9568-0BBFFB237D74"},
+    {"time": "17:00", "label": "Daily alarm", "weekdays": [1,2,3,4,5,6,7], "systemID": "E40BB8CB-4FC2-4382-8C89-D95829EB0B62"}
+  ],
+  "chats": []
+}

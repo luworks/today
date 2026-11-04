@@ -434,9 +434,9 @@
         let window = DateInterval(start: presentation.now, end: end)
         var hits: [EventHit] = events.compactMap { e in
           guard
-            let next = Recurrence.occurrences(
-              start: e.start, duration: e.duration, rule: e.repeats, in: window, calendar: cal
-            ).first(where: { $0 >= presentation.now })
+            let next = e.occurrences(in: window, calendar: cal).first(where: {
+              $0 >= presentation.now
+            })
           else { return nil }
           return EventHit(
             id: "o\(e.persistentModelID.hashValue)", title: e.title,

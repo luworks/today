@@ -103,6 +103,11 @@ struct OneApp: App {
           try TestDataset.load(
             path: path, into: context, now: composition.session.runtime.now(),
             calendar: composition.session.runtime.calendar)
+          if let alarms = composition.session.alarms as? TestAlarmService {
+            for alarm in try context.fetch(FetchDescriptor<OneAlarm>()) {
+              if let id = alarm.alarmKitID, alarm.isOn { alarms.states[id] = .scheduled }
+            }
+          }
           if let fake = composition.session.calendar as? TestCalendarService {
             for (id, n) in TestDataset.audiences {
               fake.audiences[id] = (n, true)

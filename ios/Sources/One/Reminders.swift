@@ -311,10 +311,9 @@
     let start = now.addingTimeInterval(-60)
     let interval = DateInterval(start: start, duration: 400 * 86400)
     guard
-      var next = Recurrence.occurrences(
-        start: event.start, duration: event.duration, rule: event.repeats,
-        in: interval, calendar: runtime.calendar
-      ).first(where: { $0 > start })
+      var next = event.occurrences(in: interval, calendar: runtime.calendar).first(where: {
+        $0 > start
+      })
     else { return nil }
     if event.isAllDay {
       next = runtime.calendar.date(bySettingHour: 9, minute: 0, second: 0, of: next) ?? next

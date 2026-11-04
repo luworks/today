@@ -105,6 +105,9 @@
     func commitEdit(_ task: OneTask, draft: TaskSnapshot, expected: TaskSnapshot) throws
       -> RemindersSync.Remote?
     func didPersistEdit(_ task: OneTask, accepted: RemindersSync.Remote?)
+    /// Explicit manual move preflight; nil means a local-only series or a native one-off.
+    func prepareOccurrenceMove(_ task: OneTask, expected: TaskSnapshot) throws
+      -> ReminderOccurrenceCommit?
     func commitDeletion(_ task: OneTask, expected: TaskSnapshot) throws -> ReminderDeletionReceipt
     func restoreDeletion(_ task: OneTask, receipt: ReminderDeletionReceipt) throws -> RemindersSync
       .Remote?
@@ -159,6 +162,9 @@
 
   // Convenience arguments preserve call semantics while always dispatching to the injected instance.
   extension CalendarService {
+    /// Connected Calendar is authoritative, including detached or externally moved occurrences.
+    package var usesSystemEventSnapshots: Bool { isOn && hasAccess && isReady }
+
     /// The shared display/Open lookup; an opaque anchor alone never identifies a source item.
     package func cachedFocusEvent(identity: FocusIdentity, reference: String?) -> ExternalEvent? {
       guard let reference, reference.hasPrefix("eventkit:") else { return nil }

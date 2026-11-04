@@ -22,7 +22,7 @@
     package final class Receipt {
       private var used = false
       private let perform: () throws -> Void
-      fileprivate init(_ perform: @escaping () throws -> Void) { self.perform = perform }
+      package init(_ perform: @escaping () throws -> Void) { self.perform = perform }
       package func undo() throws {
         guard !used else { throw Failure.changed }
         try perform()
@@ -33,10 +33,11 @@
     package static func apply(
       _ operation: AttachedItemEdit.Operation, to task: OneTask, expected: TaskSnapshot,
       context: ModelContext, reminders: any ReminderService, ledger: Ledger,
-      runtime: PlannerRuntime
+      runtime: PlannerRuntime, actor: LedgerActor = .todayAI, channel: LedgerChannel = .ask
     ) throws -> Receipt {
       guard !task.isDeleted, task.modelContext === context,
-        Ledger.snapshot(of: task) == expected
+        Ledger.snapshot(of: task) == expected,
+        try persistedMatches(task, expected: expected, context: context)
       else { throw Failure.changed }
       switch operation {
       case .rename(let title):
@@ -46,14 +47,14 @@
         draft.title = name
         return try edit(
           task, before: expected, after: draft, context: context,
-          reminders: reminders, ledger: ledger)
+          reminders: reminders, ledger: ledger, actor: actor, channel: channel)
       case .move(let due):
         guard expected.due != due else { throw Failure.noChange }
         var draft = expected
         draft.due = due
         return try edit(
           task, before: expected, after: draft, context: context,
-          reminders: reminders, ledger: ledger)
+          reminders: reminders, ledger: ledger, actor: actor, channel: channel)
       case .done:
         guard !expected.isDone else { throw Failure.noChange }
         // Repeating completion can advance the system reminder or create another local item;
@@ -64,7 +65,7 @@
         toast.undoManager = undoManager
         TaskActions.toggleDone(
           task, context: context, toast: toast, reminders: reminders,
-          ledger: ledger, runtime: runtime, actor: .todayAI, channel: .ask)
+          ledger: ledger, runtime: runtime, actor: actor, channel: channel)
         guard toast.canUndo else { throw Failure.changed }
         let after = Ledger.snapshot(of: task)
         return Receipt {
@@ -94,8 +95,9 @@
         let snapshot: TaskSnapshot?
         if case .localOnly = deletion { snapshot = expected } else { snapshot = nil }
         let entry = ledger.record(
-          .deleted, title: expected.title, actor: .todayAI,
-          channel: .ask, approval: .asked, snapshot: snapshot, context: context)
+          .deleted, title: expected.title, actor: actor,
+          channel: channel, approval: actor == .you ? .userMade : .asked, snapshot: snapshot,
+          context: context)
         return Receipt {
           guard backup.modelContext == nil else { throw Failure.changed }
           let accepted = try reminders.restoreDeletion(backup, receipt: deletion)
@@ -106,14 +108,14 @@
             throw error
           }
           reminders.didPersistEdit(backup, accepted: accepted)
-          ledger.recordUndo(of: entry, task: backup, channel: .ask, context: context)
+          ledger.recordUndo(of: entry, task: backup, channel: channel, context: context)
         }
       }
     }
 
     private static func edit(
       _ task: OneTask, before: TaskSnapshot, after: TaskSnapshot, context: ModelContext,
-      reminders: any ReminderService, ledger: Ledger
+      reminders: any ReminderService, ledger: Ledger, actor: LedgerActor, channel: LedgerChannel
     ) throws -> Receipt {
       try persist(task, from: before, to: after, context: context, reminders: reminders)
       let entry = ledger.record(
@@ -122,21 +124,37 @@
           ? ledger.timeLabel(before.due, none: "No date") : before.title,
         after: before.title == after.title
           ? ledger.timeLabel(after.due, none: "No date") : after.title,
-        beforeDate: before.due, afterDate: after.due, actor: .todayAI, channel: .ask,
-        approval: .asked, context: context)
+        beforeDate: before.due, afterDate: after.due, actor: actor, channel: channel,
+        approval: actor == .you ? .userMade : .asked, context: context)
       return Receipt {
         guard !task.isDeleted, task.modelContext === context,
-          Ledger.snapshot(of: task) == after
+          Ledger.snapshot(of: task) == after,
+          try persistedMatches(task, expected: after, context: context)
         else { throw Failure.changed }
         try persist(task, from: after, to: before, context: context, reminders: reminders)
-        ledger.recordUndo(of: entry, task: task, channel: .ask, context: context)
+        ledger.recordUndo(of: entry, task: task, channel: channel, context: context)
       }
     }
 
-    private static func persist(
+    private static func persistedMatches(
+      _ task: OneTask, expected: TaskSnapshot,
+      context: ModelContext
+    ) throws -> Bool {
+      let reader = ModelContext(context.container)
+      let saved = try reader.fetch(FetchDescriptor<OneTask>()).first {
+        $0.persistentModelID == task.persistentModelID
+      }
+      return saved.map { Ledger.snapshot(of: $0) == expected } ?? false
+    }
+
+    package static func persist(
       _ task: OneTask, from before: TaskSnapshot, to after: TaskSnapshot,
       context: ModelContext, reminders: any ReminderService
     ) throws {
+      guard !task.isDeleted, task.modelContext === context,
+        Ledger.snapshot(of: task) == before,
+        try persistedMatches(task, expected: before, context: context)
+      else { throw Failure.changed }
       let accepted = try reminders.commitEdit(task, draft: after, expected: before)
       task.title = after.title
       task.due = after.due
