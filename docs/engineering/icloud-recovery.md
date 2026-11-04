@@ -79,3 +79,24 @@ Remaining required work before enabling or claiming acceptance:
 No app integration, real iCloud upload, simulator UI, uninstall/reinstall, or
 physical-device recovery has been validated. Do not change the product's current
 local-data claim until the supported recovery path is integrated and enabled.
+
+## Continuation: coordinated folder transport
+
+`FolderRecoveryTransport` now accepts the bookmark obtained from a system directory
+picker and coordinates the entire directory transaction using the coordinator's
+returned URL. Stale grants fail closed. The caller supplies an account identity
+reader, checked before, within and after the operation; this transport does not
+prove membership or enable an entitlement.
+
+`RecoveryGenerations` stores immutable validated archives and advances `head.json`
+only after reading the new generation back successfully. Publication compares the
+observed head with the acknowledged generation under directory coordination.
+Conflicts retain the remote head. A missing head alongside archives or an iCloud
+placeholder is unresolved, not an empty folder. Recovery reads only the current
+head: corruption never silently falls back to an older pre-clear generation.
+Old immutable generations are retained; automatic retention/deletion is not enabled.
+
+These additions still require the typed application payload, startup orchestration,
+settings directory picker and change observation described above. They are not an
+active automatic backup feature. Targeted `RecoveryArchiveTests` passed five tests
+using local temporary files; this is not iCloud upload or reinstall evidence.
