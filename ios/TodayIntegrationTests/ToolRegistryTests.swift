@@ -87,6 +87,79 @@
     }
 
     @Test
+    func manualReminderMoveCommitsSourceAndUndoRejectsLaterChanges() throws {
+      let a = try RegistryFixture()
+      defer { a.dispose() }
+      let original = a.now.addingTimeInterval(3600)
+      let task = a.task("Call Sam", due: original)
+      a.services.reminders.isConnected = true
+      task.externalID = "reminder-1"
+      task.listName = "Work"
+      task.flagged = true
+      try a.context.save()
+      let receipt = try a.services.actions.applyAttachedReminder(
+        .move(original.addingTimeInterval(1800)), task: task,
+        expected: Ledger.snapshot(of: task), context: a.context, actor: .you, channel: .app)
+      #expect(a.services.reminders.editCalls == 1)
+      #expect(task.listName == "Work" && task.flagged && !task.isDone)
+      try receipt.undo()
+      #expect(task.due == original && a.services.reminders.editCalls == 2)
+      #expect(throws: (any Error).self) { try receipt.undo() }
+      let next = try a.services.actions.applyAttachedReminder(
+        .move(original.addingTimeInterval(900)), task: task,
+        expected: Ledger.snapshot(of: task), context: a.context, actor: .you, channel: .app)
+      task.title = "Changed elsewhere"
+      try a.context.save()
+      #expect(throws: (any Error).self) { try next.undo() }
+      #expect(task.title == "Changed elsewhere" && task.due == original.addingTimeInterval(900))
+    }
+
+    @Test
+    func manualReminderFailureDoesNotChangeLocalDue() throws {
+      let a = try RegistryFixture()
+      defer { a.dispose() }
+      let original = a.now.addingTimeInterval(3600)
+      let task = a.task("Review", due: original)
+      a.services.reminders.isConnected = true
+      task.externalID = "reminder-1"
+      try a.context.save()
+      a.services.reminders.editFailure = .injected
+      #expect(throws: (any Error).self) {
+        try a.services.actions.applyAttachedReminder(
+          .move(original.addingTimeInterval(900)), task: task,
+          expected: Ledger.snapshot(of: task), context: a.context, actor: .you, channel: .app)
+      }
+      #expect(task.due == original && !task.isDone)
+      #expect(try a.rows().isEmpty)
+    }
+
+    @Test
+    func manualAlarmMoveSchedulesSameIdentityAndRestoresSettings() async throws {
+      let a = try RegistryFixture()
+      defer { a.dispose() }
+      let target = a.now.addingTimeInterval(7200)
+      let parts = a.runtime.calendar.dateComponents(
+        [.hour, .minute], from: a.now.addingTimeInterval(3600))
+      let alarm = OneAlarm(
+        hour: try #require(parts.hour), minute: try #require(parts.minute), label: "Wake")
+      alarm.createdAt = a.now
+      alarm.alarmKitID = UUID()
+      alarm.sound = "tone"
+      alarm.snoozeMinutes = 7
+      a.context.insert(alarm)
+      try a.context.save()
+      let before = alarm.activitySnapshot
+      let entry = try await a.services.actions.applyAttachedAlarm(
+        AttachedAlarmChange(alarm: alarm, edit: .move(target)), context: a.context,
+        actor: .you, channel: .app)
+      #expect(a.services.alarms.scheduledIDs.last == alarm.alarmKitID)
+      #expect(alarm.sound == before.sound && alarm.snoozeMinutes == before.snoozeMinutes)
+      let error = await a.services.actions.undo(entry, context: a.context)
+      #expect(error == nil && alarm.activitySnapshot == before)
+      #expect(a.services.alarms.scheduledIDs.count == 2)
+    }
+
+    @Test
     func aSystemMoveExpectationCarriesItsLastModifiedTimeAndAudience() {
       let modified = Date(timeIntervalSince1970: 1_792_400_000)
       let start = modified.addingTimeInterval(86_400)
