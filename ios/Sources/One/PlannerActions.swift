@@ -18,6 +18,7 @@
     private var eventCreationDrafts: [UUID: OneEvent] = [:]
     private var eventCreationReceipts:
       [UUID: (id: PersistentIdentifier, entry: LedgerItem, localOnly: Bool)] = [:]
+    @ObservationIgnored private var alarmEditUndoPayloads: [UUID: AlarmChange] = [:]
     package let focus: TodayFocus
     private let calendar: any CalendarService
     private let reminders: any ReminderService
@@ -58,7 +59,10 @@
     {
       try await change.apply(
         context: context, alarms: alarms, ledger: ledger, runtime: runtime, actor: actor,
-        channel: channel)
+        channel: channel,
+        onCommitted: { entry, payload in
+          self.alarmEditUndoPayloads[entry.id] = payload
+        })
     }
 
     package func toggleDone(
@@ -89,8 +93,11 @@
     package func undo(_ entry: LedgerItem, context: ModelContext) async -> String? {
       switch entry.itemKind {
       case "alarm":
-        return await AlarmActions.undo(
-          entry, context: context, alarms: alarms, ledger: ledger, runtime: runtime)
+        let error = await AlarmActions.undo(
+          entry, context: context, alarms: alarms, ledger: ledger, runtime: runtime,
+          fallback: alarmEditUndoPayloads[entry.id])
+        if error == nil { alarmEditUndoPayloads[entry.id] = nil }
+        return error
       case "list":
         return ListActions.undo(
           entry, context: context, reminders: reminders, ledger: ledger, runtime: runtime)

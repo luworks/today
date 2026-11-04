@@ -147,10 +147,14 @@
       return saved.map { Ledger.snapshot(of: $0) == expected } ?? false
     }
 
-    private static func persist(
+    package static func persist(
       _ task: OneTask, from before: TaskSnapshot, to after: TaskSnapshot,
       context: ModelContext, reminders: any ReminderService
     ) throws {
+      guard !task.isDeleted, task.modelContext === context,
+        Ledger.snapshot(of: task) == before,
+        try persistedMatches(task, expected: before, context: context)
+      else { throw Failure.changed }
       let accepted = try reminders.commitEdit(task, draft: after, expected: before)
       task.title = after.title
       task.due = after.due

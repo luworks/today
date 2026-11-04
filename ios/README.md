@@ -77,6 +77,16 @@ Tests that need Apple Calendar (`CalendarSyncTests`, `CalendarDeleteSyncTests`, 
 
 The [scene registry](Sources/TodayScenes/SceneRegistry.swift) owns valid scene/scenario pairs. Workbench, previews and native captures use the real feature constructors through `SceneSession`; unsupported states fail validation. See [gallery](../docs/engineering/gallery.md), [visual testing](../docs/engineering/visual-testing.md) and [scene session boundaries](../docs/engineering/scene-session-integration.md). The older [axe workflow](../docs/swiftui-preview-workflow.md) retains measured history and limitations; use the `./dev ui` entry for current work. Functional acceptance still requires the focused native journey.
 
+## Today time adjustment
+
+The compact single-day Today timeline has a separate 44-point time handle. Tap it for the existing exact-time editor, or hold and drag vertically for an anchored temporary ruler (2 points per minute, five-minute snapping). The preview shows the date, original and target times, valid bounds and overlap warning. Release commits only that item; slide sideways to cancel. It never changes the viewed day or rearranges other items. Calendar's 2 Day grid remains unchanged.
+
+Timed reminders change only `due` (midnight remains the existing date-only sentinel). Events retain their full duration within the day. Local repeating events store occurrence exceptions without moving the series anchor; connected calendars use EventKit's this-event move and verified source receipt. Read-only calendars explain the restriction. Attendee events confirm the number of recipients before writing. One-off alarms reschedule the same AlarmKit identity with their settings intact; an active execution cannot move, and an expired original fire cannot be undone as tomorrow's alarm.
+
+Repeating Reminder drag remains blocked pending the owner's occurrence-handling decision: EventKit has no this-occurrence save parameter for reminders, and shifting the series due cannot establish unchanged future instances. Weekly AlarmKit schedules likewise explain their single-ring limitation and retain the explicit editor. Existing series-edit entry points stay available. This is not a grant of autonomous scheduling.
+
+The implementation and evidence limits are recorded in [timeline drag verification](../tests/qa/evidence/timeline-drag-v1-20261104.md).
+
 ## Weather on Today
 
 Weather is not available in the live app: its setting is hidden and requests are disabled even if

@@ -307,8 +307,15 @@
         // Retired planned-time entries from before a reminder had one date: nothing to put back.
         return false
       case .redated:
-        t.due = entry.beforeDate
-        reminders.scheduleReconcile()
+        guard !t.isDone, t.due == entry.afterDate else { return false }
+        let before = Ledger.snapshot(of: t)
+        var restored = before
+        restored.due = entry.beforeDate
+        do {
+          try AttachedReminderActions.persist(
+            t, from: before, to: restored,
+            context: context, reminders: reminders)
+        } catch { return false }
       case .renamed:
         guard t.title == entry.after else { return false }
         t.title = entry.before
@@ -321,9 +328,11 @@
         .switchedOn, .switchedOff:
         return false
       }
-      do { try context.save() } catch {
-        reminders.scheduleReconcile(after: .milliseconds(50))
-        return false
+      if action != .redated {
+        do { try context.save() } catch {
+          reminders.scheduleReconcile(after: .milliseconds(50))
+          return false
+        }
       }
       recordUndo(of: entry, task: action == .created ? nil : t, context: context)
       flush(context)

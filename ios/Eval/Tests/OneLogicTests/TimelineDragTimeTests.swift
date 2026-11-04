@@ -35,4 +35,16 @@ struct TimelineDragTimeTests {
       TimelineDragTime(original: date, day: date, duration: 3600, calendar: cal))
     #expect(drag.latest.timeIntervalSince(drag.earliest) == 24 * 3600)
   }
+  @Test func aTimedReminderCannotAccidentallyBecomeDateOnlyAtMidnight() throws {
+    let midnight = calendar.startOfDay(for: day)
+    let original = midnight.addingTimeInterval(11 * 3600 + 31 * 60)
+    let drag = try #require(
+      TimelineDragTime(
+        original: original, day: day, calendar: calendar,
+        minimumStart: midnight.addingTimeInterval(60)))
+    #expect(drag.target(translation: -10000) == midnight.addingTimeInterval(60))
+    #expect(drag.target(translation: 58) == midnight.addingTimeInterval(12 * 3600))
+    #expect(drag.duration == 0)
+  }
+
 }

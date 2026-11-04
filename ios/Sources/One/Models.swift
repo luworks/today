@@ -105,8 +105,7 @@
     }
   }
 
-  /// A calendar event. Events stay fixed: nothing in the app moves them.
-  /// Later this is replaced by the system calendar (EventKit).
+  /// A retained local calendar event or system mirror. Explicit Today adjustments can move one occurrence.
   @Model
   package final class OneEvent {
     package var note: String = ""

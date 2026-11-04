@@ -15,11 +15,14 @@
     }
 
     package enum Failure: LocalizedError {
-      case unavailable, changed, unsupported, noChange
+      case unavailable, active, changed, unsupported, noChange
 
       package var errorDescription: String? {
         switch self {
-        case .unavailable: "This alarm is no longer available."
+        case .unavailable:
+          "This alarm isn't currently scheduled or is no longer available. Open Clock to check it."
+        case .active:
+          "This alarm is ringing, snoozing or paused. Its current execution cannot be moved."
         case .changed: "This alarm changed since the preview. Open it and try again."
         case .unsupported: "This alarm change isn't supported here. Open the alarm to edit it."
         case .noChange: "The alarm already has these settings."
@@ -52,7 +55,8 @@
     /// AlarmKit's time-of-day schedule cannot represent an arbitrary future date.
     package func apply(
       context: ModelContext, alarms: any AlarmService, ledger: Ledger, runtime: PlannerRuntime,
-      actor: LedgerActor = .todayAI, channel: LedgerChannel = .ask
+      actor: LedgerActor = .todayAI, channel: LedgerChannel = .ask,
+      onCommitted: ((LedgerItem, AlarmChange) -> Void)? = nil
     ) async throws -> LedgerItem {
       let matches = try context.fetch(FetchDescriptor<OneAlarm>()).filter {
         $0.persistentModelID == id
@@ -84,6 +88,11 @@
       case .rename(let name):
         after.label = name.trimmingCharacters(in: .whitespacesAndNewlines)
       case .move(let date):
+        switch alarms.state(of: alarm) {
+        case .scheduled: break
+        case .ringing, .snoozing, .paused: throw Failure.active
+        case nil: throw Failure.unavailable
+        }
         guard before.weekdays.isEmpty, before.isOn, date > now else { throw Failure.unsupported }
         let calendar = runtime.calendar
         let parts = calendar.dateComponents([.hour, .minute], from: date)
@@ -100,10 +109,15 @@
       alarm.apply(after)
       if case .move = edit { alarm.createdAt = now }
       try await alarms.commit(alarm, context: context)
-      let entry = ledger.record(
+      let payload = AlarmChange(
+        before: before, after: alarm.activitySnapshot,
+        beforeCreatedAt: createdAt, afterCreatedAt: alarm.createdAt)
+      var entry = ledger.record(
         .edited, item: alarm, kind: "alarm", title: alarmTitle(alarm, runtime: runtime),
         actor: actor, channel: channel, approval: actor == .you ? .userMade : .asked,
-        snapshot: AlarmChange(before: before, after: alarm.activitySnapshot), context: context)
+        snapshot: payload, context: context)
+      entry.itemRef = Ledger.ref(alarm.persistentModelID)
+      onCommitted?(entry, payload)
       return entry
     }
 

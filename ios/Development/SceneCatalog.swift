@@ -104,6 +104,9 @@
       }
       services = try PlannerTestServices(
         container: container, defaults: defaults, runtime: runtime, arguments: arguments)
+      for alarm in try container.mainContext.fetch(FetchDescriptor<OneAlarm>()) where alarm.isOn {
+        if let id = alarm.alarmKitID { services.alarms.states[id] = .scheduled }
+      }
       let retainedServices = services
       defer { if !completed { retainedServices.dispose() } }
       presentation = PlannerPresentation(runtime: runtime, defaults: defaults)

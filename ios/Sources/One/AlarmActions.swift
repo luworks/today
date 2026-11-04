@@ -197,10 +197,10 @@
     /// an edited one's settings back, and schedules it with AlarmKit. Returns nil when done, else why it could not.
     package static func undo(
       _ entry: LedgerItem, context: ModelContext, alarms: any AlarmService, ledger: Ledger,
-      runtime: PlannerRuntime
+      runtime: PlannerRuntime, fallback: AlarmChange? = nil
     ) async -> String? {
-      guard entry.itemKind == "alarm", !undoing.contains(entry.id),
-        let change = ledger.undoSnapshot(AlarmChange.self, of: entry, context: context)
+      guard entry.itemKind == "alarm", !undoing.contains(entry.id), !ledger.isUndone(entry),
+        let change = ledger.undoSnapshot(AlarmChange.self, of: entry, context: context) ?? fallback
       else { return ActivityUndoMessage.changedSince }
       undoing.insert(entry.id)
       defer { undoing.remove(entry.id) }
@@ -225,9 +225,27 @@
         ledger.recordUndo(of: entry, item: restored, context: context)
       case .restore(let settings):
         guard let alarm else { return ActivityUndoMessage.changedSince }
+        if alarm.isOn, alarms.state(of: alarm) != .scheduled {
+          return ActivityUndoMessage.changedSince
+        }
+        let reader = ModelContext(context.container)
+        let saved = try? reader.fetch(FetchDescriptor<OneAlarm>()).first {
+          $0.persistentModelID == alarm.persistentModelID
+        }
+        guard let saved, saved.activitySnapshot == alarm.activitySnapshot,
+          saved.createdAt == alarm.createdAt,
+          change.afterCreatedAt == nil || change.afterCreatedAt == alarm.createdAt
+        else { return ActivityUndoMessage.changedSince }
+        if settings.weekdays.isEmpty, let originalCreatedAt = change.beforeCreatedAt {
+          guard
+            let original = AlarmPlan.nextFire(
+              hour: settings.hour, minute: settings.minute,
+              weekdays: [], after: originalCreatedAt, calendar: runtime.calendar),
+            original > runtime.now()
+          else { return "The original alarm time has passed. It cannot be restored exactly." }
+        }
         alarm.apply(settings)
-        // A one-time alarm counts from now again, and exactly this alarm is rescheduled.
-        alarm.createdAt = runtime.now()
+        alarm.createdAt = change.beforeCreatedAt ?? runtime.now()
         alarm.alarmKitSignature = nil
         do { try await alarms.commit(alarm, context: context) } catch {
           return error.localizedDescription

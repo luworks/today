@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "reminders": [],
+  "events": [
+    {"title": "Late planning", "start": {"day": 0, "time": "23:00"}, "minutes": 45}
+  ],
+  "alarms": [
+    {"time": "23:00", "label": "Late tea", "systemID": "616B57B4-170A-441A-933B-8F9F97E0C0D1"}
+  ],
+  "chats": []
+}

@@ -111,6 +111,7 @@
     package struct Undo {
       package let label: String
       package let run: () -> Void
+      package var canRetry: (() -> Bool)? = nil
     }
     package var replies: [String] = []
     package var undo: Undo?
@@ -401,9 +402,11 @@
             beforeDate: snapshot.start, afterDate: start, actor: actor, channel: channel,
             approval: actor == .you ? .userMade : .asked, snapshot: receipt, context: context)
           result.replies.append("The calendar event was moved.")
+          var retryAllowed = false
           result.undo = .init(
             label: "Moved the event. Calendar may notify attendees again.",
             run: {
+              retryAllowed = false
               do {
                 switch try calendar.undoMove(receipt, acknowledgingAudience: true) {
                 case .verified:
@@ -419,9 +422,15 @@
                   )
                 }
               } catch {
+                if let failure = error as? CalendarMoveError {
+                  retryAllowed =
+                    failure != .stale && failure != .notFound && failure != .invalidTime
+                } else {
+                  retryAllowed = true
+                }
                 report("Couldn't undo the event change. Open Calendar to check it.")
               }
-            })
+            }, canRetry: { retryAllowed })
           return (result, receipt.after)
         case .committedUnverified(let pending):
           ledger.record(

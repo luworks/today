@@ -37,10 +37,17 @@ public struct AlarmSnapshot: Codable, Equatable, Sendable {
 public struct AlarmChange: Codable, Equatable, Sendable {
   public var before: AlarmSnapshot?
   public var after: AlarmSnapshot?
+  public var beforeCreatedAt: Date?
+  public var afterCreatedAt: Date?
 
-  public init(before: AlarmSnapshot?, after: AlarmSnapshot?) {
+  public init(
+    before: AlarmSnapshot?, after: AlarmSnapshot?, beforeCreatedAt: Date? = nil,
+    afterCreatedAt: Date? = nil
+  ) {
     self.before = before
     self.after = after
+    self.beforeCreatedAt = beforeCreatedAt
+    self.afterCreatedAt = afterCreatedAt
   }
 }
 
