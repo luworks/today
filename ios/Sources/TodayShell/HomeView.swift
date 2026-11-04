@@ -370,7 +370,7 @@
     private static var sharedTestItemQueued = false
 
     private func importShared() {
-      let args = ProcessInfo.processInfo.arguments
+      let args = composition.arguments
       var inboxURL = ShareInbox.fileURL
       #if DEBUG
         let test = ShareImportUITesting(arguments: args)
@@ -458,8 +458,8 @@
     }
 
     /// UI tests only (`-uiTesting -uiTestingAddReminder <title>`): adds one reminder without typing it.
-    private static func seedUITestReminder(_ context: ModelContext) {
-      let args = ProcessInfo.processInfo.arguments
+    private static func seedUITestReminder(_ context: ModelContext, arguments: [String]) {
+      let args = arguments
       guard args.contains("-uiTesting"), let i = args.firstIndex(of: "-uiTestingAddReminder"),
         i + 1 < args.count
       else { return }
@@ -686,13 +686,12 @@
       if PerformanceTrace.enabled { PerformanceTrace.shared.mark("bootstrap_start") }
       if let prepareData {
         guard await prepareData(context) else { return }
-      } else {
-        SampleData.insertIfNeeded(context)
       }
+      // Live starts empty. Only an injected development composition may prepare fixtures.
       ListActions.ensureLists(in: context, runtime: session.runtime)
       #if DEBUG
         // UI-test hooks on the simulator's own calendar (see CalendarSync and ios/README.md).
-        let args = ProcessInfo.processInfo.arguments
+        let args = composition.arguments
         if let i = args.firstIndex(of: "-debugDeleteSystemEvent"), i + 1 < args.count {
           (session.calendar as? CalendarSync)?.debugDeleteSystemEvents(titled: args[i + 1])
         }
@@ -705,7 +704,7 @@
             titled: args[i + 1], repeating: true)
         }
       #endif
-      Self.seedUITestReminder(context)
+      Self.seedUITestReminder(context, arguments: composition.arguments)
       importShared()
       session.activity.importOutbox()
       session.ledger.prune(now: session.runtime.now())
