@@ -230,6 +230,14 @@ English dinner alarm corrections and annual-booking rename inline with a fixed 2
 09:00 UTC clock. These exercise production AskRouter and FastLane continuation/refinement;
 UI persistence, navigation, accessibility and Undo still use the existing Ask/AI fixtures.
 
-| [`timeline-drag.json`](timeline-drag.json) | Same-day adjustment observation: off-grid Reminder, local one-off/repeating event, one-off/repeating Alarm with explicit synthetic system IDs. TodayMock only; pinned 09:41, no real source access. |
+| [`timeline-drag.json`](timeline-drag.json) | Same-day adjustment observation: off-grid Reminder, local one-off/repeating event, one-off/repeating Alarm with explicit synthetic system IDs. TodayMock only; no real source access. |
 
 | [`timeline-drag-boundary.json`](timeline-drag-boundary.json) | Same-day upper bounds: 45-minute event and a point alarm at 23:00, explicit synthetic alarm ID. TodayMock observation checks duration-preserving 23:15 event limit and 23:59 point limit, without crossing days. |
+
+## Quiet Inbox experiment
+
+The standalone classifier keeps its 60 author-written synthetic training examples
+in `experiments/quiet-inbox/Core/Sources/QuietInboxCore/Resources/synthetic-training.json`,
+versioned as a Swift package resource. Small bilingual regression messages remain
+inline in `experiments/quiet-inbox/Core/Tests/QuietInboxCoreTests/FilterEngineTests.swift`.
+These inputs verify the prototype behavior and do not measure real-world accuracy.

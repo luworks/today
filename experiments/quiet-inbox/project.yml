@@ -1,0 +1,114 @@
+{
+  "name": "QuietInbox",
+  "options": {
+    "minimumXcodeGenVersion": "2.46.0"
+  },
+  "settings": {
+    "base": {
+      "SWIFT_VERSION": "6.0",
+      "IPHONEOS_DEPLOYMENT_TARGET": "17.0",
+      "TARGETED_DEVICE_FAMILY": "1",
+      "CODE_SIGN_STYLE": "Automatic",
+      "MARKETING_VERSION": "0.1.0",
+      "CURRENT_PROJECT_VERSION": "1",
+      "PRODUCT_NAME": "$(TARGET_NAME)",
+      "PRODUCT_MODULE_NAME": "$(TARGET_NAME:c99extidentifier)",
+      "CLANG_ENABLE_MODULES": "YES",
+      "ALWAYS_SEARCH_USER_PATHS": "NO",
+      "SWIFT_OPTIMIZATION_LEVEL": "-Onone",
+      "DEBUG_INFORMATION_FORMAT": "dwarf",
+      "ENABLE_TESTABILITY": "YES"
+    }
+  },
+  "packages": {
+    "QuietInboxCore": {
+      "path": "Core"
+    }
+  },
+  "targets": {
+    "QuietInbox": {
+      "type": "application",
+      "platform": "iOS",
+      "sources": [
+        "App",
+        {
+          "path": "Config/PrivacyInfo.xcprivacy",
+          "buildPhase": "resources"
+        }
+      ],
+      "info": {
+        "path": "Config/QuietInbox-Info.plist",
+        "properties": {
+          "CFBundleDisplayName": "Quiet Inbox",
+          "UILaunchScreen": {},
+          "UISupportedInterfaceOrientations": [
+            "UIInterfaceOrientationPortrait"
+          ],
+          "CFBundleShortVersionString": "$(MARKETING_VERSION)",
+          "CFBundleVersion": "$(CURRENT_PROJECT_VERSION)"
+        }
+      },
+      "settings": {
+        "base": {
+          "PRODUCT_BUNDLE_IDENTIFIER": "com.luworks.quietinbox",
+          "CODE_SIGN_ENTITLEMENTS": "Config/Shared.entitlements"
+        }
+      },
+      "dependencies": [
+        {
+          "package": "QuietInboxCore",
+          "product": "QuietInboxCore"
+        },
+        {
+          "target": "QuietInboxFilter",
+          "embed": true
+        }
+      ]
+    },
+    "QuietInboxFilter": {
+      "type": "app-extension",
+      "platform": "iOS",
+      "sources": [
+        "Extension",
+        {
+          "path": "Config/PrivacyInfo.xcprivacy",
+          "buildPhase": "resources"
+        }
+      ],
+      "info": {
+        "path": "Config/QuietInboxFilter-Info.plist",
+        "properties": {
+          "CFBundleDisplayName": "Quiet Inbox Filter",
+          "NSExtension": {
+            "NSExtensionPointIdentifier": "com.apple.identitylookup.message-filter",
+            "NSExtensionPrincipalClass": "$(PRODUCT_MODULE_NAME).MessageFilterExtension"
+          },
+          "CFBundleShortVersionString": "$(MARKETING_VERSION)",
+          "CFBundleVersion": "$(CURRENT_PROJECT_VERSION)"
+        }
+      },
+      "settings": {
+        "base": {
+          "PRODUCT_BUNDLE_IDENTIFIER": "com.luworks.quietinbox.filter",
+          "CODE_SIGN_ENTITLEMENTS": "Config/Shared.entitlements",
+          "APPLICATION_EXTENSION_API_ONLY": "YES"
+        }
+      },
+      "dependencies": [
+        {
+          "package": "QuietInboxCore",
+          "product": "QuietInboxCore"
+        }
+      ]
+    }
+  },
+  "schemes": {
+    "QuietInbox": {
+      "build": {
+        "targets": {
+          "QuietInbox": "all"
+        }
+      }
+    }
+  }
+}
