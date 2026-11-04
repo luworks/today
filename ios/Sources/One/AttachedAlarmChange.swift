@@ -51,7 +51,8 @@
     /// Call only after explicit Apply. A one-off can only move to its next occurrence:
     /// AlarmKit's time-of-day schedule cannot represent an arbitrary future date.
     package func apply(
-      context: ModelContext, alarms: any AlarmService, ledger: Ledger, runtime: PlannerRuntime
+      context: ModelContext, alarms: any AlarmService, ledger: Ledger, runtime: PlannerRuntime,
+      actor: LedgerActor = .todayAI, channel: LedgerChannel = .ask
     ) async throws -> LedgerItem {
       let matches = try context.fetch(FetchDescriptor<OneAlarm>()).filter {
         $0.persistentModelID == id
@@ -73,7 +74,7 @@
         _ = try AlarmActions.remove(alarm, context: context, alarms: alarms)
         return ledger.record(
           .deleted, kind: "alarm", title: alarmTitle(alarm, runtime: runtime),
-          actor: .todayAI, channel: .ask, approval: .asked,
+          actor: actor, channel: channel, approval: actor == .you ? .userMade : .asked,
           snapshot: AlarmChange(before: before, after: nil), context: context)
       }
       var after = before
@@ -101,7 +102,7 @@
       try await alarms.commit(alarm, context: context)
       let entry = ledger.record(
         .edited, item: alarm, kind: "alarm", title: alarmTitle(alarm, runtime: runtime),
-        actor: .todayAI, channel: .ask, approval: .asked,
+        actor: actor, channel: channel, approval: actor == .you ? .userMade : .asked,
         snapshot: AlarmChange(before: before, after: alarm.activitySnapshot), context: context)
       return entry
     }

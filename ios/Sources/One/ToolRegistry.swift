@@ -384,7 +384,8 @@
     /// `report` posts replies that arrive later, from Undo. `moved` is the verified result.
     package static func apply(
       _ p: SystemMoveProposal, context: ModelContext, calendar: any CalendarService,
-      ledger: Ledger, report: @escaping (String) -> Void
+      ledger: Ledger, actor: LedgerActor = .todayAI, channel: LedgerChannel = .ask,
+      report: @escaping (String) -> Void
     ) -> (result: WriteResult, moved: CalendarMoveSnapshot?) {
       var result = WriteResult()
       let snapshot = p.expected
@@ -397,8 +398,8 @@
           let entry = ledger.record(
             .moved, kind: "event", title: snapshot.title,
             before: ledger.timeLabel(snapshot.start), after: ledger.timeLabel(start),
-            beforeDate: snapshot.start, afterDate: start, actor: .todayAI, channel: .ask,
-            approval: .asked, snapshot: receipt, context: context)
+            beforeDate: snapshot.start, afterDate: start, actor: actor, channel: channel,
+            approval: actor == .you ? .userMade : .asked, snapshot: receipt, context: context)
           result.replies.append("The calendar event was moved.")
           result.undo = .init(
             label: "Moved the event. Calendar may notify attendees again.",
@@ -406,12 +407,12 @@
               do {
                 switch try calendar.undoMove(receipt, acknowledgingAudience: true) {
                 case .verified:
-                  ledger.recordUndo(of: entry, channel: .ask, context: context)
+                  ledger.recordUndo(of: entry, channel: channel, context: context)
                   report("The event was restored.")
                 case .committedUnverified:
                   ledger.record(
                     .edited, kind: "event", title: snapshot.title,
-                    after: "Undo committed; result not verified", actor: .you, channel: .ask,
+                    after: "Undo committed; result not verified", actor: .you, channel: channel,
                     approval: .userMade, snapshot: receipt, context: context)
                   report(
                     "Calendar accepted Undo, but the result couldn't be verified. Open Calendar to check it."
@@ -427,8 +428,8 @@
             .moved, kind: "event", title: snapshot.title,
             before: ledger.timeLabel(snapshot.start),
             after: "Calendar accepted; result unverified",
-            beforeDate: snapshot.start, afterDate: start, actor: .todayAI, channel: .ask,
-            approval: .asked, snapshot: pending, context: context)
+            beforeDate: snapshot.start, afterDate: start, actor: actor, channel: channel,
+            approval: actor == .you ? .userMade : .asked, snapshot: pending, context: context)
           result.replies.append(
             "Calendar accepted the change, but the result couldn't be verified. Open Calendar to check it before trying again."
           )

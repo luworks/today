@@ -337,7 +337,22 @@
                   } else {
                     submitTime(date)
                   }
-                }, edit: { editTime(item) })
+                }, edit: { editTime(item) },
+                overlaps: { date in
+                  items.timeline.contains { other in
+                    guard other.id != item.id else { return false }
+                    let length: TimeInterval
+                    switch other {
+                    case .event(let event, _): length = event.duration
+                    case .external(let event): length = event.end.timeIntervalSince(event.start)
+                    default: return false
+                    }
+                    let dayEnd = cal.dateInterval(of: .day, for: day)?.end ?? timing.latest
+                    let movedLength = max(60, dayEnd.timeIntervalSince(timing.latest))
+                    return date < other.start.addingTimeInterval(length)
+                      && date.addingTimeInterval(movedLength) > other.start
+                  }
+                })
             )
             .disabled(timeBusy)
         } else {
@@ -445,7 +460,8 @@
           let snapshot = Ledger.snapshot(of: task)
           timeRequest = TimelineMoveRequest(timing: timing) { date in
             let receipt = try actions.applyAttachedReminder(
-              .move(date), task: task, expected: snapshot, context: context)
+              .move(date), task: task, expected: snapshot, context: context, actor: .you,
+              channel: .app)
             return {
               do { try receipt.undo() } catch { toast?.showNotice(error.localizedDescription) }
             }
@@ -464,7 +480,8 @@
               throw AttachedAlarmChange.Failure.changed
             }
             let change = try AttachedAlarmChange(alarm: alarm, edit: .move(date))
-            let entry = try await actions.applyAttachedAlarm(change, context: context)
+            let entry = try await actions.applyAttachedAlarm(
+              change, context: context, actor: .you, channel: .app)
             return {
               Task { @MainActor in
                 if let error = await actions.undo(entry, context: context) {
@@ -475,7 +492,7 @@
           }
         case .event(let event, let occurrence):
           guard let id = event.externalID else {
-            timeError = "Open this local event to change its time."
+            prepareLocalTime(event, timing: timing)
             return
           }
           try prepareCalendarTime(id: id, occurrence: occurrence, timing: timing)
@@ -491,6 +508,64 @@
       }
     }
 
+    private func prepareLocalTime(_ event: OneEvent, timing: TimelineDragTime) {
+      guard event.repeatRule == nil else {
+        timeError =
+          "This local repeating event has no occurrence exceptions. Open it to edit the series explicitly."
+        return
+      }
+      let before = localEventSnapshot(event)
+      timeRequest = TimelineMoveRequest(timing: timing) { date in
+        guard !event.isDeleted, event.modelContext === context,
+          localEventSnapshot(event) == before
+        else {
+          throw NSError(
+            domain: "TimelineMove", code: 2,
+            userInfo: [NSLocalizedDescriptionKey: "This event changed since the preview."])
+        }
+        let original = event.start
+        event.start = date
+        do { try context.save() } catch {
+          event.start = original
+          throw error
+        }
+        let after = localEventSnapshot(event)
+        let entry = ledger.record(
+          .moved, kind: "event", title: event.title,
+          before: ledger.timeLabel(original), after: ledger.timeLabel(date),
+          beforeDate: original, afterDate: date, actor: .you, channel: .app,
+          approval: .userMade, context: context)
+        return {
+          guard !event.isDeleted, event.modelContext === context,
+            localEventSnapshot(event) == after
+          else {
+            toast?.showNotice("Changed since. Open the event to check its time.")
+            return
+          }
+          event.start = original
+          do {
+            try context.save()
+            ledger.recordUndo(of: entry, channel: .app, context: context)
+          } catch {
+            event.start = date
+            toast?.showNotice(error.localizedDescription)
+          }
+        }
+      }
+    }
+
+    private func localEventSnapshot(_ event: OneEvent) -> [String] {
+      [
+        event.title, event.note, event.location ?? "", event.url ?? "",
+        String(describing: event.busy),
+        String(event.start.timeIntervalSince1970), String(event.durationMinutes),
+        event.calendarName,
+        String(describing: event.reminderOffsetMinutes), String(event.isAllDay),
+        String(event.ringsAsAlarm),
+        event.externalID ?? "", event.repeatRule ?? "",
+      ]
+    }
+
     private func prepareCalendarTime(id: String, occurrence: Date, timing: TimelineDragTime) throws
     {
       let snapshot = try calendar.moveSnapshot(externalID: id, occurrence: occurrence)
@@ -498,7 +573,8 @@
       { date in
         let result = ToolRegistry.apply(
           SystemMoveProposal(expected: snapshot, start: date), context: context,
-          calendar: calendar, ledger: ledger, report: { toast?.showNotice($0) })
+          calendar: calendar, ledger: ledger, actor: .you, channel: .app,
+          report: { toast?.showNotice($0) })
         guard let undo = result.result.undo, result.moved != nil else {
           throw NSError(
             domain: "TimelineMove", code: 1,

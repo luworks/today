@@ -42,17 +42,23 @@
 
     package func applyAttachedReminder(
       _ operation: AttachedItemEdit.Operation, task: OneTask, expected: TaskSnapshot,
-      context: ModelContext
+      context: ModelContext, actor: LedgerActor = .todayAI, channel: LedgerChannel = .ask
     ) throws -> AttachedReminderActions.Receipt {
       try AttachedReminderActions.apply(
         operation, to: task, expected: expected,
-        context: context, reminders: reminders, ledger: ledger, runtime: runtime)
+        context: context, reminders: reminders, ledger: ledger, runtime: runtime, actor: actor,
+        channel: channel)
     }
 
-    package func applyAttachedAlarm(_ change: AttachedAlarmChange, context: ModelContext)
+    package func applyAttachedAlarm(
+      _ change: AttachedAlarmChange, context: ModelContext, actor: LedgerActor = .todayAI,
+      channel: LedgerChannel = .ask
+    )
       async throws -> LedgerItem
     {
-      try await change.apply(context: context, alarms: alarms, ledger: ledger, runtime: runtime)
+      try await change.apply(
+        context: context, alarms: alarms, ledger: ledger, runtime: runtime, actor: actor,
+        channel: channel)
     }
 
     package func toggleDone(
