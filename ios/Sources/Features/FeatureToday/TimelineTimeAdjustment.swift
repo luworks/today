@@ -15,59 +15,46 @@
     @State private var translation: CGSize = .zero
     @State private var edge = 0
     @State private var edgeMinutes = 0.0
-    @GestureState private var holding = false
+    @State private var holding = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    private var adjustmentGesture: some Gesture {
-      LongPressGesture(minimumDuration: 0.35)
-        .sequenced(before: DragGesture(coordinateSpace: .global))
-        .onChanged { value in
-          if case .second(true, let drag) = value {
-            if target == nil {
-              edgeMinutes = 0
-              frozenTiming = timing
-              begin()
-              UIImpactFeedbackGenerator(style: .light).impactOccurred()
-            }
-            translation = drag?.translation ?? .zero
-            let screenHeight =
-              UIApplication.shared.connectedScenes
-              .compactMap { $0 as? UIWindowScene }.first?.screen.bounds.height ?? 0
-            let y = drag?.location.y ?? screenHeight / 2
-            edge = y < 170 ? -1 : (y > screenHeight - 170 ? 1 : 0)
-            let session = frozenTiming ?? timing
-            target = session.target(
-              translation: Double(translation.height) + edgeMinutes * session.pointsPerMinute)
-          }
-        }
-        .updating($holding) { value, state, _ in
-          if case .second = value { state = true }
-        }
-        .onEnded { value in
-          if case .second(true, let drag) = value, let drag {
-            let session = frozenTiming ?? timing
-            let date = target ?? session.target(translation: Double(drag.translation.height))
-            if abs(drag.translation.width) < 80, date != session.original { commit(date) }
-          }
-          target = nil
-          frozenTiming = nil
-          edge = 0
-          edgeMinutes = 0
-        }
-    }
 
     func body(content: Content) -> some View {
       HStack(spacing: 0) {
         content.opacity(holding ? 0.25 : 1)
-        Image(systemName: "arrow.up.arrow.down")
-          .font(.caption).foregroundStyle(.secondary)
-          .frame(width: 44, height: 44).contentShape(Rectangle())
-          .onTapGesture(perform: edit)
-          .highPriorityGesture(adjustmentGesture)
-          .accessibilityLabel("Change time")
-          .accessibilityHint("Double tap to edit the exact time")
-          .accessibilityAddTraits(.isButton)
-          .accessibilityAction(.default) { edit() }
+        TimelineTimeHandle(
+          edit: edit,
+          began: {
+            frozenTiming = timing
+            edgeMinutes = 0
+            translation = .zero
+            begin()
+            target = timing.original
+            holding = true
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+          },
+          changed: { delta, location in
+            translation = delta
+            let height =
+              UIApplication.shared.connectedScenes
+              .compactMap { $0 as? UIWindowScene }.first?.screen.bounds.height ?? 0
+            edge = location.y < 170 ? -1 : (location.y > height - 170 ? 1 : 0)
+            let session = frozenTiming ?? timing
+            target = session.target(
+              translation: Double(delta.height) + edgeMinutes * session.pointsPerMinute)
+          },
+          ended: { cancelled in
+            let session = frozenTiming ?? timing
+            if !cancelled, abs(translation.width) < 80, let target, target != session.original {
+              commit(target)
+            }
+            holding = false
+            target = nil
+            frozenTiming = nil
+            edge = 0
+            edgeMinutes = 0
+          }
+        ).frame(width: 44, height: 44)
+
       }
       .overlay(alignment: .leading) {
         if holding {
@@ -125,6 +112,54 @@
         if !active {
           target = nil
           edge = 0
+        }
+      }
+    }
+  }
+#endif
+
+#if os(iOS)
+  /// UIKit's long-press recognizer tracks the same contact through movement and cancellation.
+  /// A normal tap remains the existing exact-time editor; scrolling before the hold wins normally.
+  private struct TimelineTimeHandle: UIViewRepresentable {
+    let edit: () -> Void
+    let began: () -> Void
+    let changed: (CGSize, CGPoint) -> Void
+    let ended: (Bool) -> Void
+
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+    func makeUIView(context: Context) -> UIButton {
+      let button = UIButton(type: .system)
+      button.setImage(UIImage(systemName: "arrow.up.arrow.down"), for: .normal)
+      button.tintColor = .secondaryLabel
+      button.accessibilityLabel = "Change time"
+      button.accessibilityHint = "Double tap to edit the exact time"
+      button.addAction(UIAction { _ in context.coordinator.parent.edit() }, for: .touchUpInside)
+      let hold = UILongPressGestureRecognizer(
+        target: context.coordinator, action: #selector(Coordinator.handle(_:)))
+      hold.minimumPressDuration = 0.35
+      hold.allowableMovement = 10
+      button.addGestureRecognizer(hold)
+      return button
+    }
+    func updateUIView(_ view: UIButton, context: Context) { context.coordinator.parent = self }
+
+    @MainActor final class Coordinator: NSObject {
+      var parent: TimelineTimeHandle
+      private var anchor = CGPoint.zero
+      init(_ parent: TimelineTimeHandle) { self.parent = parent }
+      @objc func handle(_ gesture: UILongPressGestureRecognizer) {
+        let location = gesture.location(in: nil)
+        switch gesture.state {
+        case .began:
+          anchor = location
+          parent.began()
+        case .changed:
+          parent.changed(
+            CGSize(width: location.x - anchor.x, height: location.y - anchor.y), location)
+        case .ended: parent.ended(false)
+        case .cancelled, .failed: parent.ended(true)
+        default: break
         }
       }
     }

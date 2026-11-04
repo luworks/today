@@ -356,6 +356,8 @@
                   }
                 })
             )
+            .listRowInsets(EdgeInsets(top: 0, leading: 12, bottom: 0, trailing: 12))
+            .listRowSeparator(.hidden)
             .disabled(timeBusy)
         } else {
           timelineRow(item, on: day)
