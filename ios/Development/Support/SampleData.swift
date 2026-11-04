@@ -1,4 +1,5 @@
-#if os(iOS)
+#if TODAY_MOCK
+  import One
   import TodayCore
   import TodayShared
   import TodayData
@@ -6,13 +7,13 @@
   import Foundation
   import SwiftData
 
-  /// A few items around today so the first launch isn't empty. Inserted once; Delete all data removes them.
-  package enum SampleData {
-    package static func resetFlags() {
+  /// Development-only sample planner. Never linked into the Live application dependency graph.
+  enum SampleData {
+    static func resetFlags() {
       UserDefaults.standard.removeObject(forKey: "today.sampleData.v1")
     }
 
-    package static func insertIfNeeded(_ context: ModelContext) {
+    static func insertIfNeeded(_ context: ModelContext) {
       let key = "today.sampleData.v1"
       guard !UserDefaults.standard.bool(forKey: key) else { return }
       UserDefaults.standard.set(true, forKey: key)
