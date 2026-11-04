@@ -96,6 +96,10 @@
     @State private var now: Date
     /// A repeating system event whose Delete is waiting for "this event or the series?".
     @State private var pendingDelete: CalEntry?
+    @State private var timeRequest: TimelineMoveRequest?
+    @State private var pendingTime: Date?
+    @State private var timeError: String?
+    @State private var timeBusy = false
     /// What Activity says happened on `day` (past days only), and the day it was read for.
     @State private var history = DayHistory()
     @State private var historyDay: Date?
@@ -132,6 +136,30 @@
           "\(cal.startOfDay(for: day).timeIntervalSince1970)|\(scenePhase == .active)|\(tasks.count)"
       ) {
         loadHistory()
+      }
+      .alert(
+        "Calendar will notify attendees",
+        isPresented: Binding(
+          get: { pendingTime != nil }, set: { if !$0 { pendingTime = nil } })
+      ) {
+        Button("Cancel", role: .cancel) { pendingTime = nil }
+        Button("Move this occurrence") {
+          if let date = pendingTime { submitTime(date) }
+          pendingTime = nil
+        }
+      } message: {
+        Text(
+          "Updates may be sent to \(timeRequest?.attendees ?? 0) attendees. Undo may send another update."
+        )
+      }
+      .alert(
+        "Couldn't change time",
+        isPresented: Binding(
+          get: { timeError != nil }, set: { if !$0 { timeError = nil } })
+      ) {
+        Button("OK", role: .cancel) { timeError = nil }
+      } message: {
+        Text(timeError ?? "")
       }
       .environment(actions)
       .defaultAppStorage(presentation.defaults)
@@ -295,7 +323,27 @@
         Text("Nothing planned").foregroundStyle(.secondary)
           .listRowSeparator(.hidden)
       }
-      ForEach(items.timeline) { timelineRow($0, on: day) }
+      ForEach(items.timeline) { item in
+        if !isPastDay, let timing = dragTiming(item) {
+          timelineRow(item, on: day)
+            .modifier(
+              TimelineTimeAdjustment(
+                timing: timing,
+                begin: { prepareTime(item, timing: timing) },
+                commit: { date in
+                  guard timeRequest != nil else { return }
+                  if (timeRequest?.attendees ?? 0) > 0 {
+                    pendingTime = date
+                  } else {
+                    submitTime(date)
+                  }
+                }, edit: { editTime(item) })
+            )
+            .disabled(timeBusy)
+        } else {
+          timelineRow(item, on: day)
+        }
+      }
       if !items.anytime.isEmpty {
         AnytimeLabel(title: cal.isDate(day, inSameDayAs: now) ? "Anytime today" : "Anytime")
         ForEach(items.anytime) { task in
@@ -359,6 +407,116 @@
           mark: .deletedEvent, todayStyle: !showsWeekStrip)
       case .gap(let free): FreeRow(free: free)
       case .nowMarker(let date): NowRow(date: date).id("now-line")
+      }
+    }
+
+    private func dragTiming(_ item: TimelineItem) -> TimelineDragTime? {
+      let duration: TimeInterval
+      switch item {
+      case .event(let event, _): duration = TimeInterval(event.durationMinutes * 60)
+      case .external(let event): duration = event.end.timeIntervalSince(event.start)
+      case .due: duration = 0
+      case .alarm(_, _, let stopped):
+        guard stopped == nil else { return nil }
+        duration = 0
+      default: return nil
+      }
+      return TimelineDragTime(original: item.start, day: day, duration: duration, calendar: cal)
+    }
+
+    private func editTime(_ item: TimelineItem) {
+      switch item {
+      case .due(let task): openTask(task)
+      case .event(let event, _): openEvent(event)
+      case .alarm(let alarm, _, _): openAlarm(alarm)
+      case .external(let event):
+        (calendar as? any NativeCalendarService)?.edit(
+          identifier: event.eventIdentifier, start: event.start, end: event.end, onComplete: nil)
+      default: break
+      }
+    }
+
+    private func prepareTime(_ item: TimelineItem, timing: TimelineDragTime) {
+      timeRequest = nil
+      do {
+        switch item {
+        case .due(let task):
+          guard !task.isDone else { throw CocoaError(.userCancelled) }
+          let snapshot = Ledger.snapshot(of: task)
+          timeRequest = TimelineMoveRequest(timing: timing) { date in
+            let receipt = try actions.applyAttachedReminder(
+              .move(date), task: task, expected: snapshot, context: context)
+            return {
+              do { try receipt.undo() } catch { toast?.showNotice(error.localizedDescription) }
+            }
+          }
+        case .alarm(let alarm, _, _):
+          guard alarm.weekdays.isEmpty else {
+            timeError =
+              "Repeating alarms use a weekly AlarmKit schedule. A single ring cannot be moved without changing later rings. Open the alarm for an explicit repeat edit."
+            return
+          }
+          // Construct at release only after comparing the captured settings.
+          let before = alarm.activitySnapshot
+          let created = alarm.createdAt
+          timeRequest = TimelineMoveRequest(timing: timing) { date in
+            guard alarm.activitySnapshot == before, alarm.createdAt == created else {
+              throw AttachedAlarmChange.Failure.changed
+            }
+            let change = try AttachedAlarmChange(alarm: alarm, edit: .move(date))
+            let entry = try await actions.applyAttachedAlarm(change, context: context)
+            return {
+              Task { @MainActor in
+                if let error = await actions.undo(entry, context: context) {
+                  toast?.showNotice(error)
+                }
+              }
+            }
+          }
+        case .event(let event, let occurrence):
+          guard let id = event.externalID else {
+            timeError = "Open this local event to change its time."
+            return
+          }
+          try prepareCalendarTime(id: id, occurrence: occurrence, timing: timing)
+        case .external(let event):
+          try prepareCalendarTime(
+            id: event.eventIdentifier, occurrence: event.start, timing: timing)
+        default: break
+        }
+      } catch CalendarMoveError.readOnly {
+        timeError = "This calendar is read-only. Its events cannot be moved."
+      } catch {
+        timeError = "This item cannot be moved safely: " + error.localizedDescription
+      }
+    }
+
+    private func prepareCalendarTime(id: String, occurrence: Date, timing: TimelineDragTime) throws
+    {
+      let snapshot = try calendar.moveSnapshot(externalID: id, occurrence: occurrence)
+      timeRequest = TimelineMoveRequest(timing: timing, attendees: snapshot.audience.attendeeCount)
+      { date in
+        let result = ToolRegistry.apply(
+          SystemMoveProposal(expected: snapshot, start: date), context: context,
+          calendar: calendar, ledger: ledger, report: { toast?.showNotice($0) })
+        guard let undo = result.result.undo, result.moved != nil else {
+          throw NSError(
+            domain: "TimelineMove", code: 1,
+            userInfo: [NSLocalizedDescriptionKey: result.result.replies.joined(separator: " ")])
+        }
+        return undo.run
+      }
+    }
+
+    private func submitTime(_ date: Date) {
+      guard !timeBusy, let request = timeRequest else { return }
+      timeBusy = true
+      Task { @MainActor in
+        defer { timeBusy = false }
+        do {
+          try await request.apply(date, toast: toast)
+          timeRequest = nil
+        } catch { timeError = error.localizedDescription }
       }
     }
 
