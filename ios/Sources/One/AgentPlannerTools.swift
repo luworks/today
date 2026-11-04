@@ -156,6 +156,8 @@
     package private(set) var cards: [String: AgentCard] = [:]
     package weak var sink: (any AgentCardSink)?
 
+    private var eveningTargetID: String?
+
     private let context: ModelContext
     private let calendar: any CalendarService
     private let actions: PlannerActions
@@ -1063,9 +1065,23 @@
     private func edit(_ a: JSONValue) -> AgentToolOutcome {
       let shortID = a["id"]?.string ?? ""
       var fields = a
+      let answer = turn.text.trimmingCharacters(in: .whitespacesAndNewlines)
+      if eveningTargetID == shortID,
+        answer.range(of: #"^([1-9]|1[01])(?:[:：][0-5][0-9])?$"#, options: .regularExpression) != nil
+      {
+        let parts = answer.replacingOccurrences(of: "：", with: ":").split(separator: ":")
+        if let hour = Int(parts[0]), case .object(var object) = fields {
+          object["when_text"] = .string(
+            String(format: "%02d:%02d", hour + 12, parts.count > 1 ? Int(parts[1]) ?? 0 : 0))
+          fields = .object(object)
+          turn.askedForAction = true
+          turn.text = "move this item to " + answer + " pm"
+        }
+      }
       if let words = a["when_text"]?.string,
         ["evening", "tonight", "晚上", "改到晚上"].contains(words.lowercased())
       {
+        eveningTargetID = shortID
         let start: Date?
         let duration: TimeInterval
         switch resolve(shortID) {
@@ -1083,7 +1099,7 @@
           duration = snapshot.end.timeIntervalSince(snapshot.start)
         case .task(let task)?:
           start = task.due
-          duration = 0
+          duration = TimeInterval(task.durationMinutes * 60)
         case .alarm?:
           start = now
           duration = 0

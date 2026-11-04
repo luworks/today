@@ -36,6 +36,13 @@
       #expect(event.durationMinutes == 60)
       #expect(await result.undo?() == nil)
       #expect(event.start == start)
+      a.tools.turn = AgentTurn(text: "8", chinese: true, runID: "evening-answer")
+      let answer = await a.call("propose_edit", ["id": .string(id), "when_text": "8"])
+      let answerID = try #require(answer["proposal_id"]?.string)
+      #expect(a.tools.cards[answerID]?.tier == .direct)
+      let answered = await a.tools.apply(answerID)
+      #expect(answered.kind == .applied)
+      #expect(event.start == day.addingTimeInterval(20 * 3600))
     }
 
     @Test
