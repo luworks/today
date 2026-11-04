@@ -1073,12 +1073,20 @@
           start = event.start
           duration = TimeInterval(event.durationMinutes * 60)
         case .system(let identifier, let occurrence)?:
-          guard let snapshot = try? calendar.moveSnapshot(externalID: identifier, occurrence: occurrence)
-          else { return .error("not_available", "Calendar access or this occurrence is unavailable.") }
+          guard
+            let snapshot = try? calendar.moveSnapshot(
+              externalID: identifier, occurrence: occurrence)
+          else {
+            return .error("not_available", "Calendar access or this occurrence is unavailable.")
+          }
           start = snapshot.start
           duration = snapshot.end.timeIntervalSince(snapshot.start)
-        case .task(let task)?: start = task.due; duration = 0
-        case .alarm?: start = now; duration = 0
+        case .task(let task)?:
+          start = task.due
+          duration = 0
+        case .alarm?:
+          start = now
+          duration = 0
         case nil: return .error("unknown_id", "Resolve the target first.")
         }
         guard let start, let interval = cal.dateInterval(of: .day, for: start),
@@ -1089,10 +1097,17 @@
         }.map { DateInterval(start: $0.start, end: max($0.start, $0.end)) }
         let gaps = DaySchedule.freeGaps(
           busy: busy, day: start, now: now, minimum: 1, calendar: cal)
-        guard let slot = gaps.map({ max($0.start, evening) }).first(where: { candidate in
-          gaps.contains { $0.start <= candidate && $0.end >= candidate.addingTimeInterval(max(60, duration)) }
-        }) else {
-          return .error("no_evening_gap", "No full-duration evening slot is available on this date. Ask whether to use another day; do not move another item.")
+        guard
+          let slot = gaps.map({ max($0.start, evening) }).first(where: { candidate in
+            gaps.contains {
+              $0.start <= candidate && $0.end >= candidate.addingTimeInterval(max(60, duration))
+            }
+          })
+        else {
+          return .error(
+            "no_evening_gap",
+            "No full-duration evening slot is available on this date. Ask whether to use another day; do not move another item."
+          )
         }
         let f = DateFormatter()
         f.locale = Locale(identifier: "en_US_POSIX")

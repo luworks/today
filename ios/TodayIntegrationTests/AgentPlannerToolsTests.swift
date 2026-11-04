@@ -18,8 +18,10 @@
       defer { a.dispose() }
       let day = a.runtime.calendar.startOfDay(for: a.now.addingTimeInterval(86400))
       let start = day.addingTimeInterval(9 * 3600)
-      let event = OneEvent(title: "Move Apple benefit to Sunday at 9am", start: start, durationMinutes: 60)
-      let busy = OneEvent(title: "Busy", start: day.addingTimeInterval(18 * 3600), durationMinutes: 120)
+      let event = OneEvent(
+        title: "Move Apple benefit to Sunday at 9am", start: start, durationMinutes: 60)
+      let busy = OneEvent(
+        title: "Busy", start: day.addingTimeInterval(18 * 3600), durationMinutes: 120)
       a.context.insert(event)
       a.context.insert(busy)
       try a.context.save()
