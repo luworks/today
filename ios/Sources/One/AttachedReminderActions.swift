@@ -22,7 +22,7 @@
     package final class Receipt {
       private var used = false
       private let perform: () throws -> Void
-      fileprivate init(_ perform: @escaping () throws -> Void) { self.perform = perform }
+      package init(_ perform: @escaping () throws -> Void) { self.perform = perform }
       package func undo() throws {
         guard !used else { throw Failure.changed }
         try perform()

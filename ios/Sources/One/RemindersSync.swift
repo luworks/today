@@ -34,6 +34,7 @@
     private static let pendingKey = "today.remindersSync.pendingDeletes"
     // lists the user deleted in the app
     private static let pendingListsKey = "today.remindersSync.pendingListDeletes"
+    private static let occurrenceFenceKey = "today.remindersSync.occurrenceFences"
     package static let maxRemoteDeletes = 10
 
     /// Created on first use: EKEventStore is slow to set up.
@@ -468,6 +469,281 @@
         saveSet(loadSet(Self.baseKey).union([accepted.id]), Self.baseKey)
       }
       scheduleReconcile(after: .milliseconds(50))
+    }
+
+    /// Both native writes are staged and committed together. No intermediate completion is fabricated.
+    package func prepareOccurrenceMove(_ task: OneTask, expected: TaskSnapshot) throws
+      -> ReminderOccurrenceCommit?
+    {
+      guard let id = task.externalID else { return nil }
+      guard isConnected else { throw CompletionError.disconnected }
+      guard let original = store.calendarItem(withIdentifier: id) as? EKReminder,
+        let due = expected.due, !expected.isDone,
+        Remote(original, calendar: runtime.calendar).fingerprint == Self.fingerprint(of: expected)
+      else { throw CompletionError.changedOutside }
+      guard original.calendar.allowsContentModifications else { throw CompletionError.readOnly }
+      if (original.recurrenceRules ?? []).isEmpty {
+        guard expected.repeatRule == nil else { throw CompletionError.changedOutside }
+        return nil
+      }
+      guard let rule = expected.repeatRule.flatMap(RepeatRule.init(rawValue:)) else {
+        throw ReminderOccurrenceMove.Failure.unsupported
+      }
+      guard let originalVersion = original.lastModifiedDate else {
+        throw CompletionError.changedOutside
+      }
+      var fences =
+        defaults.dictionary(forKey: Self.occurrenceFenceKey) as? [String: [String]] ?? [:]
+      if let fence = fences[id] {
+        guard fence.count == 2, !fence[0].isEmpty,
+          store.calendarItem(withIdentifier: fence[0]) == nil,
+          Remote(original, calendar: runtime.calendar).fingerprint == fence[1]
+        else { throw ReminderOccurrenceMove.Failure.partialCommit }
+        fences[id] = nil
+        defaults.set(fences, forKey: Self.occurrenceFenceKey)
+      }
+      // The local model represents unbounded simple rules. Never flatten Apple's richer rules.
+      var calendar = original.dueDateComponents?.calendar ?? runtime.calendar
+      if let zone = original.dueDateComponents?.timeZone { calendar.timeZone = zone }
+      guard let rules = original.recurrenceRules, rules.count == 1, let nativeRule = rules.first,
+        Self.supportsOccurrenceSplit(nativeRule, rule: rule, due: due, calendar: calendar)
+      else { throw ReminderOccurrenceMove.Failure.unsupported }
+      let next = Self.nextOccurrenceDue(rule: rule, after: due, calendar: calendar)
+      let payload = try DeletedReminderPayload(original)
+      let before = Remote(original, calendar: runtime.calendar)
+      var expectedSeries = expected
+      expectedSeries.due = next
+      var currentVersion = originalVersion
+      var accepted: ReminderOccurrenceCommit.Accepted?
+      var childID: String?
+      var afterVersions: (Date, Date)?
+      var restored: Remote?
+      var restoredVersion: Date?
+      var unsafe = false
+
+      @MainActor func fenceUnknown() {
+        unsafe = true
+        self.completionFence.commit {}
+        var values =
+          self.defaults.dictionary(forKey: Self.occurrenceFenceKey) as? [String: [String]] ?? [:]
+        values[id] = [childID ?? "", before.fingerprint]
+        self.defaults.set(values, forKey: Self.occurrenceFenceKey)
+        self.scheduleReconcile(after: .milliseconds(50))
+      }
+
+      @MainActor func read(_ id: String, matching remote: Remote, version: Date?) throws
+        -> EKReminder
+      {
+        guard self.isConnected,
+          let value = self.store.calendarItem(withIdentifier: id) as? EKReminder,
+          let version, value.lastModifiedDate == version
+        else { throw CompletionError.changedOutside }
+        let live = Remote(value, calendar: self.runtime.calendar)
+        guard live.fingerprint == remote.fingerprint, live.doneAt == remote.doneAt,
+          live.listID == remote.listID, value.calendar.allowsContentModifications
+        else { throw CompletionError.changedOutside }
+        return value
+      }
+
+      @MainActor func verifyPair(_ pair: ReminderOccurrenceCommit.Accepted) throws {
+        guard let versions = afterVersions else {
+          throw ReminderOccurrenceMove.Failure.partialCommit
+        }
+        _ = try read(id, matching: pair.series, version: versions.0)
+        _ = try read(pair.occurrence.id, matching: pair.occurrence, version: versions.1)
+      }
+
+      return ReminderOccurrenceCommit(
+        nextDue: next,
+        apply: { target in
+          guard !unsafe, restored == nil else { throw ReminderOccurrenceMove.Failure.partialCommit }
+          if let accepted {
+            guard accepted.occurrence.due == target else { throw CompletionError.changedOutside }
+            try verifyPair(accepted)
+            return accepted
+          }
+          let series = try read(id, matching: before, version: currentVersion)
+          guard childID == nil || self.store.calendarItem(withIdentifier: childID!) == nil else {
+            throw ReminderOccurrenceMove.Failure.partialCommit
+          }
+          let child = EKReminder(eventStore: self.store)
+          child.calendar = series.calendar
+          try payload.apply(to: child)
+          child.recurrenceRules = nil
+          Self.moveOccurrenceDeadline(child, from: due, to: target, calendar: calendar)
+          Self.moveOccurrenceDeadline(series, from: due, to: next, calendar: calendar)
+          var expectedChild = expected
+          expectedChild.due = target
+          expectedChild.repeatRule = nil
+          var didAttemptCommit = false
+          do {
+            try self.completionFence.commit {
+              try self.store.save(child, commit: false)
+              try self.store.save(series, commit: false)
+              childID = child.calendarItemIdentifier
+              didAttemptCommit = true
+              try self.store.commit()
+            }
+          } catch {
+            self.store.reset()
+            if !didAttemptCommit {
+              childID = nil
+              throw error
+            }
+            // A thrown commit is not proof that nothing reached the store. Read both identities.
+            let liveSeries = self.store.calendarItem(withIdentifier: id) as? EKReminder
+            let liveChild = childID.flatMap {
+              self.store.calendarItem(withIdentifier: $0) as? EKReminder
+            }
+            if let liveSeries, liveChild == nil,
+              Remote(liveSeries, calendar: self.runtime.calendar).fingerprint == before.fingerprint,
+              liveSeries.lastModifiedDate == currentVersion
+            {
+              childID = nil
+              throw error
+            }
+            if let liveSeries, let liveChild,
+              Remote(liveSeries, calendar: self.runtime.calendar).fingerprint
+                == Self.fingerprint(of: expectedSeries),
+              Remote(liveChild, calendar: self.runtime.calendar).fingerprint
+                == Self.fingerprint(of: expectedChild)
+            {
+              // Read-back below still verifies both identities before success.
+              self.completionFence.commit {}
+            } else {
+              fenceUnknown()
+              throw ReminderOccurrenceMove.Failure.partialCommit
+            }
+          }
+          guard let childID,
+            let savedSeries = self.store.calendarItem(withIdentifier: id) as? EKReminder,
+            let savedChild = self.store.calendarItem(withIdentifier: childID) as? EKReminder,
+            let seriesVersion = savedSeries.lastModifiedDate,
+            let childVersion = savedChild.lastModifiedDate
+          else {
+            fenceUnknown()
+            throw ReminderOccurrenceMove.Failure.partialCommit
+          }
+          let pair = ReminderOccurrenceCommit.Accepted(
+            series: Remote(savedSeries, calendar: self.runtime.calendar),
+            occurrence: Remote(savedChild, calendar: self.runtime.calendar))
+          guard pair.series.fingerprint == Self.fingerprint(of: expectedSeries),
+            pair.occurrence.fingerprint == Self.fingerprint(of: expectedChild),
+            !(savedChild.recurrenceRules?.isEmpty == false),
+            Self.sameOccurrenceRule(savedSeries.recurrenceRules?.first, nativeRule)
+          else {
+            fenceUnknown()
+            throw ReminderOccurrenceMove.Failure.partialCommit
+          }
+          accepted = pair
+          afterVersions = (seriesVersion, childVersion)
+          return pair
+        },
+        restore: {
+          guard !unsafe else { throw ReminderOccurrenceMove.Failure.partialCommit }
+          if let restored {
+            _ = try read(id, matching: restored, version: restoredVersion)
+            guard childID.flatMap({ self.store.calendarItem(withIdentifier: $0) }) == nil else {
+              throw CompletionError.changedOutside
+            }
+            return restored
+          }
+          guard let accepted else { throw CompletionError.changedOutside }
+          try verifyPair(accepted)
+          let series = try read(id, matching: accepted.series, version: afterVersions?.0)
+          let child = try read(
+            accepted.occurrence.id, matching: accepted.occurrence, version: afterVersions?.1)
+          do {
+            try payload.apply(to: series)
+            try self.completionFence.commit {
+              try self.store.save(series, commit: false)
+              try self.store.remove(child, commit: false)
+              try self.store.commit()
+            }
+          } catch {
+            self.store.reset()
+            let value = self.store.calendarItem(withIdentifier: id) as? EKReminder
+            guard let value,
+              self.store.calendarItem(withIdentifier: accepted.occurrence.id) == nil,
+              Remote(value, calendar: self.runtime.calendar).fingerprint == before.fingerprint
+            else { throw error }
+            self.completionFence.commit {}
+          }
+          guard let value = self.store.calendarItem(withIdentifier: id) as? EKReminder,
+            let version = value.lastModifiedDate,
+            self.store.calendarItem(withIdentifier: accepted.occurrence.id) == nil,
+            Remote(value, calendar: self.runtime.calendar).fingerprint == before.fingerprint
+          else {
+            fenceUnknown()
+            throw ReminderOccurrenceMove.Failure.partialCommit
+          }
+          let result = Remote(value, calendar: self.runtime.calendar)
+          restored = result
+          restoredVersion = version
+          return result
+        },
+        restart: {
+          if let restoredVersion {
+            currentVersion = restoredVersion
+            restored = nil
+            accepted = nil
+            afterVersions = nil
+            childID = nil
+          }
+        })
+    }
+
+    package static func supportsOccurrenceSplit(
+      _ native: EKRecurrenceRule, rule: RepeatRule, due: Date, calendar: Calendar
+    ) -> Bool {
+      guard native.recurrenceEnd == nil, sameOccurrenceRule(native, recurrence(for: rule)) else {
+        return false
+      }
+      let next = rule.next(after: due, calendar: calendar)
+      return (rule != .monthly && rule != .yearly)
+        || calendar.component(.day, from: next) == calendar.component(.day, from: due)
+    }
+
+    package static func nextOccurrenceDue(rule: RepeatRule, after due: Date, calendar: Calendar)
+      -> Date
+    {
+      // EventKit's weekdays rule explicitly names Monday–Friday, independently of regional weekends.
+      let nativeRule = rule == .weekdays ? RepeatRule.weeklyOn([2, 3, 4, 5, 6]) : rule
+      return nativeRule.next(after: due, calendar: calendar)
+    }
+
+    private static func sameOccurrenceRule(_ lhs: EKRecurrenceRule?, _ rhs: EKRecurrenceRule)
+      -> Bool
+    {
+      guard let lhs else { return false }
+      return lhs.frequency == rhs.frequency && lhs.interval == rhs.interval
+        && lhs.recurrenceEnd == nil
+        && lhs.daysOfTheWeek == rhs.daysOfTheWeek && lhs.daysOfTheMonth == rhs.daysOfTheMonth
+        && lhs.monthsOfTheYear == rhs.monthsOfTheYear && lhs.weeksOfTheYear == rhs.weeksOfTheYear
+        && lhs.daysOfTheYear == rhs.daysOfTheYear && lhs.setPositions == rhs.setPositions
+    }
+
+    private static func moveOccurrenceDeadline(
+      _ reminder: EKReminder, from old: Date, to target: Date, calendar: Calendar
+    ) {
+      let previous = reminder.dueDateComponents
+      var due = Self.components(for: target, calendar: calendar)
+      due.calendar = previous?.calendar
+      due.timeZone = previous?.timeZone
+      if let start = reminder.startDateComponents,
+        let date = Self.date(from: start, calendar: calendar)
+      {
+        var shifted = Self.components(
+          for: date.addingTimeInterval(target.timeIntervalSince(old)), calendar: calendar)
+        shifted.calendar = start.calendar
+        shifted.timeZone = start.timeZone
+        reminder.startDateComponents = shifted
+      }
+      reminder.dueDateComponents = due
+      for alarm in reminder.alarms ?? [] where alarm.absoluteDate == old {
+        reminder.removeAlarm(alarm)
+        reminder.addAlarm(EKAlarm(absoluteDate: target))
+      }
     }
 
     package func commitDeletion(_ task: OneTask, expected: TaskSnapshot) throws

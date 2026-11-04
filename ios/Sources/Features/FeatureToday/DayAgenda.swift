@@ -498,8 +498,12 @@
     private func dragTiming(_ item: TimelineItem) -> TimelineDragTime? {
       let duration: TimeInterval
       switch item {
-      case .event(let event, _): duration = TimeInterval(event.durationMinutes * 60)
-      case .external(let event): duration = event.end.timeIntervalSince(event.start)
+      case .event(let event, let start):
+        duration = TimeInterval(event.durationMinutes * 60)
+        guard start.addingTimeInterval(duration) > now else { return nil }
+      case .external(let event):
+        guard event.end > now else { return nil }
+        duration = event.end.timeIntervalSince(event.start)
       case .due: duration = 0
       case .alarm(_, _, let stopped):
         guard stopped == nil else { return nil }
@@ -548,18 +552,30 @@
         case .due(let task):
           guard !task.isDone else { throw CocoaError(.userCancelled) }
           let snapshot = Ledger.snapshot(of: task)
-          guard snapshot.repeatRule == nil else {
-            timeError =
-              "This repeating reminder needs an occurrence-only change. Its series has not been changed. Open the reminder to edit it."
-            return
+          let apply: (Date) throws -> AttachedReminderActions.Receipt
+          if snapshot.repeatRule != nil {
+            let move = try ReminderOccurrenceMove(
+              series: task, expected: snapshot, context: context, reminders: reminders,
+              ledger: ledger, runtime: presentation.runtime)
+            apply = { try move.apply(to: $0) }
+          } else {
+            // A native repeat rule may be richer than the local model. Reject only this drag path.
+            _ = try reminders.prepareOccurrenceMove(task, expected: snapshot)
+            apply = { date in
+              try actions.applyAttachedReminder(
+                .move(date), task: task, expected: snapshot, context: context, actor: .you,
+                channel: .app)
+            }
           }
           timeRequest = TimelineMoveRequest(timing: timing) { date in
-            let receipt = try actions.applyAttachedReminder(
-              .move(date), task: task, expected: snapshot, context: context, actor: .you,
-              channel: .app)
-            return {
-              do { try receipt.undo() } catch { toast?.showNotice(error.localizedDescription) }
+            let receipt = try apply(date)
+            @MainActor func restore() {
+              do { try receipt.undo() } catch {
+                toast?.show(
+                  "Couldn't restore reminder. " + error.localizedDescription, undo: restore)
+              }
             }
+            return restore
           }
         case .alarm(let alarm, _, _):
           guard alarm.weekdays.isEmpty else {

@@ -338,6 +338,79 @@
     }
     package var editFailure: Failure?
     package var deletionFailure: Failure?
+    package var occurrenceUndoFailure: Failure?
+    package var occurrenceRemotes: [String: RemindersSync.Remote] = [:]
+    package private(set) var occurrenceCommits = 0
+    package private(set) var occurrenceRestores = 0
+
+    package func prepareOccurrenceMove(_ task: OneTask, expected: TaskSnapshot) throws
+      -> ReminderOccurrenceCommit?
+    {
+      guard let id = task.externalID else { return nil }
+      guard isConnected else { throw Failure.disconnected }
+      if expected.repeatRule == nil {
+        guard let live = occurrenceRemotes[id] ?? currentRemote,
+          live.fingerprint == RemindersSync.fingerprint(of: expected)
+        else { throw Failure.changedOutside }
+        guard !live.repeats else { throw ReminderOccurrenceMove.Failure.unsupported }
+        return nil
+      }
+      guard isConnected, let due = expected.due,
+        let rule = expected.repeatRule.flatMap(RepeatRule.init(rawValue:)),
+        let original = occurrenceRemotes[id],
+        original.fingerprint == RemindersSync.fingerprint(of: expected)
+      else { throw Failure.changedOutside }
+      let next = rule.next(after: due, calendar: runtime.calendar)
+      let childID = runtime.nextID().uuidString
+      var accepted: ReminderOccurrenceCommit.Accepted?
+      var restored = false
+      return ReminderOccurrenceCommit(
+        nextDue: next,
+        apply: { target in
+          guard self.isConnected, !restored,
+            self.occurrenceRemotes[id]?.fingerprint == original.fingerprint,
+            self.occurrenceRemotes[childID] == nil
+          else { throw Failure.changedOutside }
+          if let creationFailure = self.creationFailure { throw creationFailure }
+          let series = RemindersSync.Remote(
+            id: id, title: expected.title, notes: expected.note, isDone: false, doneAt: nil,
+            due: next, listID: original.listID, listTitle: expected.listName,
+            flagged: expected.flagged, repeatRule: expected.repeatRule, repeats: true)
+          let child = RemindersSync.Remote(
+            id: childID, title: expected.title, notes: expected.note, isDone: false, doneAt: nil,
+            due: target, listID: original.listID, listTitle: expected.listName,
+            flagged: expected.flagged, repeatRule: nil, repeats: false)
+          self.occurrenceRemotes[id] = series
+          self.occurrenceRemotes[childID] = child
+          self.occurrenceCommits += 1
+          let pair = ReminderOccurrenceCommit.Accepted(series: series, occurrence: child)
+          accepted = pair
+          return pair
+        },
+        restore: {
+          guard self.isConnected else { throw Failure.disconnected }
+          if restored {
+            guard self.occurrenceRemotes[id]?.fingerprint == original.fingerprint,
+              self.occurrenceRemotes[childID] == nil
+            else { throw Failure.changedOutside }
+            return original
+          }
+          guard let accepted,
+            self.occurrenceRemotes[id]?.fingerprint == accepted.series.fingerprint,
+            self.occurrenceRemotes[childID]?.fingerprint == accepted.occurrence.fingerprint
+          else { throw Failure.changedOutside }
+          if let error = self.occurrenceUndoFailure { throw error }
+          self.occurrenceRemotes[id] = original
+          self.occurrenceRemotes[childID] = nil
+          self.occurrenceRestores += 1
+          restored = true
+          return original
+        },
+        restart: {
+          restored = false
+          accepted = nil
+        })
+    }
     package private(set) var editCalls = 0
     package private(set) var deletionCalls = 0
 

@@ -105,6 +105,9 @@
     func commitEdit(_ task: OneTask, draft: TaskSnapshot, expected: TaskSnapshot) throws
       -> RemindersSync.Remote?
     func didPersistEdit(_ task: OneTask, accepted: RemindersSync.Remote?)
+    /// Explicit manual move preflight; nil means a local-only series or a native one-off.
+    func prepareOccurrenceMove(_ task: OneTask, expected: TaskSnapshot) throws
+      -> ReminderOccurrenceCommit?
     func commitDeletion(_ task: OneTask, expected: TaskSnapshot) throws -> ReminderDeletionReceipt
     func restoreDeletion(_ task: OneTask, receipt: ReminderDeletionReceipt) throws -> RemindersSync
       .Remote?
