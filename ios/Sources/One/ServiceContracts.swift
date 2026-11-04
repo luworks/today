@@ -159,6 +159,9 @@
 
   // Convenience arguments preserve call semantics while always dispatching to the injected instance.
   extension CalendarService {
+    /// Connected Calendar is authoritative, including detached or externally moved occurrences.
+    package var usesSystemEventSnapshots: Bool { isOn && hasAccess && isReady }
+
     /// The shared display/Open lookup; an opaque anchor alone never identifies a source item.
     package func cachedFocusEvent(identity: FocusIdentity, reference: String?) -> ExternalEvent? {
       guard let reference, reference.hasPrefix("eventkit:") else { return nil }

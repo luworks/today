@@ -518,49 +518,64 @@
     }
 
     private func prepareLocalTime(_ event: OneEvent, timing: TimelineDragTime) {
-      guard event.repeatRule == nil else {
-        timeError =
-          "This local repeating event has no occurrence exceptions. Open it to edit the series explicitly."
-        return
-      }
       let before = localEventSnapshot(event)
       timeRequest = TimelineMoveRequest(timing: timing) { date in
         guard !event.isDeleted, event.modelContext === context,
-          localEventSnapshot(event) == before
+          localEventSnapshot(event) == before,
+          try savedLocalEventMatches(event, snapshot: before)
         else {
           throw NSError(
             domain: "TimelineMove", code: 2,
             userInfo: [NSLocalizedDescriptionKey: "This event changed since the preview."])
         }
         let original = event.start
-        event.start = date
+        let overrides = event.occurrenceOverrides
+        if event.repeatRule != nil {
+          event.occurrenceOverrides = OccurrenceTimes.moving(
+            overrides, from: timing.original, to: date)
+        } else {
+          event.start = date
+        }
         do { try context.save() } catch {
           event.start = original
+          event.occurrenceOverrides = overrides
           throw error
         }
         let after = localEventSnapshot(event)
         let entry = ledger.record(
           .moved, kind: "event", title: event.title,
-          before: ledger.timeLabel(original), after: ledger.timeLabel(date),
-          beforeDate: original, afterDate: date, actor: .you, channel: .app,
+          before: ledger.timeLabel(timing.original), after: ledger.timeLabel(date),
+          beforeDate: timing.original, afterDate: date, actor: .you, channel: .app,
           approval: .userMade, context: context)
         return {
           guard !event.isDeleted, event.modelContext === context,
-            localEventSnapshot(event) == after
+            localEventSnapshot(event) == after,
+            (try? savedLocalEventMatches(event, snapshot: after)) == true
           else {
             toast?.showNotice("Changed since. Open the event to check its time.")
             return
           }
+          let afterOverrides = event.occurrenceOverrides
           event.start = original
+          event.occurrenceOverrides = overrides
           do {
             try context.save()
             ledger.recordUndo(of: entry, channel: .app, context: context)
           } catch {
-            event.start = date
+            event.start = event.repeatRule == nil ? date : original
+            event.occurrenceOverrides = afterOverrides
             toast?.showNotice(error.localizedDescription)
           }
         }
       }
+    }
+
+    private func savedLocalEventMatches(_ event: OneEvent, snapshot: [String]) throws -> Bool {
+      let reader = ModelContext(context.container)
+      let saved = try reader.fetch(FetchDescriptor<OneEvent>()).first {
+        $0.persistentModelID == event.persistentModelID
+      }
+      return saved.map { localEventSnapshot($0) == snapshot } ?? false
     }
 
     private func localEventSnapshot(_ event: OneEvent) -> [String] {
@@ -572,6 +587,7 @@
         String(describing: event.reminderOffsetMinutes), String(event.isAllDay),
         String(event.ringsAsAlarm),
         event.externalID ?? "", event.repeatRule ?? "",
+        String(describing: event.occurrenceOverrides),
       ]
     }
 
@@ -608,10 +624,11 @@
     // MARK: One day's items
 
     private func items(on day: Date, now: Date) -> DayItems {
-      let external = calendar.events(on: day, excluding: Set(events.compactMap(\.externalID)))
+      let local = events.filter { $0.externalID == nil || !calendar.usesSystemEventSnapshots }
+      let external = calendar.events(on: day, excluding: Set(local.compactMap(\.externalID)))
       var timeline: [TimelineItem] = []
       var busy: [DateInterval] = []
-      for e in events where !e.isAllDay {
+      for e in local where !e.isAllDay {
         for start in e.occurs(on: day, calendar: cal) {
           timeline.append(.event(e, start))
           busy.append(DateInterval(start: start, duration: TimeInterval(e.durationMinutes * 60)))
@@ -658,7 +675,7 @@
         timeline.append(.nowMarker(now))
       }
       return DayItems(
-        allDay: events.filter {
+        allDay: local.filter {
           $0.isAllDay && !$0.occurs(on: day, calendar: cal).isEmpty
             && !isHidden(
               target($0, start: $0.occurs(on: day, calendar: cal).first ?? $0.start), on: day)

@@ -124,18 +124,21 @@
     package var externalID: String? = nil
     /// RepeatRule raw value; nil = one-off.
     package var repeatRule: String? = nil
+    package var occurrenceOverrides: [OccurrenceTimeOverride] = []
 
     package var repeats: RepeatRule? { repeatRule.flatMap(RepeatRule.init(rawValue:)) }
     package var duration: TimeInterval { TimeInterval(durationMinutes * 60) }
 
     /// Start dates of this event's occurrences overlapping `interval` (one-off events give 0 or 1).
-    package func occurrences(in interval: DateInterval) -> [Date] {
-      Recurrence.occurrences(start: start, duration: duration, rule: repeats, in: interval)
+    package func occurrences(in interval: DateInterval, calendar: Calendar = .current) -> [Date] {
+      OccurrenceTimes.starts(
+        start: start, duration: duration, rule: repeats, overrides: occurrenceOverrides,
+        in: interval, calendar: calendar)
     }
 
     package func occurs(on day: Date, calendar: Calendar = .current) -> [Date] {
       guard let interval = calendar.dateInterval(of: .day, for: day) else { return [] }
-      return occurrences(in: interval)
+      return occurrences(in: interval, calendar: calendar)
     }
 
     /// Next occurrence starting after `date`, for reminders.
@@ -167,6 +170,7 @@
       e.isAllDay = isAllDay
       e.ringsAsAlarm = ringsAsAlarm
       e.repeatRule = repeatRule
+      e.occurrenceOverrides = occurrenceOverrides
       return e
     }
 

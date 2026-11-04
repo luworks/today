@@ -229,3 +229,5 @@ They are not reusable UI datasets; the production retention policy lives in
 English dinner alarm corrections and annual-booking rename inline with a fixed 2026-11-01
 09:00 UTC clock. These exercise production AskRouter and FastLane continuation/refinement;
 UI persistence, navigation, accessibility and Undo still use the existing Ask/AI fixtures.
+
+| [`timeline-drag.json`](timeline-drag.json) | Same-day adjustment observation: off-grid Reminder, local one-off/repeating event, one-off/repeating Alarm with explicit synthetic system IDs. TodayMock only; pinned 09:41, no real source access. |

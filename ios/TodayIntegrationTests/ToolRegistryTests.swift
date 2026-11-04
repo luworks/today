@@ -160,6 +160,71 @@
     }
 
     @Test
+    func aReminderChangedInAnotherContextCannotBeMovedFromStaleLocalState() throws {
+      let a = try RegistryFixture()
+      defer { a.dispose() }
+      let task = a.task("Review", due: a.now.addingTimeInterval(3600))
+      let before = Ledger.snapshot(of: task)
+      let writer = ModelContext(a.context.container)
+      let other = try #require(try writer.fetch(FetchDescriptor<OneTask>()).first)
+      other.note = "Edited in another window"
+      try writer.save()
+      #expect(throws: (any Error).self) {
+        try a.services.actions.applyAttachedReminder(
+          .move(a.now.addingTimeInterval(7200)), task: task, expected: before,
+          context: a.context, actor: .you, channel: .app)
+      }
+      #expect(try a.rows().isEmpty)
+    }
+
+    @Test
+    func aConnectedCalendarProjectsNativeTimesInsteadOfStaleMirrors() throws {
+      let a = try RegistryFixture()
+      defer { a.dispose() }
+      let old = a.now.addingTimeInterval(3600)
+      let moved = old.addingTimeInterval(3600)
+      let mirror = OneEvent(title: "Planning", start: old, durationMinutes: 30)
+      mirror.externalID = "series"
+      a.context.insert(mirror)
+      try a.context.save()
+      a.services.calendar.enabled = true
+      a.services.calendar.hasAccess = true
+      a.services.calendar.queryEvents = [
+        ExternalEvent(
+          id: "detached", eventIdentifier: "detached", title: "Planning",
+          start: moved, end: moved.addingTimeInterval(1800), isAllDay: false,
+          calendarTitle: "Work", color: .blue)
+      ]
+      let entries = CalendarEntries.make(
+        in: DateInterval(start: a.runtime.calendar.startOfDay(for: a.now), duration: 86400),
+        events: [mirror], tasks: [], calendarService: a.services.calendar,
+        now: a.now, calendar: a.runtime.calendar)
+      #expect(entries.count == 1 && entries.first?.start == moved)
+      #expect(mirror.start == old, "Projection does not delete or mutate the retained mirror")
+    }
+
+    @Test
+    func aLocalSeriesExceptionSurvivesPersistenceWithoutChangingTheSeriesAnchor() throws {
+      let a = try RegistryFixture()
+      defer { a.dispose() }
+      let anchor = a.now.addingTimeInterval(-86400)
+      let original = a.now
+      let moved = original.addingTimeInterval(3600)
+      let event = OneEvent(title: "Daily review", start: anchor, durationMinutes: 30)
+      event.repeatRule = "daily"
+      event.occurrenceOverrides = [.init(original: original, start: moved)]
+      a.context.insert(event)
+      try a.context.save()
+      let reader = ModelContext(a.context.container)
+      let saved = try #require(try reader.fetch(FetchDescriptor<OneEvent>()).first)
+      #expect(saved.start == anchor)
+      #expect(saved.occurs(on: original, calendar: a.runtime.calendar) == [moved])
+      #expect(
+        saved.occurs(on: original.addingTimeInterval(86400), calendar: a.runtime.calendar)
+          == [original.addingTimeInterval(86400)])
+    }
+
+    @Test
     func aSystemMoveExpectationCarriesItsLastModifiedTimeAndAudience() {
       let modified = Date(timeIntervalSince1970: 1_792_400_000)
       let start = modified.addingTimeInterval(86_400)

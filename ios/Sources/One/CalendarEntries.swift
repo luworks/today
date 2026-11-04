@@ -101,12 +101,11 @@
 
       var mirrors = Set<String>()
       for e in events {
+        if e.externalID != nil, sync.usesSystemEventSnapshots { continue }
         if let id = e.externalID { mirrors.insert(id) }
         if sync.isHidden(externalID: e.externalID) { continue }
         let mirror = sync.calendar(forExternalID: e.externalID)
-        for start in Recurrence.occurrences(
-          start: e.start, duration: e.duration, rule: e.repeats, in: interval, calendar: calendar)
-        {
+        for start in e.occurrences(in: interval, calendar: calendar) {
           let end =
             forYearMarks
             ? YearEventMarks.localEnd(

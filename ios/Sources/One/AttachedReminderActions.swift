@@ -36,7 +36,8 @@
       runtime: PlannerRuntime, actor: LedgerActor = .todayAI, channel: LedgerChannel = .ask
     ) throws -> Receipt {
       guard !task.isDeleted, task.modelContext === context,
-        Ledger.snapshot(of: task) == expected
+        Ledger.snapshot(of: task) == expected,
+        try persistedMatches(task, expected: expected, context: context)
       else { throw Failure.changed }
       switch operation {
       case .rename(let title):
@@ -127,11 +128,23 @@
         approval: actor == .you ? .userMade : .asked, context: context)
       return Receipt {
         guard !task.isDeleted, task.modelContext === context,
-          Ledger.snapshot(of: task) == after
+          Ledger.snapshot(of: task) == after,
+          try persistedMatches(task, expected: after, context: context)
         else { throw Failure.changed }
         try persist(task, from: after, to: before, context: context, reminders: reminders)
         ledger.recordUndo(of: entry, task: task, channel: channel, context: context)
       }
+    }
+
+    private static func persistedMatches(
+      _ task: OneTask, expected: TaskSnapshot,
+      context: ModelContext
+    ) throws -> Bool {
+      let reader = ModelContext(context.container)
+      let saved = try reader.fetch(FetchDescriptor<OneTask>()).first {
+        $0.persistentModelID == task.persistentModelID
+      }
+      return saved.map { Ledger.snapshot(of: $0) == expected } ?? false
     }
 
     private static func persist(

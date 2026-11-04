@@ -20,9 +20,7 @@
       var taskByID: [String: OneTask] = [:]
       var eventByID: [String: OneEvent] = [:]
       let eventPairs = events.compactMap { e in
-        Recurrence.occurrences(
-          start: e.start, duration: e.duration, rule: e.repeats, in: window, calendar: cal
-        ).first.map { (e, $0) }
+        e.occurrences(in: window, calendar: cal).first.map { (e, $0) }
       }
       .sorted { $0.1 < $1.1 }.prefix(8)
       for (i, pair) in eventPairs.enumerated() {

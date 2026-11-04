@@ -54,6 +54,7 @@ import One
       let attendees: Int?
     }
     struct Alarm: Decodable {
+      let systemID: UUID?
       let time: String
       let label: String?
       let weekdays: [Int]?
@@ -140,6 +141,8 @@ import One
           hour: hm[0], minute: hm[1], label: a.label ?? "", weekdays: a.weekdays ?? [],
           snooze: a.snooze ?? true)
         alarm.isOn = a.on ?? true
+        alarm.alarmKitID = a.systemID
+        alarm.createdAt = now
         context.insert(alarm)
       }
       for c in file.chats {
