@@ -5,6 +5,11 @@
   /// The bookmark is device local and must be obtained again after uninstalling the app.
   public final class FolderRecoveryTransport {
     private let bookmark: Data
+    private var localDirectory: URL?
+    package init(localDirectory: URL) {
+      bookmark = Data()
+      self.localDirectory = localDirectory
+    }
     public init(bookmark: Data) { self.bookmark = bookmark }
 
     public static func bookmark(for selectedDirectory: URL) throws -> Data {
@@ -21,6 +26,7 @@
     public func access<T>(account: () throws -> String, _ operation: (URL, String) throws -> T)
       throws -> T
     {
+      if let localDirectory { return try operation(localDirectory, account()) }
       var stale = false
       let directory = try URL(
         resolvingBookmarkData: bookmark, options: .withoutUI, relativeTo: nil,
