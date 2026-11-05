@@ -149,6 +149,9 @@
       .onChange(of: scenePhase) { _, phase in
         if phase == .active { refreshClock() }
       }
+      .onReceive(NotificationCenter.default.publisher(for: ledger.activity.didChange)) { _ in
+        loadHistory()
+      }
       // Re-read when the day changes, the app comes back (the outbox brings in alarm stops) or a reminder changes.
       .task(
         id:
@@ -415,8 +418,19 @@
     private func timelineContent(_ items: DayItems) -> some View {
       if isPastDay {
         if historyDay == cal.startOfDay(for: day) {
-          ForEach(history.facts.filter(\.isPrimary)) { fact in
+          let untimed = history.facts.filter { $0.isPrimary && $0.isUntimedPlan }
+          let allDay = untimed.filter { $0.event.subjectKind == "event" }
+          if !allDay.isEmpty {
+            AgendaHeader(title: "All day", isInline: !showsWeekStrip)
+            ForEach(allDay) { fact in HistoricalFactRow(fact: fact, todayStyle: !showsWeekStrip) }
+          }
+          ForEach(history.facts.filter { $0.isPrimary && !$0.isUntimedPlan }) { fact in
             HistoricalFactRow(fact: fact, todayStyle: !showsWeekStrip)
+          }
+          let anytime = untimed.filter { $0.event.subjectKind != "event" }
+          if !anytime.isEmpty {
+            AnytimeLabel(title: "Anytime")
+            ForEach(anytime) { fact in HistoricalFactRow(fact: fact, todayStyle: !showsWeekStrip) }
           }
           let changes = history.facts.filter { !$0.isPrimary }
           if !changes.isEmpty {

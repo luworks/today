@@ -70,7 +70,8 @@
       item.id = runtime.nextID()
       // A change seen later (a completion in Apple Reminders) keeps the time it happened, so it lands on its own day.
       item.date = date ?? runtime.now()
-      item.beforeDate = beforeDate ?? (action == .completed ? task?.due : nil)
+      item.beforeDate =
+        beforeDate ?? ((action == .completed || action == .reopened) ? task?.due : nil)
       item.afterDate = afterDate
       item.itemRef = reference
       item.undoOf = undoOf
@@ -128,9 +129,8 @@
             p.item.itemRef = Self.ref(model.persistentModelID)
           }
           var event = p.item.event(snapshot: p.snapshot, calendar: runtime.calendar)
-          var props = ActivityProps.dictionary(event.props)
-          props["observed_ms"] = ActivityClock.ms(p.observedAt)
-          event.props = ActivityProps.json(props)
+          event.props = ActivityProps.merging(
+            ["observed_ms": ActivityClock.ms(p.observedAt)], into: event.props)
           recorder.record(event)
         }
         pending = []
@@ -332,7 +332,7 @@
       case .created:
         reminders.noteDeleted(reminder: t.externalID)
         context.delete(t)
-      case .deleted, .undone, .granted, .revoked, .settled, .snoozed, .restored, .edited,
+      case .observed, .deleted, .undone, .granted, .revoked, .settled, .snoozed, .restored, .edited,
         .switchedOn, .switchedOff:
         return false
       }

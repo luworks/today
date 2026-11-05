@@ -108,6 +108,7 @@ public enum LedgerChannel: String, CaseIterable {
 /// What happened.
 public enum LedgerAction: String {
   case created, completed, reopened, deleted
+  case observed
   case settled, snoozed, restored
   /// A planned time was given to something that had none.
   case planned
@@ -125,6 +126,7 @@ public enum LedgerAction: String {
 
   public var verb: String {
     switch self {
+    case .observed: "Observed"
     case .created: "Added"
     case .completed: "Completed"
     case .reopened: "Reopened"

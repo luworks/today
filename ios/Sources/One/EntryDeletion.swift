@@ -118,6 +118,7 @@
           toast?.showNotice("Couldn't delete “\(event.title)” from Calendar, so it was kept.")
           return
         }
+        let historyReference = Ledger.ref(event.persistentModelID)
         withAnimation(.snappy) { context.delete(event) }
         do { try context.save() } catch {
           context.insert(event)
@@ -138,7 +139,7 @@
               externalID: externalID, local: true, location: backup.location, url: backup.url,
               busy: backup.busy)
             : nil,
-          context: context)
+          reference: historyReference, context: context)
         guard !alreadyAbsent else {
           toast?.showNotice("Removed the local copy. It was already deleted in Calendar.")
           return

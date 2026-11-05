@@ -106,6 +106,7 @@
         kind: DayHistory.observationKind, tier: .changes,
         actor: "system", at: now, calendar: calendar)
       event.title = title
+      event.channel = "app"
       event.subjectKind = kind
       event.subjectRef = reference
       event.beforeTs = ActivityClock.ms(start)

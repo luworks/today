@@ -9,6 +9,7 @@ public struct DayHistory: Equatable, Sendable {
   public struct Fact: Equatable, Sendable, Identifiable {
     public var event: ActivityEvent
     public var undone: Bool
+    public var outcomeUnknown = false
     public var scheduled = false
     public var related: [ActivityEvent] = []
     public var id: String { (scheduled ? "scheduled:" : "") + event.uid }
@@ -24,11 +25,17 @@ public struct DayHistory: Equatable, Sendable {
       }
       if event.kind == ActivityKind.sysAlarmStopped { return "Alarm stopped" }
       switch event.kind {
-      case "change.completed": return undone ? "Marked complete · Undone" : "Marked complete"
+      case "change.completed":
+        if outcomeUnknown { return "Marked complete · Later reopen (occurrence unknown)" }
+        return undone ? "Marked complete · No longer complete" : "Marked complete"
       case "change.reopened": return "Reopened"
       case "change.undone": return "Undone"
       default: return event.kind.replacingOccurrences(of: "change.", with: "").capitalized
       }
+    }
+    public var isUntimedPlan: Bool {
+      guard scheduled else { return false }
+      return ActivityProps.dictionary(event.props)["all_day"] as? Bool == true
     }
     public var isPrimary: Bool {
       scheduled
@@ -147,7 +154,23 @@ public struct DayHistory: Equatable, Sendable {
     history.facts = ordered.filter {
       ["task", "alarm", "event"].contains($0.subjectKind ?? "task")
     }
-    .map { Fact(event: $0, undone: undone.contains($0.uid)) }
+    .map { event in
+      let reopenedLater =
+        event.kind == "change.completed" && event.beforeTs != nil
+        && ordered.contains {
+          $0.kind == "change.reopened" && $0.ts >= event.ts
+            && $0.subjectRef.map(key) == event.subjectRef.map(key) && $0.beforeTs == event.beforeTs
+        }
+      let uncertainReopen =
+        event.kind == "change.completed" && event.beforeTs == nil
+        && ordered.contains {
+          $0.kind == "change.reopened" && $0.ts >= event.ts
+            && $0.subjectRef != nil && $0.subjectRef.map(key) == event.subjectRef.map(key)
+        }
+      return Fact(
+        event: event, undone: undone.contains(event.uid) || reopenedLater,
+        outcomeUnknown: uncertainReopen)
+    }
     // A retained deletion carries the original scheduled interval, not evidence of attendance.
     history.facts += deletions.filter { e in
       e.subjectKind == "event" && e.beforeTs.map { e.ts >= $0 } == true
@@ -158,13 +181,29 @@ public struct DayHistory: Equatable, Sendable {
       guard let ref = observation.subjectRef, let anchor = observation.beforeTs else { continue }
       let identity = key(ref) + "@" + String(anchor)
       guard seen.insert(identity).inserted else { continue }
-      var chain = (dayEvents + related).filter {
+      var anchors: Set<Int64> = [anchor]
+      let candidates = (dayEvents + related).filter { $0.subjectRef.map(key) == key(ref) }
+      // Only explicit date edits connect anchors. Never join adjacent occurrences by title or series alone.
+      for _ in 0..<min(candidates.count, 200) {
+        let before = anchors
+        for edit in candidates where ["change.moved", "change.redated"].contains(edit.kind) {
+          if let from = edit.beforeTs, let to = edit.afterTs, anchors.contains(from) {
+            anchors.insert(to)
+          }
+        }
+        if anchors == before { break }
+      }
+      var chain = candidates.filter {
         $0.subjectRef.map(key) == key(ref)
-          && ($0.beforeTs == anchor || $0.afterTs == anchor)
+          && ($0.beforeTs.map(anchors.contains) == true || $0.afterTs.map(anchors.contains) == true)
           && $0.kind != observationKind
       }.reduce(into: [ActivityEvent]()) { result, event in
         if !result.contains(where: { $0.uid == event.uid }) { result.append(event) }
       }.sorted { ($0.ts, $0.uid) < ($1.ts, $1.uid) }
+      chain += observations.filter {
+        $0.uid != observation.uid && $0.subjectRef.map(key) == key(ref)
+          && $0.beforeTs == anchor
+      }
       let linkedIDs = Set(chain.map(\.uid))
       for event in related
       where event.undoOf.map(linkedIDs.contains) == true

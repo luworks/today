@@ -25,13 +25,18 @@
     let mark: Mark
     /// The Today tab's layout (as `TodayRowAttention` gives the other rows); false in the Calendar's day list.
     let todayStyle: Bool
+    var untimed = false
 
     var body: some View {
       HStack(
         alignment: todayStyle ? .firstTextBaseline : .center, spacing: todayStyle ? 0 : 10
       ) {
-        TimeColumn(date: time, compact: todayStyle).dynamicTypeSize(
-          ...(todayStyle ? DynamicTypeSize.xxxLarge : .accessibility5))
+        if untimed {
+          Text(" ").frame(width: todayStyle ? 54 : 40)
+        } else {
+          TimeColumn(date: time, compact: todayStyle).dynamicTypeSize(
+            ...(todayStyle ? DynamicTypeSize.xxxLarge : .accessibility5))
+        }
         icon.modifier(AgendaIconSlot(enabled: todayStyle))
         TitleDetail(
           title: Text(title.isEmpty ? fallbackTitle : title)
@@ -92,12 +97,12 @@
     var body: some View {
       PastDayRow(
         time: fact.at, title: fact.title, detail: fact.action,
-        mark: fact.event.kind == "change.completed" && !fact.undone
+        mark: fact.event.kind == "change.completed" && !fact.undone && !fact.outcomeUnknown
           ? .completed
           : (fact.event.kind == ActivityKind.sysAlarmStopped
             ? .stopped
             : (fact.event.subjectKind == "event" ? .deletedEvent : .open)),
-        todayStyle: todayStyle
+        todayStyle: todayStyle, untimed: fact.isUntimedPlan
       )
       .contentShape(Rectangle())
       .onTapGesture { showsDetails = true }
@@ -114,7 +119,10 @@
                 value: fact.event.actor == "system"
                   ? "System" : LedgerActor(raw: fact.event.actor).name)
               LabeledContent("Channel", value: fact.event.channel ?? "Unknown")
-              LabeledContent("Recorded time", value: fact.at.formatted())
+              LabeledContent(
+                fact.scheduled ? "Scheduled time" : "Action time", value: fact.at.formatted())
+              LabeledContent("Record timestamp", value: fact.event.date.formatted())
+              LabeledContent("UTC offset (minutes)", value: String(fact.event.tz))
               if let observed = ActivityProps.dictionary(fact.event.props)["observed_ms"]
                 as? NSNumber
               {
@@ -154,8 +162,12 @@
                 }
               }
             } else {
-              Text("Occurrence association unavailable for this record.")
-                .font(.footnote).foregroundStyle(.secondary)
+              Text(
+                fact.scheduled
+                  ? "No related actions recorded."
+                  : "Occurrence association unavailable for this record."
+              )
+              .font(.footnote).foregroundStyle(.secondary)
             }
             Section {
               Text(
