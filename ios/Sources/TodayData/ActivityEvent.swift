@@ -73,7 +73,7 @@ public enum ActivityKind {
 }
 
 /// Text that must stay redactable on its own: the user's words before and after an edit of an AI card.
-public struct ActivityContent: Equatable {
+public struct ActivityContent: Equatable, Sendable {
   public init(field: String, before: String? = nil, after: String? = nil) {
     self.field = field
     self.before = before
@@ -85,7 +85,7 @@ public struct ActivityContent: Equatable {
   public var after: String?
 }
 
-public struct ActivityEvent: Equatable, Identifiable {
+public struct ActivityEvent: Equatable, Identifiable, Sendable {
   public var id: String { uid }
 
   public var uid: String
@@ -207,6 +207,11 @@ public enum ActivityClock {
 
 /// `props` is JSON text. These helpers build and read it without every call site touching JSONSerialization.
 public enum ActivityProps {
+  /// Add recorder metadata without losing action, authorization or policy metadata already attached to a row.
+  public static func merging(_ additions: [String: Any], into original: String) -> String {
+    json(dictionary(original).merging(additions) { _, new in new })
+  }
+
   public static func json(_ values: [String: Any]) -> String {
     let clean = values.filter { JSONSerialization.isValidJSONObject([$0.key: $0.value]) }
     guard

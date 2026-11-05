@@ -57,32 +57,24 @@ final class PastDayHistoryTests: XCTestCase {
     launch()
     openYesterday()
     for prefix in [
-      "Old alarm, Alarm stopped", "Return library books, Completed",
-      "Team lunch, 1 h · Deleted later",
+      "Old alarm, Alarm stopped", "Return library books, Marked complete",
+      "Team lunch, Scheduled · Source deleted later",
     ] {
       let row = historyRow(prefix)
       reveal(row)
       XCTAssertTrue(row.exists, "rebuilt from Activity: \(prefix)")
     }
-    let alarm = app.descendants(matching: .any).matching(
-      NSPredicate(format: "identifier == 'today.alarm.row' AND label CONTAINS %@", "Morning alarm")
-    ).firstMatch
-    reveal(alarm)
-    XCTAssertTrue(alarm.label.contains("stopped"), "its ring was stopped: \(alarm.label)")
-
-    // Still in Today and done that day: the live row, once.
-    let fed = app.buttons["Reopen Feed the cat"]
+    let fed = historyRow("Feed the cat, Marked complete")
     reveal(fed)
     XCTAssertTrue(fed.exists)
-    XCTAssertFalse(historyRow("Feed the cat").exists, "no second row from Activity")
-    // Not done: stays open (principle 6).
-    let report = app.buttons["Complete Send the weekly report"]
+    XCTAssertFalse(app.buttons["Reopen Feed the cat"].exists, "past facts are read-only")
+    let report = historyRow("Send the weekly report, Scheduled")
     reveal(report)
-    XCTAssertTrue(report.exists)
-    for hidden in ["Tapped by mistake", "Undone in Activity", "Cancelled call"] {
-      XCTAssertFalse(app.staticTexts[hidden].exists, "\(hidden) did not happen")
-      XCTAssertFalse(historyRow(hidden).exists, "\(hidden) did not happen")
-    }
+    XCTAssertTrue(report.exists, "observed incomplete due reminder remains visible")
+    XCTAssertFalse(app.buttons["Complete Send the weekly report"].exists)
+    let undone = historyRow("Undone in Activity, Marked complete · No longer complete")
+    reveal(undone)
+    XCTAssertTrue(undone.exists, "Undo retains the fact and makes its result explicit")
     XCTAssertFalse(app.buttons["focus.settled"].exists, "no Settled section")
     app.swipeDown()
     app.swipeDown()
@@ -96,10 +88,24 @@ final class PastDayHistoryTests: XCTestCase {
     XCTAssertTrue(app.staticTexts["Send the weekly report"].waitForExistence(timeout: 3))
   }
 
+  func testDeletedSourceFactOpensReadOnlyDetails() {
+    launch()
+    openYesterday()
+    let row = historyRow("Old alarm, Alarm stopped")
+    reveal(row)
+    XCTAssertTrue(row.exists)
+    row.tap()
+    XCTAssertTrue(app.navigationBars["History"].waitForExistence(timeout: 5))
+    XCTAssertTrue(app.staticTexts["Old alarm"].exists)
+    XCTAssertFalse(app.buttons["Complete Old alarm"].exists)
+    app.buttons["Done"].tap()
+    XCTAssertTrue(row.waitForExistence(timeout: 5))
+  }
+
   func testYesterdayInDarkMode() {
     launch(appearance: "dark")
     openYesterday()
-    let row = historyRow("Return library books, Completed")
+    let row = historyRow("Return library books, Marked complete")
     reveal(row)
     XCTAssertTrue(row.exists)
     app.swipeDown()

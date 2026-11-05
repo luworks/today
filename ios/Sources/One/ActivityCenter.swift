@@ -80,6 +80,44 @@
       recorder.record(event)
     }
 
+    /// Values only: immutable plan observations share the Changes retention and pause policy.
+    package func observePlan(
+      title: String, kind: String, reference: String, start: Date,
+      end: Date?, allDay: Bool, calendar: Calendar
+    ) {
+      guard !disposed, recorder.isRecording(.changes), let store else { return }
+      let now = runtime.now()
+      let cleared = defaults.double(forKey: "activity.planClearBoundary")
+      guard cleared == 0 || start.timeIntervalSince1970 >= cleared else { return }
+      // Bounded indexed lookup; flush first so repeated refreshes do not enqueue duplicates.
+      recorder.flush()
+      let prior =
+        (try? store.page(
+          ActivityQuery(
+            subjectRef: reference,
+            kinds: [DayHistory.observationKind]), limit: 200)) ?? []
+      if let last = prior.first(where: { $0.beforeTs == ActivityClock.ms(start) }),
+        last.title == title, last.afterTs == end.map(ActivityClock.ms),
+        (ActivityProps.dictionary(last.props)["all_day"] as? Bool) == allDay
+      {
+        return
+      }
+      var event = ActivityEvent(
+        kind: DayHistory.observationKind, tier: .changes,
+        actor: "system", at: now, calendar: calendar)
+      event.title = title
+      event.channel = "app"
+      event.subjectKind = kind
+      event.subjectRef = reference
+      event.beforeTs = ActivityClock.ms(start)
+      event.afterTs = end.map(ActivityClock.ms)
+      event.props = ActivityProps.json([
+        "observed_ms": ActivityClock.ms(now), "all_day": allDay,
+        "plan_tz_minutes": calendar.timeZone.secondsFromGMT(for: start) / 60,
+      ])
+      recorder.record(event)
+    }
+
     /// Whether changes (tier 1) are being kept. When not, nothing applies by itself under a grant: an automatic change without
     /// an Activity entry and an Undo would break "AI prepares, the user decides".
     package var recordsChanges: Bool { recorder.isRecording(.changes) }
@@ -140,6 +178,9 @@
     package var beforeClear: (() -> Void)?
 
     package func clear(tiers: Set<ActivityTier>? = nil) {
+      if tiers == nil || tiers?.contains(.changes) == true {
+        defaults.set(runtime.now().timeIntervalSince1970, forKey: "activity.planClearBoundary")
+      }
       BackupController.cancelRestore(defaults: defaults)
       beforeClear?()
       recorder.discardBuffered()

@@ -47,6 +47,7 @@
       var snapshot: Data?
       /// The reminder or alarm it is about; its id goes in `subject_ref` once saved.
       var model: (any PersistentModel)?
+      var observedAt: Date
     }
 
     private var pending: [Pending] = []
@@ -59,7 +60,8 @@
       before: String = "", after: String = "", beforeDate: Date? = nil, afterDate: Date? = nil,
       actor: LedgerActor = .you, channel: LedgerChannel = .app,
       approval: LedgerApproval = .userMade,
-      snapshot: (any Encodable)? = nil, undoOf: UUID? = nil, at date: Date? = nil,
+      snapshot: (any Encodable)? = nil, reference: String? = nil, undoOf: UUID? = nil,
+      at date: Date? = nil,
       context: ModelContext
     ) -> LedgerItem {
       var item = LedgerItem(
@@ -68,13 +70,16 @@
       item.id = runtime.nextID()
       // A change seen later (a completion in Apple Reminders) keeps the time it happened, so it lands on its own day.
       item.date = date ?? runtime.now()
-      item.beforeDate = beforeDate
+      item.beforeDate =
+        beforeDate ?? ((action == .completed || action == .reopened) ? task?.due : nil)
       item.afterDate = afterDate
+      item.itemRef = reference
       item.undoOf = undoOf
       let data = snapshot.flatMap { try? JSONEncoder().encode($0) }
       item.hasSnapshot = data != nil
       guard !disposed else { return item }
-      pending.append(Pending(item: item, snapshot: data, model: task ?? model))
+      pending.append(
+        Pending(item: item, snapshot: data, model: task ?? model, observedAt: runtime.now()))
       scheduleFlush(context)
       return item
     }
@@ -123,7 +128,10 @@
           if let model = p.model, !model.isDeleted, model.modelContext != nil {
             p.item.itemRef = Self.ref(model.persistentModelID)
           }
-          recorder.record(p.item.event(snapshot: p.snapshot, calendar: runtime.calendar))
+          var event = p.item.event(snapshot: p.snapshot, calendar: runtime.calendar)
+          event.props = ActivityProps.merging(
+            ["observed_ms": ActivityClock.ms(p.observedAt)], into: event.props)
+          recorder.record(event)
         }
         pending = []
         recorder.flush()
@@ -324,7 +332,7 @@
       case .created:
         reminders.noteDeleted(reminder: t.externalID)
         context.delete(t)
-      case .deleted, .undone, .granted, .revoked, .settled, .snoozed, .restored, .edited,
+      case .observed, .deleted, .undone, .granted, .revoked, .settled, .snoozed, .restored, .edited,
         .switchedOn, .switchedOff:
         return false
       }

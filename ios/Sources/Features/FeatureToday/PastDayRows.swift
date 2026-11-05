@@ -1,4 +1,5 @@
 #if os(iOS)
+  import TodayData
   import TodayCore
   import TodayDesignSystem
   import TodayPlannerUI
@@ -10,6 +11,7 @@
     enum Mark {
       /// A completed reminder: the done style of a reminder row (green check, struck through, dimmed).
       case completed
+      case open
       /// A stopped alarm: green check, dimmed.
       case stopped
       /// An event deleted after it started: a quiet bar, dimmed.
@@ -23,13 +25,18 @@
     let mark: Mark
     /// The Today tab's layout (as `TodayRowAttention` gives the other rows); false in the Calendar's day list.
     let todayStyle: Bool
+    var untimed = false
 
     var body: some View {
       HStack(
         alignment: todayStyle ? .firstTextBaseline : .center, spacing: todayStyle ? 0 : 10
       ) {
-        TimeColumn(date: time, compact: todayStyle).dynamicTypeSize(
-          ...(todayStyle ? DynamicTypeSize.xxxLarge : .accessibility5))
+        if untimed {
+          Text(" ").frame(width: todayStyle ? 54 : 40)
+        } else {
+          TimeColumn(date: time, compact: todayStyle).dynamicTypeSize(
+            ...(todayStyle ? DynamicTypeSize.xxxLarge : .accessibility5))
+        }
         icon.modifier(AgendaIconSlot(enabled: todayStyle))
         TitleDetail(
           title: Text(title.isEmpty ? fallbackTitle : title)
@@ -65,6 +72,8 @@
           .foregroundStyle(Color.green)
           .frame(minWidth: todayStyle ? nil : 24)
           .accessibilityHidden(true)
+      case .open:
+        Image(systemName: "circle").foregroundStyle(.secondary)
       case .deletedEvent:
         CalendarBar(color: Color(.tertiaryLabel))
           .frame(height: todayStyle ? 20 : nil)
@@ -73,9 +82,105 @@
 
     private var fallbackTitle: String {
       switch mark {
-      case .completed: "Reminder"
+      case .completed, .open: "Reminder"
       case .stopped: "Alarm"
       case .deletedEvent: "Event"
+      }
+    }
+  }
+
+  struct HistoricalFactRow: View {
+    let fact: DayHistory.Fact
+    let todayStyle: Bool
+    @State private var showsDetails = false
+
+    var body: some View {
+      PastDayRow(
+        time: fact.at, title: fact.title, detail: fact.action,
+        mark: fact.event.kind == "change.completed" && !fact.undone && !fact.outcomeUnknown
+          ? .completed
+          : (fact.event.kind == ActivityKind.sysAlarmStopped
+            ? .stopped
+            : (fact.event.subjectKind == "event" ? .deletedEvent : .open)),
+        todayStyle: todayStyle, untimed: fact.isUntimedPlan
+      )
+      .contentShape(Rectangle())
+      .onTapGesture { showsDetails = true }
+      .accessibilityAddTraits(.isButton)
+      .sheet(isPresented: $showsDetails) {
+        NavigationStack {
+          List {
+            Section("Recorded fact") {
+              LabeledContent("Title", value: fact.title)
+              LabeledContent("Action", value: fact.action)
+              LabeledContent("Source", value: fact.event.subjectKind ?? "Unknown")
+              LabeledContent(
+                "Actor",
+                value: fact.event.actor == "system"
+                  ? "System" : LedgerActor(raw: fact.event.actor).name)
+              LabeledContent("Channel", value: fact.event.channel ?? "Unknown")
+              LabeledContent(
+                fact.scheduled ? "Scheduled time" : "Action time", value: fact.at.formatted())
+              LabeledContent("Record timestamp", value: fact.event.date.formatted())
+              LabeledContent("UTC offset (minutes)", value: String(fact.event.tz))
+              if let observed = ActivityProps.dictionary(fact.event.props)["observed_ms"]
+                as? NSNumber
+              {
+                LabeledContent(
+                  "Observed", value: ActivityClock.date(ms: observed.int64Value).formatted())
+              } else {
+                Text("Observation time unavailable in this record.")
+              }
+            }
+            Section("Plan at the time") {
+              LabeledContent(
+                "Before",
+                value: fact.event.beforeTs.map { ActivityClock.date(ms: $0).formatted() }
+                  ?? "Not recorded")
+              LabeledContent(
+                "After",
+                value: fact.event.afterTs.map { ActivityClock.date(ms: $0).formatted() }
+                  ?? "Not recorded")
+              if let before = fact.event.beforeText, !before.isEmpty { Text(before) }
+              if let after = fact.event.afterText, !after.isEmpty { Text("→ " + after) }
+            }
+            if !fact.related.isEmpty {
+              Section("Occurrence history") {
+                ForEach(fact.related, id: \.uid) { event in
+                  VStack(alignment: .leading, spacing: 4) {
+                    Text(
+                      event.kind == "change.deleted"
+                        ? "Source deleted later"
+                        : (event.kind == DayHistory.observationKind
+                          ? "Scheduled observation"
+                          : event.kind.replacingOccurrences(of: "change.", with: "").capitalized))
+                    Text(event.date.formatted()).font(.caption)
+                    if let title = event.title { Text(title) }
+                    if let before = event.beforeText, !before.isEmpty { Text(before) }
+                    if let after = event.afterText, !after.isEmpty { Text("→ " + after) }
+                  }
+                }
+              }
+            } else {
+              Text(
+                fact.scheduled
+                  ? "No related actions recorded."
+                  : "Occurrence association unavailable for this record."
+              )
+              .font(.footnote).foregroundStyle(.secondary)
+            }
+            Section {
+              Text(
+                "Read-only Activity record. Scheduled does not mean attended; stopped does not mean completed. History includes only observations retained by your Activity settings."
+              )
+              .font(.footnote).foregroundStyle(.secondary)
+            }
+          }
+          .navigationTitle("History")
+          .toolbar {
+            ToolbarItem(placement: .confirmationAction) { Button("Done") { showsDetails = false } }
+          }
+        }
       }
     }
   }
