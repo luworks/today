@@ -137,6 +137,14 @@
           scrollToNow(proxy)
         }
       }
+      .onChange(of: tasks.map { "\($0.title)|\($0.due?.timeIntervalSince1970 ?? 0)|\($0.isDone)" })
+      { _, _ in loadHistory() }
+      .onChange(of: events.map { "\($0.title)|\($0.start.timeIntervalSince1970)" }) { _, _ in
+        loadHistory()
+      }
+      .onChange(of: alarms.map { "\($0.label)|\($0.hour)|\($0.minute)|\($0.isOn)" }) { _, _ in
+        loadHistory()
+      }
       .overlay { timeAdjustmentPreview.allowsHitTesting(false) }
       .onChange(of: scenePhase) { _, phase in
         if phase == .active { refreshClock() }
@@ -144,7 +152,7 @@
       // Re-read when the day changes, the app comes back (the outbox brings in alarm stops) or a reminder changes.
       .task(
         id:
-          "\(cal.startOfDay(for: day).timeIntervalSince1970)|\(scenePhase == .active)|\(tasks.count)"
+          "\(cal.startOfDay(for: day).timeIntervalSince1970)|\(scenePhase == .active)|\(tasks.count)|\(calendar.version)|\(events.count)|\(alarms.count)"
       ) {
         loadHistory()
       }
@@ -248,6 +256,7 @@
 
     /// Reads the day's history from the Activity store: indexed, paged day-range queries (`DayHistory.load`). Read-only.
     private func loadHistory() {
+      observePlans()
       let start = cal.startOfDay(for: day)
       guard isPastDay, let store = ledger.activity.store else {
         history = DayHistory()
@@ -260,6 +269,50 @@
           from: store, day: start, calendar: cal, shownLive: [], reopened: [],
           key: Ledger.comparisonKey)) ?? DayHistory()
       historyDay = start
+    }
+
+    /// Capture only occurrences actually loaded for the viewed date. No claim of daily background coverage.
+    private func observePlans() {
+      let local = events.filter { $0.externalID == nil || !calendar.usesSystemEventSnapshots }
+      func record(
+        _ title: String, _ kind: String, _ ref: String?, _ start: Date,
+        _ end: Date? = nil, _ allDay: Bool = false
+      ) {
+        guard let ref else { return }
+        ledger.activity.observePlan(
+          title: title, kind: kind, reference: Ledger.comparisonKey(ref),
+          start: start, end: end, allDay: allDay, calendar: cal)
+      }
+      for event in local {
+        for start in event.occurs(on: day, calendar: cal) {
+          record(
+            event.title, "event", Ledger.ref(event.persistentModelID), start,
+            start.addingTimeInterval(event.duration), event.isAllDay)
+        }
+      }
+      for event in calendar.events(on: day, excluding: Set(local.compactMap(\.externalID))) {
+        // Resolve the existing normalized source identity; a transient EventKit ID is not identity.
+        if case .available(let identity) = calendar.cachedFocusIdentity(
+          externalID: event.eventIdentifier, occurrence: event.start),
+          let bytes = try? JSONEncoder().encode(identity),
+          let ref = String(data: bytes, encoding: .utf8)
+        {
+          record(event.title, "event", ref, event.start, event.end, event.isAllDay)
+        }
+      }
+      for task in tasks where !task.isDone {
+        if let due = task.due, cal.isDate(due, inSameDayAs: day) {
+          record(
+            task.title, "task", Ledger.ref(task.persistentModelID), due, nil,
+            !plannerDueHasTime(task, calendar: presentation.calendar))
+        }
+      }
+      for ring in CalendarAlarms.occurrences(
+        of: alarms.map(\.spec), on: day, now: now, calendar: cal)
+      {
+        let alarm = alarms[ring.index]
+        record(alarm.label, "alarm", alarm.alarmKitID?.uuidString, ring.date)
+      }
     }
 
     /// The Today tab on today (not the Calendar tab, not another day).
@@ -757,6 +810,7 @@
 
     private func items(on day: Date, now: Date) -> DayItems {
       if isPastDay {
+        // Past rows are reconstructed from retained observations, never from mutable source models.
         return DayItems(allDay: [], externalAllDay: [], timeline: [], anytime: [])
       }
 

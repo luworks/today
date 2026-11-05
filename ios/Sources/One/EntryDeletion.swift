@@ -21,7 +21,7 @@
           toast?.showNotice("This event was already deleted outside Today.")
           return
         }
-        guard case .available = resolution else {
+        guard case .available(let historyIdentity) = resolution else {
           toast?.showNotice(
             "Calendar access is unavailable. This event was kept; reconnect and retry.")
           return
@@ -53,6 +53,9 @@
               durationMinutes: max(1, Int(entry.end.timeIntervalSince(entry.start) / 60)),
               isAllDay: entry.isAllDay, calendarName: entry.calendarTitle, externalID: id)
             : nil,
+          reference: (try? JSONEncoder().encode(historyIdentity)).flatMap {
+            String(data: $0, encoding: .utf8)
+          },
           context: context)
         // Undo puts back a plain copy (title, time, place) in the default calendar, for a one-off event only:
         // a series has its own rules and attendees that a plain copy would not carry, and it was asked about first.

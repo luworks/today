@@ -60,7 +60,8 @@
       before: String = "", after: String = "", beforeDate: Date? = nil, afterDate: Date? = nil,
       actor: LedgerActor = .you, channel: LedgerChannel = .app,
       approval: LedgerApproval = .userMade,
-      snapshot: (any Encodable)? = nil, undoOf: UUID? = nil, at date: Date? = nil,
+      snapshot: (any Encodable)? = nil, reference: String? = nil, undoOf: UUID? = nil,
+      at date: Date? = nil,
       context: ModelContext
     ) -> LedgerItem {
       var item = LedgerItem(
@@ -71,6 +72,7 @@
       item.date = date ?? runtime.now()
       item.beforeDate = beforeDate ?? (action == .completed ? task?.due : nil)
       item.afterDate = afterDate
+      item.itemRef = reference
       item.undoOf = undoOf
       let data = snapshot.flatMap { try? JSONEncoder().encode($0) }
       item.hasSnapshot = data != nil
@@ -126,7 +128,9 @@
             p.item.itemRef = Self.ref(model.persistentModelID)
           }
           var event = p.item.event(snapshot: p.snapshot, calendar: runtime.calendar)
-          event.props = ActivityProps.json(["observed_ms": ActivityClock.ms(p.observedAt)])
+          var props = ActivityProps.dictionary(event.props)
+          props["observed_ms"] = ActivityClock.ms(p.observedAt)
+          event.props = ActivityProps.json(props)
           recorder.record(event)
         }
         pending = []

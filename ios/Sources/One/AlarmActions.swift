@@ -124,7 +124,8 @@
         var backup = try remove(alarm, context: context, alarms: alarms)
         let entry = ledger.record(
           .deleted, kind: "alarm", title: alarmTitle(backup, runtime: runtime),
-          snapshot: AlarmChange(before: backup.activitySnapshot, after: nil), context: context)
+          snapshot: AlarmChange(before: backup.activitySnapshot, after: nil),
+          reference: backup.alarmKitID?.uuidString, context: context)
         var restoring = false
         func restore() {
           // Activity's Undo may have put it back already.

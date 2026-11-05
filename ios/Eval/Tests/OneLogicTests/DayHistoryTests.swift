@@ -5,6 +5,64 @@ import XCTest
 
 /// A past day rebuilt from Activity: what counts as done, and the indexed day queries behind it.
 final class DayHistoryTests: XCTestCase {
+  func testObservedPlanSurvivesRenameAndLaterDeletionWithoutCompletion() {
+    var first = event("change.observed", "Family", at(9), ref: "family", subject: "event")
+    first.beforeTs = ActivityClock.ms(at(18))
+    first.afterTs = ActivityClock.ms(at(18, 30))
+    var renamed = first
+    renamed.uid = UUID().uuidString
+    renamed.ts += 1000
+    renamed.title = "Renamed"
+    var deleted = event(
+      "change.deleted", "Renamed", at(10, plusDays: 1), ref: "family", subject: "event")
+    deleted.beforeTs = first.beforeTs
+    let history = DayHistory.reconstruct(
+      dayEvents: [], deletions: [], undone: [],
+      observations: [renamed, first], related: [deleted])
+    XCTAssertEqual(history.facts.count, 1)
+    XCTAssertEqual(history.facts[0].title, "Family")
+    XCTAssertTrue(history.facts[0].scheduled)
+    XCTAssertEqual(history.facts[0].related, [deleted])
+    XCTAssertTrue(history.completions.isEmpty)
+  }
+
+  func testPlanCompletionMergesOnlyExactOccurrenceAndReopenRemovesDoneStyle() {
+    var plan = event("change.observed", "Walk", at(7), ref: "series")
+    plan.beforeTs = ActivityClock.ms(at(8))
+    var done = event("change.completed", "Walk", at(9), ref: "series")
+    done.beforeTs = plan.beforeTs
+    var reopened = event("change.reopened", "Walk", at(10), ref: "series")
+    reopened.beforeTs = plan.beforeTs
+    var other = event("change.completed", "Walk", at(11), ref: "series")
+    other.beforeTs = ActivityClock.ms(at(8, plusDays: 1))
+    let history = DayHistory.reconstruct(
+      dayEvents: [done, reopened, other], deletions: [], undone: [],
+      observations: [plan])
+    XCTAssertEqual(history.facts.count, 2)
+    let merged = history.facts.first { $0.event.uid == done.uid }!
+    XCTAssertTrue(merged.undone)
+    XCTAssertFalse(merged.related.contains { $0.uid == other.uid })
+  }
+
+  func testObservationStoreLoadUsesPlanDateRatherThanObservationDate() throws {
+    let store = try ActivityStore(location: .memory)
+    var plan = event(
+      "change.observed", "Family", at(9, plusDays: 1), ref: "family", subject: "event")
+    plan.beforeTs = ActivityClock.ms(at(18))
+    try store.insert([plan])
+    let history = try DayHistory.load(
+      from: store, day: day, calendar: cal,
+      shownLive: [], reopened: [], key: { $0 })
+    XCTAssertEqual(history.facts.map(\.title), ["Family"])
+    XCTAssertEqual(history.facts.first?.action, "Scheduled · Observed later")
+    try store.clear()
+    XCTAssertTrue(
+      try DayHistory.load(
+        from: store, day: day, calendar: cal,
+        shownLive: [], reopened: [], key: { $0 }
+      ).isEmpty)
+  }
+
   let cal: Calendar = {
     var c = Calendar(identifier: .gregorian)
     c.timeZone = TimeZone(identifier: "America/Los_Angeles")!

@@ -11,6 +11,7 @@
     enum Mark {
       /// A completed reminder: the done style of a reminder row (green check, struck through, dimmed).
       case completed
+      case open
       /// A stopped alarm: green check, dimmed.
       case stopped
       /// An event deleted after it started: a quiet bar, dimmed.
@@ -66,6 +67,8 @@
           .foregroundStyle(Color.green)
           .frame(minWidth: todayStyle ? nil : 24)
           .accessibilityHidden(true)
+      case .open:
+        Image(systemName: "circle").foregroundStyle(.secondary)
       case .deletedEvent:
         CalendarBar(color: Color(.tertiaryLabel))
           .frame(height: todayStyle ? 20 : nil)
@@ -74,7 +77,7 @@
 
     private var fallbackTitle: String {
       switch mark {
-      case .completed: "Reminder"
+      case .completed, .open: "Reminder"
       case .stopped: "Alarm"
       case .deletedEvent: "Event"
       }
@@ -89,9 +92,11 @@
     var body: some View {
       PastDayRow(
         time: fact.at, title: fact.title, detail: fact.action,
-        mark: fact.event.kind == "change.completed"
+        mark: fact.event.kind == "change.completed" && !fact.undone
           ? .completed
-          : (fact.event.kind == ActivityKind.sysAlarmStopped ? .stopped : .deletedEvent),
+          : (fact.event.kind == ActivityKind.sysAlarmStopped
+            ? .stopped
+            : (fact.event.subjectKind == "event" ? .deletedEvent : .open)),
         todayStyle: todayStyle
       )
       .contentShape(Rectangle())
@@ -130,6 +135,27 @@
                   ?? "Not recorded")
               if let before = fact.event.beforeText, !before.isEmpty { Text(before) }
               if let after = fact.event.afterText, !after.isEmpty { Text("→ " + after) }
+            }
+            if !fact.related.isEmpty {
+              Section("Occurrence history") {
+                ForEach(fact.related, id: \.uid) { event in
+                  VStack(alignment: .leading, spacing: 4) {
+                    Text(
+                      event.kind == "change.deleted"
+                        ? "Source deleted later"
+                        : (event.kind == DayHistory.observationKind
+                          ? "Scheduled observation"
+                          : event.kind.replacingOccurrences(of: "change.", with: "").capitalized))
+                    Text(event.date.formatted()).font(.caption)
+                    if let title = event.title { Text(title) }
+                    if let before = event.beforeText, !before.isEmpty { Text(before) }
+                    if let after = event.afterText, !after.isEmpty { Text("→ " + after) }
+                  }
+                }
+              }
+            } else {
+              Text("Occurrence association unavailable for this record.")
+                .font(.footnote).foregroundStyle(.secondary)
             }
             Section {
               Text(
