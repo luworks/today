@@ -208,11 +208,11 @@ public struct StopwatchState: Codable, Equatable {
 // MARK: - World Clock: scrubbing, time of day, overlap (modeled on the app "Overlap")
 
 extension WorldClock {
-  /// Scrubbing moves every city's clock together, in 15-minute steps, up to a day either way.
+  /// Scrubbing moves every city's clock together, in one-minute steps, up to a day either way.
   public enum Scrub {
-    public static let stepMinutes = 15
+    public static let stepMinutes = 1
     public static let limitMinutes = 24 * 60
-    /// Points of horizontal drag per 15-minute step.
+    /// Points of horizontal drag per one-minute step.
     public static let pointsPerStep: Double = 10
 
     /// The offset (in minutes) for a drag: dragging left moves time forward; dragging right moves it backward.
@@ -222,7 +222,7 @@ extension WorldClock {
       return clamp(snap(start) - steps * stepMinutes)
     }
 
-    /// Rounds to the nearest 15 minutes.
+    /// Rounds to the nearest minute.
     static func snap(_ minutes: Int) -> Int {
       Int((Double(minutes) / Double(stepMinutes)).rounded()) * stepMinutes
     }

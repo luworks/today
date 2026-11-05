@@ -81,7 +81,7 @@
 
   /// World Clock, a copy of the look and the gestures of the app "Overlap" (see docs/design/world-clock.md): one card per
   /// city, colored by the time of day there (green inside good hours, 9:00 to 18:00), home first with a star. Drag sideways
-  /// anywhere to move every clock together in 15-minute steps; the pill at the bottom says how far ("15 HOURS BEFORE NOW",
+  /// anywhere to move every clock together in one-minute steps; the pill at the bottom says how far ("15 HOURS BEFORE NOW",
   /// "NOW") and a tap on it goes back to now. The bell curve at the right of the pill swaps the cards for the overlap graph.
   /// No Edit button: a long press on a city offers Move Up / Move Down and Delete, press, hold and drag reorders
   /// (the sideways swipe belongs to scrubbing). + adds a city.
@@ -151,11 +151,6 @@
         }
         .animation(.snappy, value: graph)
       }
-      .sensoryFeedback(trigger: scrub) { _, new in
-        new % 60 == 0 ? .impact(weight: .medium) : .impact(weight: .light)
-      }
-      .sensoryFeedback(
-        .impact(weight: .heavy), trigger: abs(scrub) == WorldClock.Scrub.limitMinutes)
     }
 
     // MARK: Scrubbing

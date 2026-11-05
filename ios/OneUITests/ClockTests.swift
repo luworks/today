@@ -147,7 +147,7 @@ final class ClockTests: XCTestCase {
     XCTAssertTrue(app.descendants(matching: .any)["worldClock.hint"].waitForExistence(timeout: 3))
   }
 
-  /// Drag sideways on the cities: every clock moves, the pill says how far ("3 HOURS AFTER NOW"), a tap on it goes back to NOW.
+  /// Drag sideways on the cities: every clock moves in minutes, the pill says how far, a tap on it goes back to NOW.
   /// The pill is there from the start (reading NOW); there is no Overlap capsule.
   func testScrubbing() {
     launch([
@@ -171,7 +171,9 @@ final class ClockTests: XCTestCase {
         forDuration: 0.05,
         thenDragTo: tokyo.coordinate(withNormalizedOffset: CGVector(dx: 0.85, dy: 0.5)),
         withVelocity: .slow, thenHoldForDuration: 0.1)
-    XCTAssertTrue(pill.label.hasSuffix("BEFORE NOW"), "the pill says how far: \(pill.label)")
+    XCTAssertTrue(
+      pill.label.hasSuffix("MIN BEFORE NOW"), "the card-width drag moves minutes: \(pill.label)")
+    XCTAssertFalse(pill.label.contains("HOUR"), "a card-width drag stays under an hour")
     for (clock, original) in zip(clocks, before) {
       XCTAssertNotEqual(clock.label, original, "every clock moved")
     }
@@ -188,7 +190,8 @@ final class ClockTests: XCTestCase {
         forDuration: 0.05,
         thenDragTo: tokyo.coordinate(withNormalizedOffset: CGVector(dx: 0.25, dy: 0.5)),
         withVelocity: .slow, thenHoldForDuration: 0.1)
-    XCTAssertTrue(pill.label.hasSuffix("AFTER NOW"), pill.label)
+    XCTAssertTrue(pill.label.hasSuffix("MIN AFTER NOW"), pill.label)
+    XCTAssertFalse(pill.label.contains("HOUR"), "a card-width drag stays under an hour")
     for (clock, original) in zip(clocks, before) {
       XCTAssertNotEqual(clock.label, original, "every clock moved")
     }
@@ -367,7 +370,7 @@ final class ClockTests: XCTestCase {
       usleep(500_000)
       shot("6-reference-now")
       let first = cityRows.element(boundBy: 0)
-      // 15 hours back: 60 steps of 15 minutes, 10 pt each = 600 pt: three drags.
+      // Three leftward drags advance by one minute per 10 pt; retain a scrubbed reference frame.
       for _ in 0..<3 {
         first.coordinate(withNormalizedOffset: CGVector(dx: 0.95, dy: 0.5))
           .press(

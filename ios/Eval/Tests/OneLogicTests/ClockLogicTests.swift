@@ -104,25 +104,26 @@ final class OverlapTests: XCTestCase {
   private func tz(_ id: String) -> TimeZone { TimeZone(identifier: id)! }
   private let noonUTC = Date(timeIntervalSince1970: 1_792_238_400)  // 2026-10-17 12:00 UTC
 
-  func testScrubSnapsToQuarterHoursAndClamps() {
+  func testScrubMovesByMinutesAndClamps() {
     typealias S = WorldClock.Scrub
     XCTAssertEqual(S.offset(start: 0, dragWidth: 0), 0)
     XCTAssertEqual(S.offset(start: 60, dragWidth: 0), 60, "no movement keeps the current offset")
     for width in [-9.0, 9.0] {
       XCTAssertEqual(S.offset(start: 0, dragWidth: width), 0, "less than a step does nothing")
     }
-    XCTAssertEqual(S.offset(start: 0, dragWidth: 10), -15, "drag right = past")
-    XCTAssertEqual(S.offset(start: 0, dragWidth: -10), 15, "drag left = future")
-    XCTAssertEqual(S.offset(start: 0, dragWidth: 125), -180)
-    XCTAssertEqual(S.offset(start: 60, dragWidth: -20), 90, "advances from where the drag began")
-    XCTAssertEqual(S.offset(start: 60, dragWidth: 20), 30)
+    XCTAssertEqual(S.offset(start: 0, dragWidth: 10), -1, "drag right = past")
+    XCTAssertEqual(S.offset(start: 0, dragWidth: -10), 1, "drag left = future")
+    XCTAssertEqual(S.offset(start: 0, dragWidth: 125), -12)
+    XCTAssertEqual(S.offset(start: 60, dragWidth: -20), 62, "advances from where the drag began")
+    XCTAssertEqual(S.offset(start: 60, dragWidth: 20), 58)
     XCTAssertEqual(S.offset(start: 0, dragWidth: 100_000), -24 * 60, "a day at most")
     XCTAssertEqual(S.offset(start: 0, dragWidth: -100_000), 24 * 60)
-    XCTAssertEqual(S.offset(start: S.limitMinutes, dragWidth: 10), S.limitMinutes - 15)
-    XCTAssertEqual(S.offset(start: -S.limitMinutes, dragWidth: -10), -S.limitMinutes + 15)
-    XCTAssertEqual(S.snap(7), 0)
-    XCTAssertEqual(S.snap(8), 15)
-    XCTAssertEqual(S.snap(-23), -30)
+    XCTAssertEqual(S.offset(start: S.limitMinutes, dragWidth: 10), S.limitMinutes - 1)
+    XCTAssertEqual(S.offset(start: -S.limitMinutes, dragWidth: -10), -S.limitMinutes + 1)
+    let firstDrag = S.offset(start: 0, dragWidth: -10)
+    let secondDrag = S.offset(start: firstDrag, dragWidth: -20)
+    XCTAssertEqual(secondDrag, 3, "successive gestures accumulate minute offsets")
+    XCTAssertEqual(S.offset(start: secondDrag, dragWidth: 10), 2)
   }
 
   func testScrubbedDateKeepsTheMinutes() {
@@ -135,12 +136,24 @@ final class OverlapTests: XCTestCase {
       "21:50 the day before: minutes stay")
   }
 
+  func testMinuteScrubCrossesMidnight() {
+    let midnight = noonUTC.addingTimeInterval(12 * 3600)
+    let beforeMidnight = midnight.addingTimeInterval(-60)
+    let forward = WorldClock.Scrub.offset(start: 0, dragWidth: -10)
+    let backward = WorldClock.Scrub.offset(start: 0, dragWidth: 10)
+    XCTAssertEqual(WorldClock.Scrub.date(now: beforeMidnight, offset: forward), midnight)
+    XCTAssertEqual(WorldClock.Scrub.date(now: midnight, offset: backward), beforeMidnight)
+  }
+
   func testScrubPill() {
     typealias S = WorldClock.Scrub
     XCTAssertEqual(S.pillText(0), "NOW")
     XCTAssertEqual(S.pillText(-15 * 60), "15 HOURS BEFORE NOW")
     XCTAssertEqual(S.pillText(180), "3 HOURS AFTER NOW")
     XCTAssertEqual(S.pillText(60), "1 HOUR AFTER NOW")
+    XCTAssertEqual(S.pillText(1), "1 MIN AFTER NOW")
+    XCTAssertEqual(S.pillText(-1), "1 MIN BEFORE NOW")
+    XCTAssertEqual(S.pillText(61), "1 HOUR 1 MIN AFTER NOW")
     XCTAssertEqual(S.pillText(45), "45 MIN AFTER NOW")
     XCTAssertEqual(S.pillText(-75), "1 HOUR 15 MIN BEFORE NOW")
     XCTAssertEqual(S.pillParts(-60).lead, "1 HOUR BEFORE ")
