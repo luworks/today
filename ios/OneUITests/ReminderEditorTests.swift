@@ -51,7 +51,7 @@ final class ReminderEditorTests: XCTestCase {
     open("Read the article")
     let title = app.descendants(matching: .any)["task.title"].firstMatch
     let singleLineHeight = title.frame.height
-    let longTitle = String(repeating: "Review 牛奶采购清单 and the delivery details. ", count: 12)
+    let longTitle = String(repeating: " Review 牛奶采购清单 and the delivery details.", count: 12)
     title.tap()
     title.coordinate(withNormalizedOffset: CGVector(dx: 0.98, dy: 0.5)).tap()
     title.typeText(longTitle)
