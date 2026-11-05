@@ -17,6 +17,8 @@ final class ChatMatchesTests: XCTestCase {
       .matching(NSPredicate(format: "label CONTAINS %@", "Write up design review notes")).firstMatch
     XCTAssertTrue(match.waitForExistence(timeout: 3), "the reminder is listed while typing")
     match.tap()
-    XCTAssertTrue(app.textFields["task.title"].waitForExistence(timeout: 5), "tap opens it")
+    XCTAssertTrue(
+      app.descendants(matching: .any)["task.title"].firstMatch.waitForExistence(timeout: 5),
+      "tap opens it")
   }
 }

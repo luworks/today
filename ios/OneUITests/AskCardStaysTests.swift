@@ -95,9 +95,11 @@ final class AskCardStaysTests: XCTestCase {
     XCTAssertFalse(app.buttons["Add"].exists, "nothing waits for Add")
     XCTAssertTrue(any("capture-added").exists)
     app.buttons["capture-open"].tap()
-    XCTAssertTrue(app.textFields["task.title"].waitForExistence(timeout: 5))
+    XCTAssertTrue(
+      app.descendants(matching: .any)["task.title"].firstMatch.waitForExistence(timeout: 5))
     XCTAssertEqual(
-      app.textFields["task.title"].value as? String, "Review the final draft",
+      app.descendants(matching: .any)["task.title"].firstMatch.value as? String,
+      "Review the final draft",
       "the real saved reminder changed")
   }
 
@@ -170,10 +172,14 @@ final class AskCardStaysTests: XCTestCase {
     // Open shows the created reminder.
     app.buttons["capture-open"].tap()
     XCTAssertTrue(
-      app.textFields["task.title"].waitForExistence(timeout: 5), "Open shows the reminder")
-    XCTAssertEqual(app.textFields["task.title"].value as? String, "Order printer paper")
+      app.descendants(matching: .any)["task.title"].firstMatch.waitForExistence(timeout: 5),
+      "Open shows the reminder")
+    XCTAssertEqual(
+      app.descendants(matching: .any)["task.title"].firstMatch.value as? String,
+      "Order printer paper")
     app.buttons["Cancel"].tap()
-    XCTAssertTrue(app.textFields["task.title"].waitForNonExistence(timeout: 5))
+    XCTAssertTrue(
+      app.descendants(matching: .any)["task.title"].firstMatch.waitForNonExistence(timeout: 5))
 
     // Undo takes back exactly that; the card says Undone and offers Add again.
     app.buttons["capture-undo"].tap()

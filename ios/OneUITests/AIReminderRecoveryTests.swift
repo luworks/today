@@ -50,8 +50,9 @@ final class AIReminderRecoveryTests: XCTestCase {
     attachment.lifetime = .keepAlways
     add(attachment)
     app.buttons["capture-open"].firstMatch.tap()
-    XCTAssertTrue(app.textFields["task.title"].waitForExistence(timeout: 5))
-    XCTAssertEqual(app.textFields["task.title"].value as? String, title)
+    XCTAssertTrue(
+      app.descendants(matching: .any)["task.title"].firstMatch.waitForExistence(timeout: 5))
+    XCTAssertEqual(app.descendants(matching: .any)["task.title"].firstMatch.value as? String, title)
     if app.buttons["task.more"].exists { app.buttons["task.more"].tap() }
     XCTAssertEqual(app.switches["Deadline"].value as? String, "1")
     let clock = app.datePickers.firstMatch.buttons.matching(
@@ -83,7 +84,7 @@ final class AIReminderRecoveryTests: XCTestCase {
     open("Costco wrong chat")
     XCTAssertEqual(app.buttons.matching(identifier: "capture-open").count, 1)
     app.buttons["capture-open"].firstMatch.tap()
-    XCTAssertEqual(app.textFields["task.title"].value as? String, title)
+    XCTAssertEqual(app.descendants(matching: .any)["task.title"].firstMatch.value as? String, title)
     if app.buttons["task.more"].exists { app.buttons["task.more"].tap() }
     XCTAssertEqual(app.switches["Deadline"].value as? String, "1")
     XCTAssertTrue(

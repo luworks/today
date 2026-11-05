@@ -125,7 +125,8 @@ final class CRUDTests: XCTestCase {
     let reminder = app.staticTexts["Buy milk"].firstMatch
     reveal(reminder)
     reminder.tap()
-    XCTAssertTrue(app.textFields["task.title"].waitForExistence(timeout: 5))
+    XCTAssertTrue(
+      app.descendants(matching: .any)["task.title"].firstMatch.waitForExistence(timeout: 5))
 
     app.buttons["task.repeat"].tap()
     let choose = app.buttons["task.repeat.chooseDays"]
@@ -179,9 +180,12 @@ final class CRUDTests: XCTestCase {
     // Update: title and due date in the editor (opened right away: a just-created reminder must keep its editor open).
     created.tap()
     XCTAssertTrue(
-      app.textFields["task.title"].waitForExistence(timeout: 5), "the reminder's editor opens")
+      app.descendants(matching: .any)["task.title"].firstMatch.waitForExistence(timeout: 5),
+      "the reminder's editor opens")
     app.buttons["task.more"].tap()
-    replaceText(in: app.textFields["task.title"], with: "Buy printer ink and paper")
+    replaceText(
+      in: app.descendants(matching: .any)["task.title"].firstMatch,
+      with: "Buy printer ink and paper")
     let deadline = app.switches["Deadline"]
     XCTAssertTrue(deadline.exists)
     // the switch itself, not the label

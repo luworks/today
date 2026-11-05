@@ -114,12 +114,14 @@ final class TodayReminderCompletionTests: XCTestCase {
     let open = readyCoordinate(app.staticTexts[title].firstMatch, in: app)
     let started = ProcessInfo.processInfo.systemUptime
     open.tap()
-    XCTAssertTrue(app.textFields["task.title"].waitForExistence(timeout: 5))
+    XCTAssertTrue(
+      app.descendants(matching: .any)["task.title"].firstMatch.waitForExistence(timeout: 5))
     let opened = ProcessInfo.processInfo.systemUptime
     let cancel = readyCoordinate(app.buttons["task.cancel"].firstMatch, in: app)
     let cancelStarted = ProcessInfo.processInfo.systemUptime
     cancel.tap()
-    XCTAssertTrue(app.textFields["task.title"].waitForNonExistence(timeout: 5))
+    XCTAssertTrue(
+      app.descendants(matching: .any)["task.title"].firstMatch.waitForNonExistence(timeout: 5))
     let returned = ProcessInfo.processInfo.systemUptime
     let response = (opened - started) + (returned - cancelStarted)
     print(
@@ -248,10 +250,11 @@ final class TodayReminderCompletionTests: XCTestCase {
     app.buttons["task.save"].tap()
     XCTAssertTrue(app.alerts["Couldn’t Update Reminder"].waitForExistence(timeout: 5))
     app.alerts.buttons["OK"].tap()
-    XCTAssertTrue(app.textFields["task.title"].exists)
+    XCTAssertTrue(app.descendants(matching: .any)["task.title"].firstMatch.exists)
     XCTAssertTrue(app.buttons["task.save"].isEnabled, "the failed draft remains retryable")
     app.buttons["task.save"].tap()
-    XCTAssertTrue(app.textFields["task.title"].waitForNonExistence(timeout: 5))
+    XCTAssertTrue(
+      app.descendants(matching: .any)["task.title"].firstMatch.waitForNonExistence(timeout: 5))
     assertTime(10)
     app.staticTexts[title].firstMatch.tap()
     XCUIDevice.shared.press(.home)
@@ -259,7 +262,8 @@ final class TodayReminderCompletionTests: XCTestCase {
     wait(app.staticTexts["syncDump.fetch"], "label == %@", "fetching")
     app.buttons["+10 min"].tap()
     app.buttons["task.save"].tap()
-    XCTAssertTrue(app.textFields["task.title"].waitForNonExistence(timeout: 5))
+    XCTAssertTrue(
+      app.descendants(matching: .any)["task.title"].firstMatch.waitForNonExistence(timeout: 5))
     wait(app.staticTexts["syncDump.rejected"], "label != %@", "0")
     assertTime(20)
     let metadata = app.staticTexts["syncDump.metadata"].label.components(separatedBy: ";").first {
@@ -271,10 +275,11 @@ final class TodayReminderCompletionTests: XCTestCase {
     XCTAssertTrue(app.alerts["Couldn’t Update Reminder"].waitForExistence(timeout: 5))
     app.alerts.buttons["OK"].tap()
     XCTAssertTrue(
-      app.textFields["task.title"].exists,
+      app.descendants(matching: .any)["task.title"].firstMatch.exists,
       "a refused system delete leaves the editor and local object intact")
     app.buttons["Delete task"].tap()
-    XCTAssertTrue(app.textFields["task.title"].waitForNonExistence(timeout: 5))
+    XCTAssertTrue(
+      app.descendants(matching: .any)["task.title"].firstMatch.waitForNonExistence(timeout: 5))
     app.buttons["Undo"].tap()
     assertTime(20)
     let restored = app.staticTexts["syncDump.metadata"].label.components(separatedBy: ";").first {
@@ -286,7 +291,8 @@ final class TodayReminderCompletionTests: XCTestCase {
       "Undo preserves the native reminder payload, with a new system identity")
     app.staticTexts[title].firstMatch.tap()
     app.buttons["Delete task"].tap()
-    XCTAssertTrue(app.textFields["task.title"].waitForNonExistence(timeout: 5))
+    XCTAssertTrue(
+      app.descendants(matching: .any)["task.title"].firstMatch.waitForNonExistence(timeout: 5))
     let f = DateFormatter()
     f.locale = Locale(identifier: "en_US_POSIX")
     f.dateFormat = "yyyy-MM-dd"
@@ -312,11 +318,14 @@ final class TodayReminderCompletionTests: XCTestCase {
     var app = launch(title: title, store: store, seed: true, fail: true)
     assertState(app, done: false)
     app.staticTexts[title].firstMatch.tap()
-    XCTAssertTrue(app.textFields["task.title"].waitForExistence(timeout: 5))
+    XCTAssertTrue(
+      app.descendants(matching: .any)["task.title"].firstMatch.waitForExistence(timeout: 5))
     app.buttons["Mark done"].tap()
     XCTAssertTrue(app.alerts["Couldn’t Update Reminder"].waitForExistence(timeout: 5))
     app.alerts.buttons["OK"].tap()
-    XCTAssertTrue(app.textFields["task.title"].exists, "failure keeps the editor for retry")
+    XCTAssertTrue(
+      app.descendants(matching: .any)["task.title"].firstMatch.exists,
+      "failure keeps the editor for retry")
     app.buttons["Cancel"].tap()
     assertState(app, done: false)
     app.terminate()
@@ -324,7 +333,8 @@ final class TodayReminderCompletionTests: XCTestCase {
     assertState(app, done: false)
     app.staticTexts[title].firstMatch.tap()
     app.buttons["Mark done"].tap()
-    XCTAssertTrue(app.textFields["task.title"].waitForNonExistence(timeout: 5))
+    XCTAssertTrue(
+      app.descendants(matching: .any)["task.title"].firstMatch.waitForNonExistence(timeout: 5))
     assertState(app, done: true)
     app.buttons["Undo"].tap()
     assertState(app, done: false)

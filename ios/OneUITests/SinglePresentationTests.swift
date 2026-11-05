@@ -82,10 +82,11 @@ final class SinglePresentationTests: XCTestCase {
     let row = app.staticTexts["Buy milk"].firstMatch
     XCTAssertTrue(row.waitForExistence(timeout: 5))
     row.tap()
-    let editor = app.textFields["task.title"]
+    let editor = app.descendants(matching: .any)["task.title"].firstMatch
     XCTAssertTrue(editor.waitForExistence(timeout: 5), "the compact reminder editor opens")
     XCTAssertEqual(
-      app.textFields.matching(identifier: "task.title").count, 1, "exactly one reminder editor")
+      app.descendants(matching: .any).matching(identifier: "task.title").count, 1,
+      "exactly one reminder editor")
     XCTAssertEqual(editor.value as? String, "Buy milk")
     app.buttons["Cancel"].firstMatch.tap()
     XCTAssertTrue(editor.waitForNonExistence(timeout: 5), "one Cancel closes every reminder editor")
