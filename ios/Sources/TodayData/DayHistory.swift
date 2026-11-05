@@ -193,6 +193,7 @@ public struct DayHistory: Equatable, Sendable {
         }
         if anchors == before { break }
       }
+      seen.formUnion(anchors.map { key(ref) + "@" + String($0) })
       var chain = candidates.filter {
         $0.subjectRef.map(key) == key(ref)
           && ($0.beforeTs.map(anchors.contains) == true || $0.afterTs.map(anchors.contains) == true)
@@ -202,7 +203,7 @@ public struct DayHistory: Equatable, Sendable {
       }.sorted { ($0.ts, $0.uid) < ($1.ts, $1.uid) }
       chain += observations.filter {
         $0.uid != observation.uid && $0.subjectRef.map(key) == key(ref)
-          && $0.beforeTs == anchor
+          && $0.beforeTs.map(anchors.contains) == true
       }
       let linkedIDs = Set(chain.map(\.uid))
       for event in related

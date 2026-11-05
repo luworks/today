@@ -5,6 +5,22 @@ import XCTest
 
 /// A past day rebuilt from Activity: what counts as done, and the indexed day queries behind it.
 final class DayHistoryTests: XCTestCase {
+  func testRescheduledPlanKeepsOneMainRowAndBothObservedTimesInDetails() {
+    var original = event("change.observed", "Family", at(9), ref: "family", subject: "event")
+    original.beforeTs = ActivityClock.ms(at(18))
+    var moved = event("change.moved", "Family", at(10), ref: "family", subject: "event")
+    moved.beforeTs = original.beforeTs
+    moved.afterTs = ActivityClock.ms(at(19))
+    var revised = event("change.observed", "Family", at(10, 1), ref: "family", subject: "event")
+    revised.beforeTs = moved.afterTs
+    let history = DayHistory.reconstruct(
+      dayEvents: [moved], deletions: [], undone: [],
+      observations: [original, revised], related: [moved])
+    XCTAssertEqual(history.facts.count, 1)
+    XCTAssertEqual(history.facts.first?.event.uid, original.uid)
+    XCTAssertEqual(Set(history.facts.first?.related.map(\.uid) ?? []), [moved.uid, revised.uid])
+  }
+
   func testObservedPlanSurvivesRenameAndLaterDeletionWithoutCompletion() {
     var first = event("change.observed", "Family", at(9), ref: "family", subject: "event")
     first.beforeTs = ActivityClock.ms(at(18))
