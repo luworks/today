@@ -40,6 +40,45 @@ final class DayHistoryTests: XCTestCase {
     return e
   }
 
+  func testFactsPreserveUndoReopenAndOccurrencePlanWithoutLiveSources() {
+    var first = event("change.completed", "Original title", at(8), ref: "series")
+    first.beforeTs = ActivityClock.ms(at(7))
+    var second = event("change.completed", "Next occurrence", at(20), ref: "series")
+    second.beforeTs = ActivityClock.ms(at(19))
+    let reopen = event("change.reopened", "Next occurrence", at(21), ref: "series")
+    let h = DayHistory.reconstruct(
+      dayEvents: [second, reopen, first], deletions: [],
+      undone: [first.uid], shownLive: ["series"], reopened: ["series"])
+    XCTAssertEqual(h.facts.map(\.title), ["Original title", "Next occurrence", "Next occurrence"])
+    XCTAssertEqual(h.facts.map(\.id), [first.uid, second.uid, reopen.uid])
+    XCTAssertTrue(h.facts[0].undone)
+    XCTAssertEqual(h.facts[0].event.beforeTs, ActivityClock.ms(at(7)))
+    XCTAssertEqual(h.facts[1].event.beforeTs, ActivityClock.ms(at(19)))
+  }
+
+  func testFactsFollowStoreRetentionAndDoNotInventMissingPlan() throws {
+    let store = try ActivityStore(location: .memory)
+    let legacy = event("change.completed", "Deleted source", at(8), ref: "gone")
+    try store.insert([legacy])
+    let h = try DayHistory.load(
+      from: store, day: day, calendar: cal,
+      shownLive: [], reopened: [], key: { $0 })
+    XCTAssertEqual(h.facts.first?.title, "Deleted source")
+    XCTAssertNil(h.facts.first?.event.beforeTs)
+    XCTAssertEqual(h.facts.first?.id, legacy.uid)
+    _ = try store.prune(retention: .days90, now: at(8, plusDays: 100), calendar: cal)
+    let expired = try DayHistory.load(
+      from: store, day: day, calendar: cal,
+      shownLive: [], reopened: [], key: { $0 })
+    XCTAssertTrue(expired.facts.isEmpty)
+    try store.insert([legacy])
+    try store.clear()
+    let cleared = try DayHistory.load(
+      from: store, day: day, calendar: cal,
+      shownLive: [], reopened: [], key: { $0 })
+    XCTAssertTrue(cleared.facts.isEmpty)
+  }
+
   // MARK: Completions
 
   func testCompletionsShowAtTheirTimeUnlessUndoneOrReopenedThatDay() {

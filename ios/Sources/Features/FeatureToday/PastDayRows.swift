@@ -1,4 +1,5 @@
 #if os(iOS)
+  import TodayData
   import TodayCore
   import TodayDesignSystem
   import TodayPlannerUI
@@ -76,6 +77,72 @@
       case .completed: "Reminder"
       case .stopped: "Alarm"
       case .deletedEvent: "Event"
+      }
+    }
+  }
+
+  struct HistoricalFactRow: View {
+    let fact: DayHistory.Fact
+    let todayStyle: Bool
+    @State private var showsDetails = false
+
+    var body: some View {
+      PastDayRow(
+        time: fact.at, title: fact.title, detail: fact.action,
+        mark: fact.event.kind == "change.completed"
+          ? .completed
+          : (fact.event.kind == ActivityKind.sysAlarmStopped ? .stopped : .deletedEvent),
+        todayStyle: todayStyle
+      )
+      .contentShape(Rectangle())
+      .onTapGesture { showsDetails = true }
+      .accessibilityAddTraits(.isButton)
+      .sheet(isPresented: $showsDetails) {
+        NavigationStack {
+          List {
+            Section("Recorded fact") {
+              LabeledContent("Title", value: fact.title)
+              LabeledContent("Action", value: fact.action)
+              LabeledContent("Source", value: fact.event.subjectKind ?? "Unknown")
+              LabeledContent(
+                "Actor",
+                value: fact.event.actor == "system"
+                  ? "System" : LedgerActor(raw: fact.event.actor).name)
+              LabeledContent("Channel", value: fact.event.channel ?? "Unknown")
+              LabeledContent("Recorded time", value: fact.at.formatted())
+              if let observed = ActivityProps.dictionary(fact.event.props)["observed_ms"]
+                as? NSNumber
+              {
+                LabeledContent(
+                  "Observed", value: ActivityClock.date(ms: observed.int64Value).formatted())
+              } else {
+                Text("Observation time unavailable in this record.")
+              }
+            }
+            Section("Plan at the time") {
+              LabeledContent(
+                "Before",
+                value: fact.event.beforeTs.map { ActivityClock.date(ms: $0).formatted() }
+                  ?? "Not recorded")
+              LabeledContent(
+                "After",
+                value: fact.event.afterTs.map { ActivityClock.date(ms: $0).formatted() }
+                  ?? "Not recorded")
+              if let before = fact.event.beforeText, !before.isEmpty { Text(before) }
+              if let after = fact.event.afterText, !after.isEmpty { Text("→ " + after) }
+            }
+            Section {
+              Text(
+                "Read-only Activity record. Scheduled does not mean attended; stopped does not mean completed. History includes only observations retained by your Activity settings."
+              )
+              .font(.footnote).foregroundStyle(.secondary)
+            }
+          }
+          .navigationTitle("History")
+          .toolbar {
+            ToolbarItem(placement: .confirmationAction) { Button("Done") { showsDetails = false } }
+          }
+        }
       }
     }
   }

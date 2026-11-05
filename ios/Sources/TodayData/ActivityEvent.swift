@@ -73,7 +73,7 @@ public enum ActivityKind {
 }
 
 /// Text that must stay redactable on its own: the user's words before and after an edit of an AI card.
-public struct ActivityContent: Equatable {
+public struct ActivityContent: Equatable, Sendable {
   public init(field: String, before: String? = nil, after: String? = nil) {
     self.field = field
     self.before = before
@@ -85,7 +85,7 @@ public struct ActivityContent: Equatable {
   public var after: String?
 }
 
-public struct ActivityEvent: Equatable, Identifiable {
+public struct ActivityEvent: Equatable, Identifiable, Sendable {
   public var id: String { uid }
 
   public var uid: String

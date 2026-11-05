@@ -360,7 +360,24 @@
 
     @ViewBuilder
     private func timelineContent(_ items: DayItems) -> some View {
-      if items.timeline.isEmpty, items.anytime.isEmpty {
+      if isPastDay {
+        if historyDay == cal.startOfDay(for: day) {
+          ForEach(history.facts.filter(\.isPrimary)) { fact in
+            HistoricalFactRow(fact: fact, todayStyle: !showsWeekStrip)
+          }
+          let changes = history.facts.filter { !$0.isPrimary }
+          if !changes.isEmpty {
+            DisclosureGroup("Changes (\(changes.count))") {
+              ForEach(changes) { fact in HistoricalFactRow(fact: fact, todayStyle: !showsWeekStrip)
+              }
+            }
+          }
+          if history.facts.isEmpty {
+            Text("No recorded history").foregroundStyle(.secondary)
+          }
+        }
+      }
+      if !isPastDay, items.timeline.isEmpty, items.anytime.isEmpty {
         Text("Nothing planned").foregroundStyle(.secondary)
           .listRowSeparator(.hidden)
       }
@@ -739,6 +756,10 @@
     // MARK: One day's items
 
     private func items(on day: Date, now: Date) -> DayItems {
+      if isPastDay {
+        return DayItems(allDay: [], externalAllDay: [], timeline: [], anytime: [])
+      }
+
       let local = events.filter { $0.externalID == nil || !calendar.usesSystemEventSnapshots }
       let external = calendar.events(on: day, excluding: Set(local.compactMap(\.externalID)))
       var timeline: [TimelineItem] = []

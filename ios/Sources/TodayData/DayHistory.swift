@@ -5,6 +5,34 @@ import TodayCore
 /// and calendar events of that day deleted after they had started. Read-only: nothing here writes to Today or to Apple.
 /// Pure (no SQLite, no SwiftData), so the rules run under `./dev test unit`; `DayHistory.load` pages the store.
 public struct DayHistory: Equatable, Sendable {
+  /// One immutable observation. Identity is the Activity uid, never the current series id.
+  public struct Fact: Equatable, Sendable, Identifiable {
+    public var event: ActivityEvent
+    public var undone: Bool
+    public var scheduled = false
+    public var id: String { (scheduled ? "scheduled:" : "") + event.uid }
+    public var at: Date {
+      scheduled ? event.beforeTs.map(ActivityClock.date(ms:)) ?? event.date : event.date
+    }
+    public var title: String { event.title ?? "Untitled item" }
+    public var action: String {
+      if scheduled { return "Scheduled · Source deleted later" }
+      if event.kind == ActivityKind.sysAlarmStopped { return "Alarm stopped" }
+      switch event.kind {
+      case "change.completed": return undone ? "Marked complete · Undone" : "Marked complete"
+      case "change.reopened": return "Reopened"
+      case "change.undone": return "Undone"
+      default: return event.kind.replacingOccurrences(of: "change.", with: "").capitalized
+      }
+    }
+    public var isPrimary: Bool {
+      scheduled
+        || ["change.completed", "change.reopened", "change.undone", ActivityKind.sysAlarmStopped]
+          .contains(event.kind)
+    }
+  }
+  public var facts: [Fact] = []
+
   public struct Completion: Equatable, Sendable, Identifiable {
     public var id: String
     public var title: String
@@ -43,12 +71,16 @@ public struct DayHistory: Equatable, Sendable {
     self.deletedEvents = deletedEvents
   }
 
-  public var isEmpty: Bool { completions.isEmpty && alarmStops.isEmpty && deletedEvents.isEmpty }
+  public var isEmpty: Bool {
+    facts.isEmpty && completions.isEmpty && alarmStops.isEmpty && deletedEvents.isEmpty
+  }
 
   public static let dayKinds = [
     ActivityKind.changePrefix + LedgerAction.completed.rawValue,
     ActivityKind.changePrefix + LedgerAction.reopened.rawValue,
     ActivityKind.sysAlarmStopped,
+    "change.created", "change.moved", "change.redated", "change.renamed",
+    "change.deleted", "change.unscheduled", "change.planned", "change.updated", "change.undone",
   ]
   public static let deletedKind = ActivityKind.changePrefix + LedgerAction.deleted.rawValue
 
@@ -103,7 +135,17 @@ public struct DayHistory: Equatable, Sendable {
         id: e.uid, title: e.title ?? "", start: start, end: max(start, end), deletedAt: e.date)
     }.sorted { $0.start < $1.start }
 
-    return DayHistory(completions: kept, alarmStops: stops, deletedEvents: events)
+    var history = DayHistory(completions: kept, alarmStops: stops, deletedEvents: events)
+    history.facts = ordered.filter {
+      ["task", "alarm", "event"].contains($0.subjectKind ?? "task")
+    }
+    .map { Fact(event: $0, undone: undone.contains($0.uid)) }
+    // A retained deletion carries the original scheduled interval, not evidence of attendance.
+    history.facts += deletions.filter { e in
+      e.subjectKind == "event" && e.beforeTs.map { e.ts >= $0 } == true
+    }.map { Fact(event: $0, undone: undone.contains($0.uid), scheduled: true) }
+    history.facts.sort { ($0.at, $0.id) < ($1.at, $1.id) }
+    return history
   }
 
   /// Which scheduled rings of the day were stopped. `rings` are (AlarmKit id, ring time); a stop belongs to the latest ring of

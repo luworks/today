@@ -47,6 +47,7 @@
       var snapshot: Data?
       /// The reminder or alarm it is about; its id goes in `subject_ref` once saved.
       var model: (any PersistentModel)?
+      var observedAt: Date
     }
 
     private var pending: [Pending] = []
@@ -68,13 +69,14 @@
       item.id = runtime.nextID()
       // A change seen later (a completion in Apple Reminders) keeps the time it happened, so it lands on its own day.
       item.date = date ?? runtime.now()
-      item.beforeDate = beforeDate
+      item.beforeDate = beforeDate ?? (action == .completed ? task?.due : nil)
       item.afterDate = afterDate
       item.undoOf = undoOf
       let data = snapshot.flatMap { try? JSONEncoder().encode($0) }
       item.hasSnapshot = data != nil
       guard !disposed else { return item }
-      pending.append(Pending(item: item, snapshot: data, model: task ?? model))
+      pending.append(
+        Pending(item: item, snapshot: data, model: task ?? model, observedAt: runtime.now()))
       scheduleFlush(context)
       return item
     }
@@ -123,7 +125,9 @@
           if let model = p.model, !model.isDeleted, model.modelContext != nil {
             p.item.itemRef = Self.ref(model.persistentModelID)
           }
-          recorder.record(p.item.event(snapshot: p.snapshot, calendar: runtime.calendar))
+          var event = p.item.event(snapshot: p.snapshot, calendar: runtime.calendar)
+          event.props = ActivityProps.json(["observed_ms": ActivityClock.ms(p.observedAt)])
+          recorder.record(event)
         }
         pending = []
         recorder.flush()
