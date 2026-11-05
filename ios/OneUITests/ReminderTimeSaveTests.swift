@@ -76,7 +76,8 @@ final class ReminderTimeSaveTests: XCTestCase {
     XCTAssertTrue(originalMetadata.contains("repeat=1:2"))
     XCTAssertTrue(originalMetadata.contains("relative:-600"))
     app.staticTexts[title].firstMatch.tap()
-    XCTAssertTrue(app.textFields["task.title"].waitForExistence(timeout: 5))
+    XCTAssertTrue(
+      app.descendants(matching: .any)["task.title"].firstMatch.waitForExistence(timeout: 5))
     if app.buttons["task.more"].exists { app.buttons["task.more"].tap() }
     XCTAssertEqual(app.switches["Deadline"].value as? String, "1")
     shot(app, "time-save-before-14-00")
@@ -98,7 +99,8 @@ final class ReminderTimeSaveTests: XCTestCase {
     } else {
       app.navigationBars["Reminder"].buttons["Done"].tap()
     }
-    XCTAssertTrue(app.textFields["task.title"].waitForNonExistence(timeout: 5))
+    XCTAssertTrue(
+      app.descendants(matching: .any)["task.title"].firstMatch.waitForNonExistence(timeout: 5))
     for side in ["apple", "app", "persisted"] {
       wait(app.staticTexts["syncDump.\(side)"], contains: "13:10")
     }

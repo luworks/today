@@ -355,9 +355,11 @@ final class SettingsChoicesTests: XCTestCase {
     XCTAssertTrue(saved.waitForExistence(timeout: 5), "the saved reminder actually belongs to Work")
     saved.tap()
     XCTAssertTrue(
-      app.textFields["task.title"].waitForExistence(timeout: 5),
+      app.descendants(matching: .any)["task.title"].firstMatch.waitForExistence(timeout: 5),
       "the saved reminder can be reopened from the selected list")
-    XCTAssertEqual(app.textFields["task.title"].value as? String, "Check the handoff checklist")
+    XCTAssertEqual(
+      app.descendants(matching: .any)["task.title"].firstMatch.value as? String,
+      "Check the handoff checklist")
   }
 
   func testDefaultAlarmSoundChosenInSettingsSurvivesSaveAndReopen() {

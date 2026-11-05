@@ -87,7 +87,7 @@ final class AIRecurringReminderTests: XCTestCase {
     XCTAssertEqual(app.descendants(matching: .any).matching(identifier: "capture-added").count, 1)
   }
   private func assertSavedEditor() {
-    let title = app.textFields["task.title"]
+    let title = app.descendants(matching: .any)["task.title"].firstMatch
     XCTAssertTrue(title.waitForExistence(timeout: 5))
     XCTAssertEqual(title.value as? String, "丢垃圾")
     // Exercise a real edit so Save commits the preserved custom weekdays.

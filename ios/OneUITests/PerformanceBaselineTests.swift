@@ -121,7 +121,9 @@ final class PerformanceBaselineTests: XCTestCase {
     element("list.Work").tap()
     let title = app.staticTexts["Prepare the demo"]
     XCTAssertTrue(title.waitForExistence(timeout: 5))
-    sample("open_reminder") { tap(title, ready: app.textFields["task.title"]) }
+    sample("open_reminder") {
+      tap(title, ready: app.descendants(matching: .any)["task.title"].firstMatch)
+    }
     app.buttons["Cancel"].tap()
     sample("complete_reminder") {
       app.buttons["Complete Prepare the demo"].tap()

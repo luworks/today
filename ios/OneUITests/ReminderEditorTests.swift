@@ -24,7 +24,8 @@ final class ReminderEditorTests: XCTestCase {
     let row = app.staticTexts[title].firstMatch
     XCTAssertTrue(row.waitForExistence(timeout: 5))
     row.tap()
-    XCTAssertTrue(app.textFields["task.title"].waitForExistence(timeout: 5))
+    XCTAssertTrue(
+      app.descendants(matching: .any)["task.title"].firstMatch.waitForExistence(timeout: 5))
   }
 
   private func shot(_ name: String) {
@@ -44,6 +45,30 @@ final class ReminderEditorTests: XCTestCase {
     let day = cal.date(byAdding: .day, value: day, to: .now)!
     let date = cal.date(bySettingHour: hour, minute: minute, second: 0, of: day)!
     return date.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day().hour().minute())
+  }
+
+  func testLongMultilingualTitleWrapsAndSaves() {
+    open("Read the article")
+    let title = app.descendants(matching: .any)["task.title"].firstMatch
+    let singleLineHeight = title.frame.height
+    let longTitle = String(repeating: "Review 牛奶采购清单 and the delivery details. ", count: 12)
+    title.tap()
+    title.coordinate(withNormalizedOffset: CGVector(dx: 0.98, dy: 0.5)).tap()
+    title.typeText(longTitle)
+    XCTAssertTrue(title.frame.height > singleLineHeight * 4, "Title grows beyond four lines")
+    let savedTitle = "Read the article" + longTitle
+    XCTAssertEqual(title.value as? String, savedTitle, "The entire multilingual title is editable")
+    let preset = app.buttons["18:30"]
+    for _ in 0..<8 where !preset.isHittable { app.swipeUp() }
+    XCTAssertTrue(preset.isHittable, "Time controls remain reachable with a long title")
+    preset.tap()
+    app.buttons["task.save"].tap()
+    XCTAssertTrue(app.buttons["task.save"].waitForNonExistence(timeout: 5))
+    open(savedTitle)
+    XCTAssertEqual(title.value as? String, savedTitle)
+    app.buttons["task.more"].tap()
+    XCTAssertEqual(title.value as? String, savedTitle)
+    app.buttons["Cancel"].tap()
   }
 
   func testPresetsSaveAndCancel() {
@@ -106,7 +131,7 @@ final class ReminderEditorTests: XCTestCase {
     app.buttons["task.more"].tap()
     XCTAssertEqual(app.switches["Deadline"].value as? String, "0")
     app.buttons["Quick edit"].tap()
-    let title = app.textFields["task.title"]
+    let title = app.descendants(matching: .any)["task.title"].firstMatch
     title.tap()
     title.coordinate(withNormalizedOffset: CGVector(dx: 0.98, dy: 0.5)).tap()
     title.typeText(" tonight\n")

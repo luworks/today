@@ -257,8 +257,10 @@ final class PagePerformanceTests: XCTestCase {
       let home = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Home, '")).firstMatch
       tap(home, route: "reminders.list", ready: app.staticTexts["Buy milk"])
       tap(
-        app.staticTexts["Buy milk"], route: "reminder.editor", ready: app.textFields["task.title"])
-      XCTAssertEqual(app.textFields["task.title"].value as? String, "Buy milk")
+        app.staticTexts["Buy milk"], route: "reminder.editor",
+        ready: app.descendants(matching: .any)["task.title"].firstMatch)
+      XCTAssertEqual(
+        app.descendants(matching: .any)["task.title"].firstMatch.value as? String, "Buy milk")
       app.buttons["Cancel"].firstMatch.tap()
       XCTAssertTrue(app.staticTexts["Buy milk"].exists)
       app.navigationBars.buttons["Lists"].tap()

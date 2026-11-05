@@ -118,7 +118,8 @@ final class TodayFocusTests: XCTestCase {
     XCTAssertTrue(
       app.buttons["Complete \(title)"].exists, "Focus must keep the reminder incomplete")
     row.tap()
-    XCTAssertTrue(app.textFields["task.title"].waitForExistence(timeout: 3))
+    XCTAssertTrue(
+      app.descendants(matching: .any)["task.title"].firstMatch.waitForExistence(timeout: 3))
   }
 
   private func deadlineSnapshot(in app: XCUIApplication) -> [String] {
@@ -380,7 +381,8 @@ final class TodayFocusTests: XCTestCase {
     XCTAssertTrue(title.waitForNonExistence(timeout: 3), "Collapsed Settled hides the active row")
     screenshot("after.png")
     openReminderSource("Focus invoice", in: app)
-    XCTAssertEqual(app.textFields["task.title"].value as? String, "Focus invoice")
+    XCTAssertEqual(
+      app.descendants(matching: .any)["task.title"].firstMatch.value as? String, "Focus invoice")
     closeReminder(in: app)
     restore("Focus invoice", section: "settled", in: app)
     assertFocusSections(app, settled: 0)

@@ -47,9 +47,11 @@ final class AIAnnualCheckTests: XCTestCase {
     add(attachment)
     XCTAssertTrue(app.buttons["capture-open"].waitForExistence(timeout: 5))
     app.buttons["capture-open"].tap()
-    XCTAssertTrue(app.textFields["task.title"].waitForExistence(timeout: 5))
     XCTAssertTrue(
-      (app.textFields["task.title"].value as? String ?? "").contains("预约医生做 annual check"))
+      app.descendants(matching: .any)["task.title"].firstMatch.waitForExistence(timeout: 5))
+    XCTAssertTrue(
+      (app.descendants(matching: .any)["task.title"].firstMatch.value as? String ?? "").contains(
+        "预约医生做 annual check"))
     // The compact editor may lead to the existing full form after the editor branch integrates.
     if app.buttons["task.more"].exists { app.buttons["task.more"].tap() }
     XCTAssertEqual(app.switches["Deadline"].value as? String, "0")

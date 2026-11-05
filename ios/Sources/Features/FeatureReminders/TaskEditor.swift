@@ -137,7 +137,7 @@
     private var details: some View {
       Form {
         Section {
-          TextField("Title", text: $title)
+          TextField("Title", text: $title, axis: .vertical)
             .font(.headline)
             .focused($titleFocused)
             .accessibilityIdentifier("task.title")
@@ -312,7 +312,7 @@
         ScrollView {
           VStack(spacing: 0) {
             VStack(spacing: 0) {
-              TextField("Title", text: $title)
+              TextField("Title", text: $title, axis: .vertical)
                 .font(.body)
                 .focused($titleFocused)
                 .submitLabel(.done)
