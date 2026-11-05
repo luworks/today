@@ -11,6 +11,7 @@
       "integration": [
         "StoreUpgradeTests/oldStoreOpensWithCurrentSchema",
         "PlannerSessionTests",
+        "BackupRoundtripTests",
         "AskInteractionTests",
         "AskWriteSnapshotTests",
         "ToolRegistryTests",

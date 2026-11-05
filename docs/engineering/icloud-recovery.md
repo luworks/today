@@ -1,6 +1,8 @@
 # User-owned iCloud recovery — implementation status
 
-Issue #317. This is an incomplete foundation, not an enabled backup feature.
+Issue #317. Folder backup is now wired into the app; complete acceptance remains pending.
+The earlier sections below record the foundation baseline; the final App integration
+section describes the current behavior and evidence.
 
 ## Verified baseline and capability
 
@@ -100,3 +102,33 @@ These additions still require the typed application payload, startup orchestrati
 settings directory picker and change observation described above. They are not an
 active automatic backup feature. Targeted `RecoveryArchiveTests` passed five tests
 using local temporary files; this is not iCloud upload or reinstall evidence.
+
+## App integration (PR319)
+
+Settings now includes Backup & Restore with the system directory picker. A saved
+bookmark enables debounced backups after main-context saves, Activity flushes,
+foreground/background transitions and leaving this Settings section. Retry is
+explicit after failure; an unacknowledged remote head pauses automatic writes.
+Selecting an existing backup retains both copies by default. Confirming Restore
+stages a new directory; the shared OneStore boundary activates it on next launch,
+before constructing Calendar/Reminders services. Original databases are retained.
+A failed store open no longer deletes the database to start empty.
+
+The payload uses SQLite backup snapshots of the complete SwiftData and Activity
+databases plus an explicit preference allowlist and payload/schema descriptor.
+Alarm runtime IDs are removed from the copy and alarms are disabled for review;
+Activity's current-install meta identity is removed, preserving historical rows.
+Unknown external attachment storage fails closed instead of being omitted.
+Account changes and generation conflicts stop publication. Historical immutable
+generations are retained; recovery reads only the current head.
+
+The local native BackupRoundtripTests exercise the product payload exporter with
+reminder, chat, history and preference values, fresh-store restoration and two
+opens, plus publication protection and corruption. This is local integration
+evidence, not an iCloud upload, real account transition or phone reinstall test.
+Reinstallation loses the folder grant: users must reselect the same folder.
+Files controls synchronization; Settings reports a folder save, not cloud upload.
+
+Remaining acceptance limits: real file-provider offline/quota behavior, account
+transitions, native directory-picker interaction and source reconciliation after
+restore still require bounded runtime acceptance. No signing changes are needed.
