@@ -20,6 +20,9 @@
 
     package static let session: PlannerSession = {
       do {
+        do { try BackupController.activatePending() } catch {
+          BackupController.shared.reportRestoreFailure(error)
+        }
         let defaults = UserDefaults.standard
         let runtime = PlannerRuntime(
           now: { Date.now }, nextID: { UUID() },
@@ -34,7 +37,9 @@
         let timers = TimerController(
           defaults: defaults, runtime: runtime, driver: driver,
           donate: { TimerIntentSupport.donate(seconds: $0) })
-        let store = try ActivityStore.openOrRecover(at: ActivityStore.defaultURL())
+        let store = try ActivityStore.openOrRecover(
+          at: BackupController.active?.appendingPathComponent("activity.sqlite")
+            ?? ActivityStore.defaultURL())
         let activity = ActivityCenter(store: store, defaults: defaults, runtime: runtime)
         let ledger = Ledger(activity: activity, reminders: reminders, runtime: runtime)
         let notifications = Reminders(
@@ -56,7 +61,7 @@
         reminders.configure(container, ledger: ledger)
         notifications.configure(container)
         widget.registerBackgroundRefresh()
-        return PlannerSession(
+        let session = PlannerSession(
           container: container, defaults: defaults, runtime: runtime, calendar: calendar,
           reminders: reminders, alarms: alarms, timers: timers, notifications: notifications,
           activity: activity, ledger: ledger, actions: actions, travel: travel,
@@ -71,31 +76,27 @@
           ledger.dispose()
           activity.dispose()
         }
+        BackupController.shared.attach(session)
+        return session
       } catch {
         fatalError("Could not open the data store: \(error)")
       }
     }()
 
-    /// Opens the default store. SwiftData migrates removed models and fields by itself; when a store still cannot be
-    /// opened, it is deleted and a fresh one starts (owner decision 2026-11-01: losing local-only data is accepted; Apple
-    /// Calendar and Apple Reminders are the source of truth and sync back in).
+    /// Opens the selected local store without deleting an unreadable original.
     private static func openContainer() throws -> (ModelContainer, wasReset: Bool) {
       let schema = Schema([
         OneTask.self, OneEvent.self, OneAlarm.self, OneList.self, ChatThread.self,
         ShareImportReceipt.self,
       ])
-      let configuration = ModelConfiguration()
+      let configuration =
+        BackupController.active.map {
+          ModelConfiguration(url: $0.appendingPathComponent("default.store"))
+        } ?? ModelConfiguration()
       do {
         return (try ModelContainer(for: schema, configurations: configuration), false)
       } catch {
-        Logger(subsystem: "com.luworks.today", category: "store").error(
-          "Store could not be opened, starting fresh: \(String(describing: error), privacy: .public)"
-        )
-        let path = configuration.url.path
-        for file in [path, path + "-wal", path + "-shm"] {
-          try? FileManager.default.removeItem(atPath: file)
-        }
-        return (try ModelContainer(for: schema, configurations: configuration), true)
+        throw error
       }
     }
   }

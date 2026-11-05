@@ -115,6 +115,7 @@
           if includes(.holidays) { holidaysSection }
           if includes(.ai) { aiSection }
           if includes(.activity) { activitySection }
+          if selection == .all { BackupSettingsSection() }
           #if DEBUG
             if selection == .all, let wheelLab { developerSection(wheelLab) }
           #endif

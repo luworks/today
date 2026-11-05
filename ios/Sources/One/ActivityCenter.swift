@@ -137,7 +137,11 @@
 
     /// Deletes recorded activity (all of it, or some categories) and anything still waiting to be written. Never touches
     /// reminders, events, alarms, Apple Calendar or Apple Reminders.
+    package var beforeClear: (() -> Void)?
+
     package func clear(tiers: Set<ActivityTier>? = nil) {
+      BackupController.cancelRestore(defaults: defaults)
+      beforeClear?()
       recorder.discardBuffered()
       try? store?.clear(tiers: tiers)
       NotificationCenter.default.post(name: didChange, object: self)
