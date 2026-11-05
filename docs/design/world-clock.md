@@ -68,7 +68,7 @@ Nothing changed in `ClockLogic` for this: `DayBand`, `isWorking`, `overlap` and 
 ## Behaviour
 
 - **No Overlap capsule.** The colors, the pill and the star are automatic. The graph is reached through one quiet bell-curve icon at the right end of the pill's row (`worldClock.graph`), which swaps cards and graph (like Overlap's toolbar icon); no capsule, no toggle label. Vertical swipes are left to the list.
-- **Scrubbing**: a horizontal drag anywhere on the page moves every clock together: 10 pt per 15 minutes, up to 24 hours either way. A light tap at each 15 minutes, a firmer one at each full hour. Past the ends the page follows the finger less and less (rubber band, at most 56 pt) and springs back. The minutes are kept (now 18:50, 15 hours back reads 03:50).
+- **Scrubbing**: a horizontal drag anywhere on the page moves every clock together: 10 pt per minute, up to 24 hours either way. Scrubbing has no haptic feedback, including at the limits. Past the ends the page follows the finger less and less (rubber band, at most 56 pt) and springs back. The minutes are kept (now 18:50, 15 hours back reads 03:50).
 - **Pill**: tap goes back to now.
 - **+** (the app-wide plus) adds a city; the home city is the starred first card and is the device time zone mapped to a named city (Los Angeles for America/Los_Angeles, the biggest city of the zone otherwise).
 - **Cards** also keep the long press menu (Move Up / Move Down / Delete) and press-hold-drag reordering.
