@@ -11,8 +11,8 @@
     package static let titleGap: CGFloat = 6
     package static let timeWidth: CGFloat = 50
     /// A one-line row; a title with a secondary line grows past it by content plus padding.
-    package static let minHeight: CGFloat = 40
-    package static let verticalPadding: CGFloat = 7
+    package static let minHeight: CGFloat = 38
+    package static let verticalPadding: CGFloat = 5
   }
 
   /// One vertical rhythm for every Today row. Elsewhere rows keep the 44pt floor.
