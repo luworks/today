@@ -1,6 +1,7 @@
 #if os(iOS)
   import SwiftUI
   import TodayCore
+  import TodayDesignSystem
 
   /// The timeline's rows in their soft Morning / Afternoon / Evening cards. The cards are only row
   /// backgrounds: a background fills the whole cell, so rows keep their own insets and title width.
@@ -52,7 +53,7 @@
 
     var body: some View {
       title
-        .font(.caption.weight(.semibold))
+        .font(AgendaRowStyle.detail.weight(.semibold))
         .foregroundStyle(part.color.mix(with: .primary, by: 0.35))
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityAddTraits(.isHeader)

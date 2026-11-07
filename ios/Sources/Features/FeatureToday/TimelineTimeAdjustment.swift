@@ -1,6 +1,7 @@
 #if os(iOS)
   import SwiftUI
   import TodayCore
+  import TodayDesignSystem
   import UIKit
 
   /// A separate time handle keeps completion targets, menus and ordinary scrolling independent.
@@ -21,7 +22,7 @@
     @Environment(\.scenePhase) private var scenePhase
 
     func body(content: Content) -> some View {
-      HStack(spacing: 0) {
+      HStack(alignment: .firstTextBaseline, spacing: 0) {
         content.opacity(holding ? 0.25 : 1)
         TimelineTimeHandle(
           edit: edit,
@@ -66,8 +67,9 @@
             edge = 0
             edgeMinutes = 0
           }
-        ).frame(width: 44, height: 44)
-
+        )
+        .frame(width: 44, height: 44)
+        .modifier(AgendaLineSlot(width: 44))
       }
       .task(id: edge) {
         guard edge != 0 else { return }

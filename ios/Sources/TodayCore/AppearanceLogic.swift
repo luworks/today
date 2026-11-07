@@ -37,6 +37,15 @@ public enum Appearance: String, CaseIterable, Identifiable, Sendable {
     }
   }
 
+  /// The app's text size for the system's Text Size, as `UIContentSizeCategory` raw values: one
+  /// step smaller, so the default reads denser and the user's setting still scales it. The smallest
+  /// size and accessibility sizes stay put: those users need all the size they asked for.
+  public static func compactTextSize(system: String) -> String {
+    let sizes = ["XS", "S", "M", "L", "XL", "XXL", "XXXL"].map { "UICTContentSizeCategory\($0)" }
+    guard let index = sizes.firstIndex(of: system), index > 0 else { return system }
+    return sizes[index - 1]
+  }
+
   /// `UIUserInterfaceStyle` raw values: 0 unspecified (follow the system), 1 light, 2 dark.
   public var userInterfaceStyleRawValue: Int {
     switch self {

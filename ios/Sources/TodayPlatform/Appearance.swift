@@ -29,6 +29,18 @@
     }
   }
 
+  extension UIWindow {
+    /// A window-level trait reaches SwiftUI, UIKit text and every sheet alike, from one place.
+    @MainActor
+    fileprivate static func applyCompactTextSize(_ windows: [UIWindow]) {
+      let system = UIApplication.shared.preferredContentSizeCategory
+      let size = UIContentSizeCategory(
+        rawValue: Appearance.compactTextSize(system: system.rawValue))
+      // The override has no readable value until the first write, so always write it.
+      for window in windows { window.traitOverrides.preferredContentSizeCategory = size }
+    }
+  }
+
   /// The root supplies its defaults and window ownership, including newly created windows.
   @MainActor
   private struct AppearanceRoot: ViewModifier {
@@ -43,19 +55,30 @@
 
     private var appearance: Appearance { Appearance(stored: stored) }
 
+    private func applyToWindows() {
+      let windows = windows()
+      appearance.applyToWindows(windows)
+      UIWindow.applyCompactTextSize(windows)
+    }
+
     func body(content: Content) -> some View {
       content
         .preferredColorScheme(appearance.colorScheme)
-        .onAppear { appearance.applyToWindows(windows()) }
-        .onChange(of: stored) { _, _ in appearance.applyToWindows(windows()) }
+        .onAppear { applyToWindows() }
+        .onChange(of: stored) { _, _ in applyToWindows() }
         // Global notifications only trigger a refresh of the caller's owned windows.
         .onReceive(NotificationCenter.default.publisher(for: UIScene.didActivateNotification)) {
           _ in
-          appearance.applyToWindows(windows())
+          applyToWindows()
         }
         .onReceive(NotificationCenter.default.publisher(for: UIWindow.didBecomeKeyNotification)) {
           _ in
-          appearance.applyToWindows(windows())
+          applyToWindows()
+        }
+        .onReceive(
+          NotificationCenter.default.publisher(for: UIContentSizeCategory.didChangeNotification)
+        ) { _ in
+          applyToWindows()
         }
     }
   }
