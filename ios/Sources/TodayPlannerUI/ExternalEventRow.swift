@@ -58,14 +58,14 @@
                   .labelStyle(.titleAndIcon)
               }
             }
-            .font(.caption)
+            .font(attention == nil ? .caption : AgendaRowStyle.detail)
             .foregroundStyle(.secondary)
           }
         }
         Spacer(minLength: 0)
       }
       .fixedSize(horizontal: false, vertical: true)
-      .frame(minHeight: 44)
+      .modifier(AgendaRowFrame(enabled: attention != nil))
       .contentShape(Rectangle())
       .font(attention == nil ? Font.body : AgendaRowStyle.title)
       .modifier(TodayItemSurface(enabled: attention != nil))

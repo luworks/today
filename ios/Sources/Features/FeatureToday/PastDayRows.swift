@@ -48,7 +48,7 @@
         Spacer(minLength: 0)
       }
       .fixedSize(horizontal: false, vertical: true)
-      .frame(minHeight: 44)
+      .modifier(AgendaRowFrame(enabled: todayStyle))
       .font(todayStyle ? AgendaRowStyle.title : Font.body)
       .modifier(TodayItemSurface(enabled: todayStyle))
       .listRowSeparator(.hidden)

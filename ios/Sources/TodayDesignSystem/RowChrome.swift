@@ -5,27 +5,51 @@
   /// Today typography and geometry; semantic fonts continue to follow Dynamic Type.
   package enum AgendaRowStyle {
     package static let title = Font.callout
-    package static let detail = Font.caption
+    package static let detail = Font.footnote
     package static let disclosure = Font.footnote
     package static let iconWidth: CGFloat = 32
     package static let titleGap: CGFloat = 6
     package static let timeWidth: CGFloat = 50
+    /// A one-line row; a title with a secondary line grows past it by content plus padding.
+    package static let minHeight: CGFloat = 40
+    package static let verticalPadding: CGFloat = 7
   }
 
-  /// The invisible title glyph supplies the real first-line baseline to the indicator.
-  /// A 44pt checkbox can extend into the noninteractive time gutter, never into the title.
-  package struct AgendaIconSlot: ViewModifier {
+  /// One vertical rhythm for every Today row. Elsewhere rows keep the 44pt floor.
+  package struct AgendaRowFrame: ViewModifier {
     package var enabled: Bool
-    @Environment(\.dynamicTypeSize) private var typeSize
     package init(enabled: Bool) { self.enabled = enabled }
     @ViewBuilder package func body(content: Content) -> some View {
       if enabled {
-        Text(" ").font(AgendaRowStyle.title).hidden()
-          .frame(
-            width: AgendaRowStyle.iconWidth, height: ButtonConfiguration.minimumHitSize,
-            alignment: typeSize.isAccessibilitySize ? .center : .top
-          )
-          .overlay(alignment: typeSize.isAccessibilitySize ? .center : .top) { content }
+        content
+          .padding(.vertical, AgendaRowStyle.verticalPadding)
+          .frame(minHeight: AgendaRowStyle.minHeight)
+      } else {
+        content.frame(minHeight: ButtonConfiguration.minimumHitSize)
+      }
+    }
+  }
+
+  /// One title line tall, holding `content` on the title's first line. The invisible glyph
+  /// supplies the real baseline; a 44pt target overflows the slot without growing the row.
+  package struct AgendaLineSlot: ViewModifier {
+    package var width: CGFloat
+    package init(width: CGFloat) { self.width = width }
+    package func body(content: Content) -> some View {
+      Text(" ").font(AgendaRowStyle.title).hidden()
+        .frame(width: width)
+        .overlay { content }
+    }
+  }
+
+  /// A 44pt checkbox can extend into the noninteractive time gutter, never into the title.
+  package struct AgendaIconSlot: ViewModifier {
+    package var enabled: Bool
+    package init(enabled: Bool) { self.enabled = enabled }
+    @ViewBuilder package func body(content: Content) -> some View {
+      if enabled {
+        content
+          .modifier(AgendaLineSlot(width: AgendaRowStyle.iconWidth))
           .padding(.trailing, AgendaRowStyle.titleGap)
       } else {
         content
@@ -63,7 +87,7 @@
         }
         label(date)
       }
-      .font(.caption.monospacedDigit())
+      .font(AgendaRowStyle.detail.monospacedDigit())
       .foregroundStyle(.secondary)
       .lineLimit(1)
       .fixedSize()
@@ -107,7 +131,7 @@
     package let text: String
     package var body: some View {
       Label(text, systemImage: "car.fill")
-        .font(.caption)
+        .font(AgendaRowStyle.detail)
         .foregroundStyle(.secondary)
         .labelStyle(.titleAndIcon)
         // One line normally; at accessibility sizes "Drive 18 min · Leave by 14:20" wraps instead of losing the time.
@@ -141,13 +165,13 @@
                 date: .omitted, time: .shortened, locale: presentation.locale,
                 calendar: presentation.calendar, timeZone: presentation.calendar.timeZone))
         )
-        .font(.caption.weight(.semibold).monospacedDigit())
+        .font(AgendaRowStyle.detail.weight(.semibold).monospacedDigit())
         .foregroundStyle(.red)
         .fixedSize(horizontal: true, vertical: false)
         Rectangle().fill(Color.red).frame(height: 1)
       }
       .listRowSeparator(.hidden)
-      .listRowInsets(EdgeInsets(top: 8, leading: 20, bottom: 8, trailing: 20))
+      .listRowInsets(EdgeInsets(top: 4, leading: 20, bottom: 4, trailing: 20))
     }
   }
 

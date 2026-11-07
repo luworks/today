@@ -112,14 +112,14 @@
                   .labelStyle(.titleAndIcon)
               }
             }
-            .font(.caption)
+            .font(attention == nil ? .caption : AgendaRowStyle.detail)
             .foregroundStyle(.secondary)
           }
         }
         Spacer(minLength: 0)
       }
       .fixedSize(horizontal: false, vertical: true)
-      .frame(minHeight: 44)
+      .modifier(AgendaRowFrame(enabled: attention != nil))
       .contentShape(Rectangle())
       .font(attention == nil ? Font.body : AgendaRowStyle.title)
       .modifier(TodayItemSurface(enabled: attention != nil))
@@ -175,7 +175,6 @@
     @Environment(PlannerPresentation.self) private var presentation
     @Environment(\.modelContext) private var context
     @Environment(UndoToast.self) private var toast: UndoToast?
-    @Environment(\.dynamicTypeSize) private var typeSize
     package let task: OneTask
     package var showsTime = false
     /// The time in the time column.
@@ -222,11 +221,7 @@
           Image(systemName: task.isDone ? "checkmark.circle.fill" : "circle")
             .font(attention == nil ? .title3 : AgendaRowStyle.title)
             .foregroundStyle(task.isDone ? Color.green : Color.secondary)
-            .frame(height: attention != nil && !typeSize.isAccessibilitySize ? 20 : nil)
-            .frame(
-              minWidth: attention == nil ? 24 : 44, minHeight: attention == nil ? 0 : 44,
-              alignment: attention != nil && !typeSize.isAccessibilitySize ? .top : .center
-            )
+            .frame(minWidth: attention == nil ? 24 : 44, minHeight: attention == nil ? 0 : 44)
             .contentShape(Rectangle())
         }
         .buttonStyle(.borderless)
@@ -245,7 +240,7 @@
             .accessibilityLabel("Flagged")
         }
       }
-      .frame(minHeight: 44)
+      .modifier(AgendaRowFrame(enabled: attention != nil))
       .contentShape(Rectangle())
       .font(attention == nil ? Font.body : AgendaRowStyle.title)
       .modifier(TodayItemSurface(enabled: attention != nil))
@@ -344,7 +339,7 @@
     @ViewBuilder private var detailText: some View {
       if let detail {
         Text(detail)
-          .font(.caption)
+          .font(attention == nil ? .caption : AgendaRowStyle.detail)
           .foregroundStyle(
             plannerIsOverdue(task, now: presentation.now, calendar: presentation.calendar)
               ? Color.red : Color.secondary
@@ -422,7 +417,8 @@
             .modifier(AgendaIconSlot(enabled: attention != nil))
           if let stoppedAt {
             TitleDetail(title: Text(alarm.label.isEmpty ? "Alarm" : alarm.label)) {
-              Text("Stopped " + stoppedLabel(stoppedAt)).font(.caption)
+              Text("Stopped " + stoppedLabel(stoppedAt))
+                .font(attention == nil ? .caption : AgendaRowStyle.detail)
             }
             .foregroundStyle(.secondary)
           } else {
@@ -432,7 +428,7 @@
           }
           Spacer(minLength: 0)
         }
-        .frame(minHeight: 44)
+        .modifier(AgendaRowFrame(enabled: attention != nil))
         .font(attention == nil ? Font.body : AgendaRowStyle.title)
         .modifier(TodayItemSurface(enabled: attention != nil))
         .contentShape(Rectangle())
