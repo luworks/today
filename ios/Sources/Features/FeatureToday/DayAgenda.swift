@@ -11,7 +11,8 @@
   import SwiftData
   import UIKit
 
-  /// One day's view: active events, tasks and alarms stay directly visible in a single timeline.
+  /// One day's view: active events, tasks and alarms stay directly visible in a single timeline,
+  /// held in soft Morning / Afternoon / Evening cards (`DayPartRows`).
   /// On today a red "N overdue" line sits above the timeline (tap to show the rows, Tidy to reschedule them all).
   /// A past day also shows what was done on it, rebuilt from Activity (`DayHistory`): reminders completed that day at
   /// their completion time, alarms that were stopped, and events deleted after they happened.
@@ -424,7 +425,11 @@
             AgendaHeader(title: "All day", isInline: !showsWeekStrip)
             ForEach(allDay) { fact in HistoricalFactRow(fact: fact, todayStyle: !showsWeekStrip) }
           }
-          ForEach(history.facts.filter { $0.isPrimary && !$0.isUntimedPlan }) { fact in
+          DayPartRows(
+            rows: DayPart.rows(
+              history.facts.filter { $0.isPrimary && !$0.isUntimedPlan }, day: day, calendar: cal,
+              start: \.at, isPlanned: { _ in true })
+          ) { fact in
             HistoricalFactRow(fact: fact, todayStyle: !showsWeekStrip)
           }
           let anytime = untimed.filter { $0.event.subjectKind != "event" }
@@ -448,70 +453,11 @@
         Text("Nothing planned").foregroundStyle(.secondary)
           .listRowSeparator(.hidden)
       }
-      ForEach(items.timeline) { item in
-        if !isPastDay, let timing = dragTiming(item) {
-          timelineRow(item, on: day)
-            .modifier(
-              TimelineTimeAdjustment(
-                timing: timing,
-                begin: {
-                  guard !timeBusy else { return false }
-                  prepareTime(item, timing: timing)
-                  guard timeRequest != nil else { return false }
-                  frozenDayItems = items
-                  dragRow = AnyView(timelineRow(item, on: day))
-                  return true
-                },
-                commit: { date in
-                  guard timeRequest != nil else { return }
-                  if (timeRequest?.attendees ?? 0) > 0 {
-                    pendingTime = date
-                  } else {
-                    submitTime(date)
-                  }
-                }, edit: { editTime(item) },
-                previewChanged: { preview in
-                  dragPreview = preview
-                  if preview == nil {
-                    dragRow = nil
-                    frozenDayItems = nil
-                  }
-                },
-                overlaps: { date in
-                  items.timeline.contains { other in
-                    guard other.id != item.id else { return false }
-                    let length: TimeInterval
-                    switch other {
-                    case .event(let event, _): length = event.duration
-                    case .external(let event): length = event.end.timeIntervalSince(event.start)
-                    case .due(let task):
-                      guard !task.isDone else { return false }
-                      length = 0
-                    case .alarm(_, _, let stopped):
-                      guard stopped == nil else { return false }
-                      length = 0
-                    default: return false
-                    }
-                    if timing.duration == 0 {
-                      return length == 0
-                        ? date == other.start
-                        : date >= other.start && date < other.start.addingTimeInterval(length)
-                    }
-                    if length == 0 {
-                      return other.start >= date
-                        && other.start < date.addingTimeInterval(timing.duration)
-                    }
-                    return date < other.start.addingTimeInterval(length)
-                      && date.addingTimeInterval(timing.duration) > other.start
-                  }
-                })
-            )
-            .listRowInsets(EdgeInsets(top: 0, leading: 12, bottom: 0, trailing: 12))
-            .listRowSeparator(.hidden)
-            .disabled(timeBusy)
-        } else {
-          timelineRow(item, on: day)
-        }
+      DayPartRows(
+        rows: DayPart.rows(
+          items.timeline, day: day, calendar: cal, start: \.start, isPlanned: \.isPlanned)
+      ) { item in
+        dayItemRow(item, items: items)
       }
       if !items.anytime.isEmpty {
         AnytimeLabel(title: cal.isDate(day, inSameDayAs: now) ? "Anytime today" : "Anytime")
@@ -521,6 +467,74 @@
             open: openTask, attention: attention(target(task), canDelete: canDelete(task))
           )
         }
+      }
+    }
+
+    /// A timeline row, with its time handle where it can move.
+    @ViewBuilder
+    private func dayItemRow(_ item: TimelineItem, items: DayItems) -> some View {
+      if !isPastDay, let timing = dragTiming(item) {
+        timelineRow(item, on: day)
+          .modifier(
+            TimelineTimeAdjustment(
+              timing: timing,
+              begin: {
+                guard !timeBusy else { return false }
+                prepareTime(item, timing: timing)
+                guard timeRequest != nil else { return false }
+                frozenDayItems = items
+                dragRow = AnyView(timelineRow(item, on: day))
+                return true
+              },
+              commit: { date in
+                guard timeRequest != nil else { return }
+                if (timeRequest?.attendees ?? 0) > 0 {
+                  pendingTime = date
+                } else {
+                  submitTime(date)
+                }
+              }, edit: { editTime(item) },
+              previewChanged: { preview in
+                dragPreview = preview
+                if preview == nil {
+                  dragRow = nil
+                  frozenDayItems = nil
+                }
+              },
+              overlaps: { date in
+                items.timeline.contains { other in
+                  guard other.id != item.id else { return false }
+                  let length: TimeInterval
+                  switch other {
+                  case .event(let event, _): length = event.duration
+                  case .external(let event): length = event.end.timeIntervalSince(event.start)
+                  case .due(let task):
+                    guard !task.isDone else { return false }
+                    length = 0
+                  case .alarm(_, _, let stopped):
+                    guard stopped == nil else { return false }
+                    length = 0
+                  default: return false
+                  }
+                  if timing.duration == 0 {
+                    return length == 0
+                      ? date == other.start
+                      : date >= other.start && date < other.start.addingTimeInterval(length)
+                  }
+                  if length == 0 {
+                    return other.start >= date
+                      && other.start < date.addingTimeInterval(timing.duration)
+                  }
+                  return date < other.start.addingTimeInterval(length)
+                    && date.addingTimeInterval(timing.duration) > other.start
+                }
+              })
+          )
+          .listRowInsets(EdgeInsets(top: 0, leading: 12, bottom: 0, trailing: 12))
+          .listRowSeparator(.hidden)
+          .disabled(timeBusy)
+      } else {
+        timelineRow(item, on: day)
       }
     }
 
@@ -1404,6 +1418,14 @@
     }
 
     var isNow: Bool { if case .nowMarker = self { true } else { false } }
+
+    /// Something on the day's plan, as opposed to free time or the Now line.
+    var isPlanned: Bool {
+      switch self {
+      case .gap, .nowMarker: false
+      default: true
+      }
+    }
 
     var start: Date {
       switch self {
