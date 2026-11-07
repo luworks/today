@@ -104,6 +104,7 @@
     @State private var dragPreview: TimelineDragPreview?
     @State private var dragRow: AnyView?
     @State private var frozenDayItems: DayItems?
+    @State private var swipes = DayPartSwipes()
     @State private var retryTime: Date?
     /// What Activity says happened on `day` (past days only), and the day it was read for.
     @State private var history = DayHistory()
@@ -412,6 +413,7 @@
       .environment(\.defaultMinListRowHeight, showsWeekStrip ? 24 : 0)
       .listSectionSpacing(showsWeekStrip ? 6 : 0)
       .scrollContentBackground(.hidden)
+      .background(alignment: .topLeading) { DayPartSwipeLayer(swipes: swipes) }
       .entryDeleteDialog($pendingDelete)
     }
 
@@ -428,7 +430,7 @@
           DayPartRows(
             rows: DayPart.rows(
               history.facts.filter { $0.isPrimary && !$0.isUntimedPlan }, day: day, calendar: cal,
-              start: \.at, isPlanned: { _ in true })
+              start: \.at, isPlanned: { _ in true }), swipes: swipes
           ) { fact in
             HistoricalFactRow(fact: fact, todayStyle: !showsWeekStrip)
           }
@@ -455,7 +457,8 @@
       }
       DayPartRows(
         rows: DayPart.rows(
-          items.timeline, day: day, calendar: cal, start: \.start, isPlanned: \.isPlanned)
+          items.timeline, day: day, calendar: cal, start: \.start, isPlanned: \.isPlanned),
+        swipes: swipes
       ) { item in
         dayItemRow(item, items: items)
       }
