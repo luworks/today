@@ -1,6 +1,7 @@
 # Today CI
 
-One workflow, `.github/workflows/today.yml`. CI runs no simulator. The install-smoke lane
+One workflow, `.github/workflows/today.yml`. CI runs no UI tests (owner decision, 2026-11-08);
+`./dev test ui` stays a local command. The merge gate runs no simulator. The install-smoke lane
 (a Simulator usability run before phone installs) was removed on 2026-11-02 by the owner's
 decision; a phone install now needs the green merge gate on the exact `main` SHA.
 
@@ -11,7 +12,7 @@ Two parallel hosted jobs, no simulator:
 | Job | What it runs |
 | --- | --- |
 | `checks` | `./dev format --check`, `./dev lint`, `./dev test helpers`, `./dev test unit` (all logic tests on the macOS host) |
-| `today-required` | `python3 scripts/ci/job.py --build`: one `TodayCI` build-for-testing (App, Widget, Share, Mock and every test bundle) and an identity check of `One.app`, `TodayWidgets.appex` and `ShareExtension.appex` |
+| `today-required` | `python3 scripts/ci/job.py --build`: one `TodayCI` build-for-testing (App, Widget, Share, Mock and the iOS unit and snapshot test bundles; the UI test bundle is not compiled) and an identity check of `One.app`, `TodayWidgets.appex` and `ShareExtension.appex` |
 
 `today-required` also uploads `TodayMock-sim-<sha>` (7 days): the arm64 simulator `TodayMock.app`,
 zipped. Simulator only (never a phone, never next to `One.app`); launch it with `-uiTesting -dataset <path>`.
@@ -46,7 +47,7 @@ Health, hosted AI or AlarmKit behaviour.
 
 ## Manual full coverage
 
-**Run workflow** (`workflow_dispatch`, no inputs) runs `full`: `./dev test release --full` (logic, iOS unit, integration 23, snapshots 6,
-full UI) in one job. Not part of either gate: path-based risk selection, wrapper receipts,
+**Run workflow** (`workflow_dispatch`, no inputs) runs `full`: `./dev test unit`, `ios-unit`, `integration` and `snapshot`, one step each, in one job
+(no UI suite). Not part of either gate: path-based risk selection, wrapper receipts,
 provenance and secret scans, the main acceptance artifact and the routine full suites. They
 were removed in PR #125.

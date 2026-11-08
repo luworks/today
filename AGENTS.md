@@ -12,7 +12,7 @@ Read `CLAUDE.md` and `ios/README.md` before changing the app. Their product prin
 - Do not run builds or tests locally by default. Push the branch, open the PR and let CI (`.github/workflows/today.yml`: `checks` and `today-required`) verify it; merge when both are green.
 - Still update the tests a change breaks and add tests for real new behavior. Avoid tests that mirror implementation or check documentation/cosmetic changes. Preserve the behavior being asserted; do not weaken assertions to get green results.
 - Run something locally only when the owner asks, when CI cannot do it (phone install, signing), or to reproduce a CI failure its logs do not explain; then run just the failing method with `./dev test ui --only TodayUITests/<Suite>/<Method>` or `./dev test unit`.
-- Report what CI ran and what it does not cover (the merge gate does not run the UI journeys).
+- Report what CI ran and what it does not cover (CI runs no UI tests).
 
 ## Delivery coordination
 

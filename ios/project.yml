@@ -644,10 +644,6 @@
           {
             "name": "TodaySnapshotTests",
             "parallelizable": false
-          },
-          {
-            "name": "TodayUITests",
-            "parallelizable": false
           }
         ],
         "gatherCoverageData": false,
