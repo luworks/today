@@ -84,7 +84,7 @@
       case .start:
         request(content, now: now)
       case .update:
-        await current?.update(content, alertConfiguration: nil)
+        if let current { await update(current, content) }
       case .end:
         if let current { await end(current) }
       case .restart:
@@ -104,9 +104,19 @@
       observe(started)
     }
 
+    private func update(
+      _ activity: Activity<UpNextAttributes>,
+      _ content: ActivityKit.ActivityContent<UpNextAttributes.ContentState>
+    ) async {
+      // ActivityKit's nonisolated calls take the activity, which it does not mark Sendable; only this actor holds it.
+      nonisolated(unsafe) let activity = activity
+      await activity.update(content, alertConfiguration: nil)
+    }
+
     private func end(_ activity: Activity<UpNextAttributes>) async {
       endedByApp.insert(activity.id)
       defaults.removeObject(forKey: Self.requestedAtKey)
+      nonisolated(unsafe) let activity = activity
       await activity.end(nil, dismissalPolicy: .immediate)
     }
 
