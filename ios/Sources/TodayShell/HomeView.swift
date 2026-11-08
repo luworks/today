@@ -656,6 +656,7 @@
             importShared()
             session.activity.importOutbox()
             session.timers.refresh()
+            updateWidgets()
             Task { await session.notifications.resync() }
           }
           if phase == .background {
