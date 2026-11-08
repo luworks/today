@@ -22,6 +22,82 @@
   @MainActor
   extension PlannerSessionTests {
     @Test
+    func upNextCardReadsSettleForEveryKindAndEveryChangeReachesTheRefreshHook() throws {
+      let a = try FocusSession()
+      defer { a.dispose() }
+      let focus = a.services.actions.focus
+      var refreshes = 0
+      focus.onChange = { refreshes += 1 }
+      let task = OneTask(title: "Reminder", due: a.now.addingTimeInterval(3600))
+      let event = OneEvent(
+        title: "Event", start: a.now.addingTimeInterval(5400), durationMinutes: 30)
+      let calendar = a.services.runtime.calendar
+      let ring = a.now.addingTimeInterval(7200)
+      let alarm = OneAlarm(
+        hour: calendar.component(.hour, from: ring), minute: calendar.component(.minute, from: ring)
+      )
+      a.context.insert(task)
+      a.context.insert(event)
+      a.context.insert(alarm)
+      try a.context.save()
+      let widget = WidgetFeed(
+        container: a.context.container, calendar: a.services.calendar,
+        reminders: a.services.reminders, runtime: a.services.runtime, enabled: false,
+        travel: { _, _, _, _, _ in nil }, save: { _ in false }, reload: {}, focus: focus)
+      func read() -> (titles: [String], settled: [String]) {
+        let (items, ids) = widget.itemsAndSettled(
+          tasks: [task], events: [event], alarms: [alarm], now: a.now, calendar: calendar)
+        return (
+          items.map(\.title).sorted(),
+          items.filter { ids.contains($0.id) }.map(\.title).sorted()
+        )
+      }
+      #expect(read().settled.isEmpty)
+
+      let fire = try #require(
+        AlarmPlan.fire(
+          on: a.now, hour: alarm.hour, minute: alarm.minute, weekdays: alarm.weekdays, now: a.now,
+          calendar: calendar))
+      let identities: [(String, FocusIdentity?)] = [
+        ("Reminder", focus.identity(of: task, reminders: a.services.reminders)),
+        ("Event", focus.identity(of: event, start: event.start, calendar: a.services.calendar)),
+        ("Alarm", focus.identity(of: alarm, fireDate: fire)),
+      ]
+      var expected: [String] = []
+      for (title, identity) in identities {
+        #expect(identity != nil)
+        let before = refreshes
+        #expect(
+          focus.change(
+            .settled, identity: identity, localReference: nil, title: title, context: a.context,
+            toast: a.toast))
+        #expect(refreshes == before + 1)
+        expected = (expected + [title]).sorted()
+        #expect(read().settled == expected)
+        #expect(read().titles == ["Alarm", "Event", "Reminder"], "the snapshot keeps every item")
+      }
+
+      // Undo reaches the same hook and brings the item back.
+      let before = refreshes
+      a.toast.performUndo()
+      #expect(refreshes == before + 1)
+      #expect(read().settled == ["Event", "Reminder"])
+
+      // So does Unsettle.
+      #expect(
+        focus.change(
+          nil, identity: identities[0].1, localReference: nil, title: "Reminder",
+          context: a.context, toast: a.toast))
+      #expect(refreshes == before + 2)
+      #expect(read().settled == ["Event"])
+      #expect(
+        focus.change(
+          nil, identity: identities[1].1, localReference: nil, title: "Event", context: a.context,
+          toast: a.toast))
+      #expect(read().settled.isEmpty)
+    }
+
+    @Test
     func settleDayBoundaryReleasesSameSourcesAndCrossDayUndoWithoutSourceWrites() throws {
       let a = try FocusSession(persistentFocus: true)
       defer { a.dispose() }
