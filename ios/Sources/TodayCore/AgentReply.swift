@@ -132,11 +132,21 @@ public enum AgentReply {
 
   /// The model could not be reached (offline, signed out, quota) and the rules weren't sure either:
   /// the draft goes back to the composer (§4.7 #3).
-  public static func unavailable(_ error: ModelClientError?, chinese: Bool) -> String {
-    let rest =
-      chinese
-      ? "你的草稿还在输入框里；说清楚的提醒、事件和闹钟仍会按规则直接添加，整理逾期也能用。"
-      : "Your draft is still in the box; clear reminders, events and alarms are still added by the rules, and Tidy overdue still works."
+  public static func unavailable(
+    _ error: ModelClientError?, previewFirst: Bool = false, chinese: Bool
+  ) -> String {
+    let rest: String
+    if previewFirst {
+      rest =
+        chinese
+        ? "你的草稿还在输入框里；说清楚的提醒、事件和闹钟仍会按规则备好卡片，等你确认，整理逾期也能用。"
+        : "Your draft is still in the box; clear reminders, events and alarms still get a card from the rules for you to confirm, and Tidy overdue still works."
+    } else {
+      rest =
+        chinese
+        ? "你的草稿还在输入框里；说清楚的提醒、事件和闹钟仍会按规则直接添加，整理逾期也能用。"
+        : "Your draft is still in the box; clear reminders, events and alarms are still added by the rules, and Tidy overdue still works."
+    }
     switch error {
     case .unavailable?:
       return (chinese ? "需要登录 Luna AI 才能用 AI。" : "Sign in to Luna AI to use AI. ") + rest

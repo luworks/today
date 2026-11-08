@@ -29,6 +29,7 @@ public enum Preferences {
   public static let freeRowMinutesKey = "today.setting.freeRowMinutes"
   public static let newEventMinutesKey = "today.setting.newEventMinutes"
   public static let reminderInterruptionKey = "today.setting.reminderInterruption"
+  public static let aiChangesKey = "today.setting.aiChanges"
   public static let quickPresetsKey = "today.setting.quickPresets"
 
   static let allKeys = [
@@ -36,7 +37,7 @@ public enum Preferences {
     showFreeTimeKey, newReminderListKey, newEventCalendarKey, newEventAlertKey,
     newAlarmSnoozeKey, newAlarmSoundKey, showSettleKey, weatherSummaryKey,
     upNextLiveActivityKey, afternoonStartKey, eveningStartKey, freeRowMinutesKey,
-    newEventMinutesKey, quickPresetsKey, reminderInterruptionKey,
+    newEventMinutesKey, quickPresetsKey, reminderInterruptionKey, aiChangesKey,
   ]
 
   // MARK: Defaults (the behaviour before these choices existed)
@@ -209,6 +210,29 @@ public enum Preferences {
   }
 
   /// A stored new-event length, or the default if it is not one of the choices.
+  /// What the AI does with a clear request: write it right away with Undo, or leave the card for a tap.
+  /// Cards that already wait for a tap (attendees, whole series, questions) wait in both.
+  public enum AIChanges: String, CaseIterable, Sendable {
+    case applyDirectly, previewFirst
+
+    public var title: String {
+      switch self {
+      case .applyDirectly: "Apply Directly"
+      case .previewFirst: "Preview First"
+      }
+    }
+  }
+
+  public static let aiChanges = AIChanges.applyDirectly.rawValue
+
+  public static func aiChanges(stored: String?) -> AIChanges {
+    stored.flatMap(AIChanges.init(rawValue:)) ?? .applyDirectly
+  }
+
+  public static func aiPreviewsFirst(_ defaults: UserDefaults) -> Bool {
+    aiChanges(stored: defaults.string(forKey: aiChangesKey)) == .previewFirst
+  }
+
   /// How much a reminder's notification interrupts. Alarms and events are not this setting's business.
   public enum ReminderInterruption: String, CaseIterable, Sendable {
     case breakThroughFocus, standard, off

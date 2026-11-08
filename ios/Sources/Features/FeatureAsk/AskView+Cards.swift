@@ -339,7 +339,7 @@
         reply(
           "Flagged and recent ones first, three a day; ones older than a month lose their date but stay in their list."
         ))
-      applyTidy()
+      if !previewsFirst { applyTidy() }
     }
 
     /// Writes the Tidy rows with an Undo row; says what it did.

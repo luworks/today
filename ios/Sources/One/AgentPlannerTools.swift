@@ -17,14 +17,20 @@
     /// The message clearly asks for an action (rules, not the model): its cards are applied right
     /// after the reply, with Undo (`ActionPolicy.asksForAction`).
     package var askedForAction: Bool
+    /// Settings > AI Changes is Preview First.
+    package var previewFirst: Bool
 
-    package init(text: String, chinese: Bool, runID: String, words: ActionPolicy.Words = .user) {
+    package init(
+      text: String, chinese: Bool, runID: String, words: ActionPolicy.Words = .user,
+      previewFirst: Bool = false
+    ) {
       self.text = text
       self.chinese = chinese
       self.runID = runID
       self.words = words
       self.reportedSpeech = FastLane.isReportedSpeech(text)
       self.askedForAction = ActionPolicy.asksForAction(text)
+      self.previewFirst = previewFirst
     }
   }
 
@@ -62,6 +68,7 @@
     package var userAskedToMove: Bool
     /// Set from the turn when the card is shown (`AgentTurn.askedForAction`).
     package var askedForAction = false
+    package var previewFirst = false
 
     package var kind: ActionPolicy.Kind {
       switch target {
@@ -86,7 +93,7 @@
       return ActionPolicy.Request(
         tool: isDelete ? .proposeDelete : .proposeEdit, source: .agent, kind: kind,
         fields: fields, askedForAction: askedForAction, userAskedToMoveEvent: userAskedToMove,
-        attendees: live ?? attendees, changedSincePreview: changed)
+        attendees: live ?? attendees, changedSincePreview: changed, previewFirst: previewFirst)
     }
   }
 
@@ -823,7 +830,8 @@
           let tier = ActionPolicy.tier(
             .init(
               tool: .proposeCreate, source: .agent, words: turn.words, kind: kind, fields: fields,
-              askedForAction: turn.askedForAction, reportedSpeech: turn.reportedSpeech))
+              askedForAction: turn.askedForAction, reportedSpeech: turn.reportedSpeech,
+              previewFirst: turn.previewFirst))
           if case .refuse(let reason) = tier {
             var refused: [String: JSONValue] = [
               "error": "refused", "reason": .string(reason.rawValue),
@@ -1030,6 +1038,7 @@
     private func show(_ change: AgentChange, why: String?) -> AgentToolOutcome {
       var change = change
       change.askedForAction = turn.askedForAction
+      change.previewFirst = turn.previewFirst
       let tier = ActionPolicy.tier(change.request())
       if case .refuse(let reason) = tier {
         let hint =
@@ -1248,7 +1257,7 @@
       let tier = ActionPolicy.tier(
         .init(
           tool: .proposeTidy, source: .agent, words: turn.words, kind: .reminder, fields: [.due],
-          askedForAction: turn.askedForAction))
+          askedForAction: turn.askedForAction, previewFirst: turn.previewFirst))
       let opened = book.open(tool: .proposeTidy, kind: "reminder", tier: tier, run: turn.runID)
       let card = AgentCard(
         id: opened.id, body: .tidy(rows), tier: tier, why: why(a), chinese: turn.chinese)

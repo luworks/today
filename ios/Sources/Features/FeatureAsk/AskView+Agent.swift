@@ -51,7 +51,8 @@
       let chinese = AgentReply.isChinese(typed)
       let runID = AskAgentSession.runID()
       session.anchor = anchor
-      session.tools.turn = AgentTurn(text: text, chinese: chinese, runID: runID)
+      session.tools.turn = AgentTurn(
+        text: text, chinese: chinese, runID: runID, previewFirst: previewsFirst)
       if session.tools.history.needsCompaction { compactAgentHistory(session) }
       var attached: String?
       if let subject {
@@ -198,7 +199,8 @@
         return
       }
       recordTurn("unavailable", text, route: "offline")
-      messages.append(reply(AgentReply.unavailable(error, chinese: chinese)))
+      messages.append(
+        reply(AgentReply.unavailable(error, previewFirst: previewsFirst, chinese: chinese)))
       if draft.isEmpty { draft = typed }
     }
 

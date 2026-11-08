@@ -80,6 +80,7 @@
       "today.setting.freeRowMinutes", "today.setting.newEventMinutes",
       "today.setting.quickPresets",
       "today.setting.reminderInterruption",
+      "today.setting.aiChanges",
       "today.worldClock.cities", "reminders.smartOrder", "reminders.smartHidden",
       "activity.setting.tier.1", "activity.setting.tier.2", "activity.setting.tier.3",
       "activity.setting.tier.4",

@@ -284,6 +284,40 @@
     }
   }
 
+  /// Settings > AI > AI Changes: whether a clear request is written right away or waits on its card.
+  struct AIChangesSettings: View {
+    let settingChanged: @MainActor (String, String) -> Void
+    @AppStorage(Preferences.aiChangesKey) private var stored = Preferences.aiChanges
+
+    private var choice: Binding<Preferences.AIChanges> {
+      Binding(
+        get: { Preferences.aiChanges(stored: stored) },
+        set: { stored = $0.rawValue })
+    }
+
+    var body: some View {
+      Form {
+        Section {
+          Picker("AI Changes", selection: choice) {
+            ForEach(Preferences.AIChanges.allCases, id: \.self) {
+              Text($0.title).tag($0)
+            }
+          }
+          .pickerStyle(.inline)
+          .labelsHidden()
+          .accessibilityIdentifier("settings.aiChanges.picker")
+        } footer: {
+          Text(
+            "Apply Directly makes a change you clearly ask for right away, with Undo. Preview First shows it on a card and writes nothing until you tap Add or Apply. Changes that reach other people or a whole series always wait for your tap."
+          )
+        }
+      }
+      .navigationTitle("AI Changes")
+      .navigationBarTitleDisplayMode(.inline)
+      .onChange(of: stored) { _, value in settingChanged(Preferences.aiChangesKey, value) }
+    }
+  }
+
   /// Settings > Reminders > Notifications: how much a reminder's notification interrupts.
   struct ReminderInterruptionSettings: View {
     let changed: @MainActor (String) -> Void
