@@ -39,6 +39,27 @@ final class PreferencesTests: XCTestCase {
     XCTAssertFalse(Preferences.weatherSummary)
   }
 
+  func testDayDivisionDefaultsAndFallbacks() {
+    let d = freshDefaults()
+    XCTAssertEqual(Preferences.dayBoundaries(d), .standard, "12:00 and 18:00")
+    d.set(10, forKey: Preferences.afternoonStartKey)
+    d.set(16, forKey: Preferences.eveningStartKey)
+    XCTAssertEqual(Preferences.dayBoundaries(d), DayPart.Boundaries(afternoon: 10, evening: 16))
+    d.set(20, forKey: Preferences.afternoonStartKey)
+    XCTAssertEqual(Preferences.dayBoundaries(d), .standard, "out of order")
+    XCTAssertEqual(Preferences.freeRowMinutes, 30, "Today's Free rows started at 30 minutes")
+    XCTAssertEqual(Preferences.freeRowMinutes(stored: 15), 15)
+    XCTAssertEqual(Preferences.freeRowMinutes(stored: 60), 60)
+    XCTAssertEqual(Preferences.freeRowMinutes(stored: 45), 30, "a retired value is the default")
+  }
+
+  func testSettingChangeIsRecordedWithoutFreeText() {
+    let e = ActivityEvents.settingChanged(key: Preferences.freeRowMinutesKey, value: "15")
+    XCTAssertEqual(e.kind, ActivityKind.sysSettingChange)
+    XCTAssertEqual(e.actor, "you")
+    XCTAssertTrue(e.props.contains("freeRowMinutes"))
+  }
+
   func testCompressEmptyHoursDefaultsOnAndPreservesExplicitChoice() {
     let d = freshDefaults()
     XCTAssertTrue(

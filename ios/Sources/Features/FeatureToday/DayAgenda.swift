@@ -67,6 +67,15 @@
       _showsFreeTime = AppStorage(
         wrappedValue: Preferences.showFreeTime, Preferences.showFreeTimeKey,
         store: presentation.defaults)
+      _afternoonStart = AppStorage(
+        wrappedValue: Preferences.afternoonStart, Preferences.afternoonStartKey,
+        store: presentation.defaults)
+      _eveningStart = AppStorage(
+        wrappedValue: Preferences.eveningStart, Preferences.eveningStartKey,
+        store: presentation.defaults)
+      _freeRowMinutes = AppStorage(
+        wrappedValue: Preferences.freeRowMinutes, Preferences.freeRowMinutesKey,
+        store: presentation.defaults)
       _day = day
       self.showsWeekStrip = showsWeekStrip
       self.openTask = openTask
@@ -85,6 +94,14 @@
     @AppStorage(Preferences.weatherSummaryKey) private var showsWeather = Preferences.weatherSummary
     @AppStorage(Preferences.showSettleKey) private var showsSettle = Preferences.showSettle
     @AppStorage(Preferences.showFreeTimeKey) private var showsFreeTime = Preferences.showFreeTime
+    @AppStorage(Preferences.afternoonStartKey) private var afternoonStart = Preferences
+      .afternoonStart
+    @AppStorage(Preferences.eveningStartKey) private var eveningStart = Preferences.eveningStart
+    @AppStorage(Preferences.freeRowMinutesKey) private var freeRowMinutes = Preferences
+      .freeRowMinutes
+    private var dayBoundaries: DayPart.Boundaries {
+      DayPart.Boundaries(afternoon: afternoonStart, evening: eveningStart)
+    }
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(HealthLineModel.self) private var health
@@ -430,7 +447,7 @@
           DayPartRows(
             rows: DayPart.rows(
               history.facts.filter { $0.isPrimary && !$0.isUntimedPlan }, day: day, calendar: cal,
-              start: \.at, isPlanned: { _ in true }), swipes: swipes
+              boundaries: dayBoundaries, start: \.at, isPlanned: { _ in true }), swipes: swipes
           ) { fact in
             HistoricalFactRow(fact: fact, todayStyle: !showsWeekStrip)
           }
@@ -457,7 +474,8 @@
       }
       DayPartRows(
         rows: DayPart.rows(
-          items.timeline, day: day, calendar: cal, start: \.start, isPlanned: \.isPlanned),
+          items.timeline, day: day, calendar: cal, boundaries: dayBoundaries, start: \.start,
+          isPlanned: \.isPlanned),
         swipes: swipes
       ) { item in
         dayItemRow(item, items: items)
@@ -879,8 +897,10 @@
       anytime.sort { ($0.flagged ? 0 : 1, $0.createdAt) < ($1.flagged ? 0 : 1, $1.createdAt) }
       // What is still free, as quiet "Free 1 h 30 min" rows.
       if showsFreeTime {
-        timeline += DaySchedule.freeGaps(busy: busy, day: day, now: now, calendar: cal).map(
-          TimelineItem.gap)
+        timeline += DaySchedule.freeGaps(
+          busy: busy, day: day, now: now,
+          minimum: Preferences.freeRowMinutes(stored: freeRowMinutes), calendar: cal
+        ).map(TimelineItem.gap)
       }
       let rings =
         showsAlarms

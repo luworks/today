@@ -13,10 +13,15 @@
   /// Settings > Today: the timeline's extras. Rows only; they sit inside the Today section.
   package struct TodayTimelineSettings: View {
     /// Records the Lock Screen Up Next switch and applies it.
-    package init(upNextChanged: @escaping @MainActor (Bool) -> Void = { _ in }) {
+    package init(
+      upNextChanged: @escaping @MainActor (Bool) -> Void = { _ in },
+      settingChanged: @escaping @MainActor (String, String) -> Void = { _, _ in }
+    ) {
       self.upNextChanged = upNextChanged
+      self.settingChanged = settingChanged
     }
     private let upNextChanged: @MainActor (Bool) -> Void
+    private let settingChanged: @MainActor (String, String) -> Void
     @AppStorage(Preferences.upNextLiveActivityKey) private var upNext =
       Preferences.upNextLiveActivity
     @AppStorage(Preferences.showSettleKey) private var showsSettle = Preferences.showSettle
@@ -31,11 +36,98 @@
       ExplainedToggle(
         title: "Show free time", isOn: $showsFreeTime,
         caption: "Quiet “Free 1 h” lines in the gaps between your plans.")
+      NavigationLink {
+        DayDivisionSettings(settingChanged: settingChanged)
+      } label: {
+        Text("Divide the Day")
+      }
+      .accessibilityIdentifier("settings.divideTheDay")
       ExplainedToggle(
         title: "Up Next on Lock Screen", isOn: $upNext,
         caption: "A quiet card with what's coming in the next 3 hours. It never alerts you."
       )
       .onChange(of: upNext) { _, on in upNextChanged(on) }
+    }
+  }
+
+  /// Settings > Today > Divide the Day: where Morning, Afternoon and Evening meet, and how short a Free row can be.
+  struct DayDivisionSettings: View {
+    let settingChanged: @MainActor (String, String) -> Void
+    @AppStorage(Preferences.afternoonStartKey) private var afternoon = Preferences.afternoonStart
+    @AppStorage(Preferences.eveningStartKey) private var evening = Preferences.eveningStart
+    @AppStorage(Preferences.freeRowMinutesKey) private var freeMinutes = Preferences.freeRowMinutes
+
+    private var boundaries: DayPart.Boundaries {
+      DayPart.Boundaries(afternoon: afternoon, evening: evening)
+    }
+
+    /// Stores the whole pair, so an unusable stored value cannot swallow the choice.
+    private func store(_ new: DayPart.Boundaries) {
+      afternoon = new.afternoon
+      evening = new.evening
+    }
+
+    var body: some View {
+      Form {
+        Section {
+          MenuChoiceRow(
+            title: "Afternoon starts",
+            selection: Binding(
+              get: { boundaries.afternoon },
+              set: {
+                store(DayPart.Boundaries(afternoon: $0, evening: boundaries.evening))
+              }),
+            caption: nil, identifier: "settings.afternoonStart"
+          ) {
+            ForEach(boundaries.afternoonChoices, id: \.self) { Text(hourLabel($0)).tag($0) }
+          }
+          MenuChoiceRow(
+            title: "Evening starts",
+            selection: Binding(
+              get: { boundaries.evening },
+              set: {
+                store(DayPart.Boundaries(afternoon: boundaries.afternoon, evening: $0))
+              }),
+            caption: nil, identifier: "settings.eveningStart"
+          ) {
+            ForEach(boundaries.eveningChoices, id: \.self) { Text(hourLabel($0)).tag($0) }
+          }
+        } footer: {
+          Text("Morning runs until afternoon starts. An item stays in the part it starts in.")
+        }
+        Section {
+          MenuChoiceRow(
+            title: "Shortest free time",
+            selection: Binding(
+              get: { Preferences.freeRowMinutes(stored: freeMinutes) },
+              set: { freeMinutes = $0 }),
+            caption: nil, identifier: "settings.freeRowMinutes"
+          ) {
+            ForEach(Preferences.freeRowMinutesChoices, id: \.self) { Text("\($0) min").tag($0) }
+          }
+        } footer: {
+          Text("Gaps shorter than this get no Free row on Today.")
+        }
+      }
+      .navigationTitle("Divide the Day")
+      .navigationBarTitleDisplayMode(.inline)
+      .onChange(of: afternoon) { _, value in
+        settingChanged(Preferences.afternoonStartKey, String(value))
+      }
+      .onChange(of: evening) { _, value in
+        settingChanged(Preferences.eveningStartKey, String(value))
+      }
+      .onChange(of: freeMinutes) { _, value in
+        settingChanged(Preferences.freeRowMinutesKey, String(value))
+      }
+    }
+
+    /// "12:00 PM" or "12:00", as the iPhone shows times.
+    private func hourLabel(_ hour: Int) -> String {
+      Calendar.current
+        .date(
+          bySettingHour: hour, minute: 0, second: 0, of: Date(timeIntervalSinceReferenceDate: 0))?
+        .formatted(date: .omitted, time: .shortened) ?? "\(hour):00"
     }
   }
 

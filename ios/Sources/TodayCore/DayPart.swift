@@ -4,26 +4,47 @@ import Foundation
 public enum DayPart: Int, CaseIterable, Sendable {
   case morning, afternoon, evening
 
-  /// Before 12:00, 12:00 up to 18:00, 18:00 onward. An item belongs to the part of its start, so an
-  /// event crossing a boundary stays where it starts; one that began on an earlier day opens the morning.
-  public static func of(_ start: Date, day: Date, calendar: Calendar) -> DayPart {
-    guard start >= calendar.startOfDay(for: day) else { return .morning }
-    switch calendar.component(.hour, from: start) {
-    case ..<12: return .morning
-    case ..<18: return .afternoon
-    default: return .evening
+  /// The whole hours where afternoon and evening begin. Morning always opens the day and every part keeps
+  /// at least an hour, so the three stay in order; a pair that breaks this is the standard one.
+  public struct Boundaries: Equatable, Sendable {
+    public let afternoon: Int
+    public let evening: Int
+    public static let standard = Boundaries(afternoon: 12, evening: 18)
+
+    public init(afternoon: Int, evening: Int) {
+      let valid = afternoon >= 1 && afternoon < evening && evening <= 23
+      self.afternoon = valid ? afternoon : 12
+      self.evening = valid ? evening : 18
     }
+
+    /// The hours afternoon can start at while evening stays where it is.
+    public var afternoonChoices: [Int] { Array(1..<evening) }
+    /// The hours evening can start at while afternoon stays where it is.
+    public var eveningChoices: [Int] { Array((afternoon + 1)...23) }
+  }
+
+  /// Before afternoon, afternoon up to evening, evening onward (12:00 and 18:00 unless Settings says
+  /// otherwise). An item belongs to the part of its start, so an event crossing a boundary stays where it
+  /// starts; one that began on an earlier day opens the morning.
+  public static func of(
+    _ start: Date, day: Date, calendar: Calendar, boundaries: Boundaries = .standard
+  ) -> DayPart {
+    guard start >= calendar.startOfDay(for: day) else { return .morning }
+    let hour = calendar.component(.hour, from: start)
+    if hour < boundaries.afternoon { return .morning }
+    return hour < boundaries.evening ? .afternoon : .evening
   }
 
   /// A part's rows, card label and card end, in day order. A part needs one planned item to earn a card:
   /// free time and the Now line alone never invent one, they stay loose rows at their place in the day.
   public static func rows<Item>(
-    _ items: [Item], day: Date, calendar: Calendar, start: (Item) -> Date,
-    isPlanned: (Item) -> Bool
+    _ items: [Item], day: Date, calendar: Calendar, boundaries: Boundaries = .standard,
+    start: (Item) -> Date, isPlanned: (Item) -> Bool
   ) -> [DayPartRow<Item>] {
     var parts: [DayPart: [Item]] = [:]
     for item in items {
-      parts[of(start(item), day: day, calendar: calendar), default: []].append(item)
+      parts[of(start(item), day: day, calendar: calendar, boundaries: boundaries), default: []]
+        .append(item)
     }
     return allCases.flatMap { part -> [DayPartRow<Item>] in
       let held = parts[part] ?? []
