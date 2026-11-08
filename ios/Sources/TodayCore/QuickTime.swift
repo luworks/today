@@ -4,6 +4,27 @@ import Foundation
 public enum QuickTime {
   /// The four times of day on the grid's first row.
   public static let presets: [(hour: Int, minute: Int)] = [(9, 30), (12, 0), (18, 30), (22, 0)]
+
+  /// The four preset times as minutes of the day, in stored order. Anything but exactly four valid
+  /// times is the shipped four.
+  public static func presetMinutes(stored: String?) -> [Int] {
+    let parts = (stored ?? "").split(separator: ",").compactMap { Int($0) }
+    guard parts.count == 4, parts.allSatisfy({ (0..<1440).contains($0) }) else {
+      return presets.map { $0.hour * 60 + $0.minute }
+    }
+    return parts
+  }
+
+  /// The grid's first row: the chosen times, earliest first.
+  public static func presets(stored: String?) -> [(hour: Int, minute: Int)] {
+    presetMinutes(stored: stored).sorted().map { (hour: $0 / 60, minute: $0 % 60) }
+  }
+
+  /// What Settings stores for these times.
+  public static func storedPresets(_ minutes: [Int]) -> String {
+    minutes.map(String.init).joined(separator: ",")
+  }
+
   /// The nudges on the second (+) and third (−) rows, in minutes.
   public static let nudges: [Int] = [10, 60, 180, 1440]
 

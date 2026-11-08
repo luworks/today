@@ -24,6 +24,23 @@ final class QuickTimeTests: XCTestCase {
       DateComponents(month: 10, day: 16, hour: 22, minute: 30))
   }
 
+  func testPresetDefaultsAreTheShippedFour() {
+    for stored in [nil, "", "570,720", "570,720,1110,1320,60", "570,720,1110,1440", "a,b,c,d"] {
+      XCTAssertEqual(QuickTime.presetMinutes(stored: stored), [570, 720, 1110, 1320])
+    }
+  }
+
+  func testChosenPresetsShowEarliestFirst() {
+    let shown = QuickTime.presets(stored: "1320,450,720,1110")
+    XCTAssertEqual(shown.map(\.hour), [7, 12, 18, 22])
+    XCTAssertEqual(shown.map(\.minute), [30, 0, 30, 0])
+  }
+
+  func testPresetsRoundTripThroughStorage() {
+    let minutes = [1320, 450, 720, 1110]
+    XCTAssertEqual(QuickTime.presetMinutes(stored: QuickTime.storedPresets(minutes)), minutes)
+  }
+
   func testAPastPresetMovesToTomorrow() {
     XCTAssertEqual(
       parts(QuickTime.preset(hour: 9, minute: 30, on: now, now: now, calendar: cal)),

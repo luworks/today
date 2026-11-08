@@ -371,6 +371,7 @@
     let set: (Date) -> Void
 
     @Environment(\.dynamicTypeSize) private var typeSize
+    @AppStorage(Preferences.quickPresetsKey) private var quickPresets = Preferences.quickPresets
 
     var body: some View {
       LazyVGrid(
@@ -378,7 +379,8 @@
           repeating: GridItem(.flexible(), spacing: 0),
           count: typeSize.isAccessibilitySize ? 2 : 4), spacing: 0
       ) {
-        ForEach(QuickTime.presets, id: \.hour) { preset in
+        ForEach(Array(QuickTime.presets(stored: quickPresets).enumerated()), id: \.offset) {
+          _, preset in
           cell(String(format: "%02d:%02d", preset.hour, preset.minute)) {
             set(
               selectedDayPresets

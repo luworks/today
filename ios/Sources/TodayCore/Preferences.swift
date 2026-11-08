@@ -28,13 +28,14 @@ public enum Preferences {
   public static let eveningStartKey = "today.setting.eveningStart"
   public static let freeRowMinutesKey = "today.setting.freeRowMinutes"
   public static let newEventMinutesKey = "today.setting.newEventMinutes"
+  public static let quickPresetsKey = "today.setting.quickPresets"
 
   static let allKeys = [
     compressEmptyHoursKey, dimPastDaysKey, firstWeekdayKey, weekNumbersKey, calendarStartKey,
     showFreeTimeKey, newReminderListKey, newEventCalendarKey, newEventAlertKey,
     newAlarmSnoozeKey, newAlarmSoundKey, showSettleKey, weatherSummaryKey,
     upNextLiveActivityKey, afternoonStartKey, eveningStartKey, freeRowMinutesKey,
-    newEventMinutesKey,
+    newEventMinutesKey, quickPresetsKey,
   ]
 
   // MARK: Defaults (the behaviour before these choices existed)
@@ -69,6 +70,8 @@ public enum Preferences {
   /// How long a new event lasts when nothing states its end: not the user, the AI or a selected slot.
   public static let newEventMinutes = 60
   public static let newEventMinutesChoices = [15, 30, 45, 60, 90, 120]
+  /// "" = the four preset times Today shipped with (`QuickTime.presets`).
+  public static let quickPresets = ""
 
   // MARK: Choices
 

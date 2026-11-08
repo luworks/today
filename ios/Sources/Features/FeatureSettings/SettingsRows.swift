@@ -238,7 +238,10 @@
 
   /// Settings > Reminders: where a new reminder goes when nothing else decides.
   package struct RemindersSettingsSection: View {
-    package init() {}
+    package init(settingChanged: @escaping @MainActor (String, String) -> Void = { _, _ in }) {
+      self.settingChanged = settingChanged
+    }
+    private let settingChanged: @MainActor (String, String) -> Void
     @AppStorage(Preferences.newReminderListKey) private var chosen = Preferences.newReminderList
     @Query(sort: \OneList.order) private var lists: [OneList]
 
@@ -255,8 +258,67 @@
             Text($0.name).tag($0.name)
           }
         }
+        NavigationLink {
+          QuickPresetSettings(settingChanged: settingChanged)
+        } label: {
+          Text("Quick-Add Times")
+        }
+        .accessibilityIdentifier("settings.quickPresets")
       } header: {
         Text("Reminders")
+      }
+    }
+  }
+
+  /// Settings > Reminders > Quick-Add Times: the four times on the quick-add grid's first row. Rows keep
+  /// their place while you edit, so one doesn't jump under your finger; the grid always shows them in time order.
+  struct QuickPresetSettings: View {
+    let settingChanged: @MainActor (String, String) -> Void
+    @AppStorage(Preferences.quickPresetsKey) private var stored = Preferences.quickPresets
+    @State private var minutes: [Int] = []
+
+    private static let reference = Date(timeIntervalSinceReferenceDate: 0)
+
+    private func time(at index: Int) -> Binding<Date> {
+      Binding(
+        get: {
+          let minute = minutes[index]
+          return Calendar.current.date(
+            bySettingHour: minute / 60, minute: minute % 60, second: 0, of: Self.reference)
+            ?? Self.reference
+        },
+        set: { date in
+          let c = Calendar.current.dateComponents([.hour, .minute], from: date)
+          minutes[index] = (c.hour ?? 0) * 60 + (c.minute ?? 0)
+          stored = QuickTime.storedPresets(minutes)
+        })
+    }
+
+    var body: some View {
+      Form {
+        Section {
+          ForEach(minutes.indices, id: \.self) { index in
+            DatePicker(
+              "Time \(index + 1)", selection: time(at: index), displayedComponents: .hourAndMinute
+            )
+            .accessibilityIdentifier("settings.quickPreset.\(index)")
+          }
+        } footer: {
+          Text("The four times at the top of quick add, shown earliest first.")
+        }
+        Section {
+          Button("Reset to Defaults") {
+            stored = Preferences.quickPresets
+            minutes = QuickTime.presetMinutes(stored: stored)
+          }
+          .accessibilityIdentifier("settings.quickPresets.reset")
+        }
+      }
+      .navigationTitle("Quick-Add Times")
+      .navigationBarTitleDisplayMode(.inline)
+      .onAppear { minutes = QuickTime.presetMinutes(stored: stored).sorted() }
+      .onChange(of: stored) { _, value in
+        settingChanged(Preferences.quickPresetsKey, value.isEmpty ? "default" : value)
       }
     }
   }
