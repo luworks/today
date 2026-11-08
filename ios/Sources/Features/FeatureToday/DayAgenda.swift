@@ -12,7 +12,7 @@
   import UIKit
 
   /// One day's view: active events, tasks and alarms stay directly visible in a single timeline,
-  /// held in soft Morning / Afternoon / Evening cards (`DayPartRows`).
+  /// held in faint neutral Morning / Afternoon / Evening cards (`DayPartRows`).
   /// On today a red "N overdue" line sits above the timeline (tap to show the rows, Tidy to reschedule them all).
   /// A past day also shows what was done on it, rebuilt from Activity (`DayHistory`): reminders completed that day at
   /// their completion time, alarms that were stopped, and events deleted after they happened.

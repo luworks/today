@@ -3,7 +3,7 @@
   import TodayCore
   import TodayDesignSystem
 
-  /// The timeline's rows in their soft Morning / Afternoon / Evening cards. The cards are only row
+  /// The timeline's rows in their faint neutral Morning / Afternoon / Evening cards. The cards are only row
   /// backgrounds: a background fills the whole cell, so rows keep their own insets and title width.
   struct DayPartRows<Item: Identifiable, Row: View>: View {
     let rows: [DayPartRow<Item>]
@@ -18,9 +18,8 @@
         case .item(let item, let card, let closesCard):
           row(item)
             .listRowBackground(
-              card.map {
-                DayPartFill(
-                  part: $0, edge: closesCard ? .bottom : .middle, id: entry.id, swipes: swipes)
+              card.map { _ in
+                DayPartFill(edge: closesCard ? .bottom : .middle, id: entry.id, swipes: swipes)
               }
             )
             // Here, not on the fill: a row deleted mid-swipe never reports its background gone.
@@ -39,7 +38,7 @@
     static let swipeClose = Duration.seconds(1)
   }
 
-  /// Heads a card. Bare system colours fall below 3:1 on their own tint, so the text leans to the label colour.
+  /// Heads a card.
   private struct DayPartLabel: View {
     let part: DayPart
 
@@ -54,12 +53,12 @@
     var body: some View {
       title
         .font(AgendaRowStyle.detail.weight(.semibold))
-        .foregroundStyle(part.color.mix(with: .primary, by: 0.35))
+        .foregroundStyle(.secondary)
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityAddTraits(.isHeader)
         .listRowSeparator(.hidden)
         .listRowInsets(EdgeInsets(top: 10, leading: 20, bottom: 4, trailing: 20))
-        .listRowBackground(DayPartShape(part: part, edge: .top))
+        .listRowBackground(DayPartShape(edge: .top))
     }
   }
 
@@ -79,7 +78,6 @@
   /// So a row that has left its place hands its fill to the still layer behind the List.
   @MainActor @Observable final class DayPartSwipes {
     struct Slide: Equatable {
-      let part: DayPart
       let edge: DayPartEdge
       let frame: CGRect
     }
@@ -96,7 +94,7 @@
     var body: some View {
       ZStack(alignment: .topLeading) {
         ForEach(Array(swipes.slides), id: \.key) { _, slide in
-          DayPartShape(part: slide.part, edge: slide.edge)
+          DayPartShape(edge: slide.edge)
             .frame(width: slide.frame.width, height: slide.frame.height)
             .offset(y: slide.frame.minY - swipes.listOrigin.y)
         }
@@ -113,14 +111,13 @@
 
   /// A row's fill in its cell, handed to `DayPartSwipeLayer` while a swipe moves the cell off the List's left edge.
   private struct DayPartFill: View {
-    let part: DayPart
     let edge: DayPartEdge
     let id: AnyHashable
     let swipes: DayPartSwipes
     @State private var release: Task<Void, Never>?
 
     var body: some View {
-      DayPartShape(part: part, edge: edge)
+      DayPartShape(edge: edge)
         .opacity(swipes.slides[id] == nil ? 1 : 0)
         .onGeometryChange(for: CGRect.self) {
           $0.frame(in: .global)
@@ -128,8 +125,7 @@
           let swiped = abs(cell.minX - swipes.listOrigin.x) >= 0.5
           guard swiped || swipes.slides[id] != nil else { return }
           swipes.slides[id] = DayPartSwipes.Slide(
-            part: part, edge: edge,
-            frame: CGRect(x: 0, y: cell.minY, width: cell.width, height: cell.height))
+            edge: edge, frame: CGRect(x: 0, y: cell.minY, width: cell.width, height: cell.height))
           release?.cancel()
           guard !swiped else { return }
           // UIKit reports the closed position as the close animation starts, so the fill waits it out.
@@ -143,20 +139,10 @@
 
   enum DayPartEdge { case top, middle, bottom }
 
+  /// One neutral fill for every card: the shape and the gaps do the grouping.
   private struct DayPartShape: View {
-    let part: DayPart
     let edge: DayPartEdge
     @Environment(\.colorScheme) private var colorScheme
-
-    private var opacity: Double {
-      switch (part, colorScheme) {
-      case (.morning, .dark): 0.17
-      case (.afternoon, .dark): 0.17
-      case (.evening, .dark): 0.24
-      case (.afternoon, _): 0.075
-      default: 0.11
-      }
-    }
 
     var body: some View {
       let top = edge == .top ? DayPartMetrics.corner : 0
@@ -166,20 +152,10 @@
           topLeading: top, bottomLeading: bottom, bottomTrailing: bottom, topTrailing: top),
         style: .continuous
       )
-      .fill(part.color.opacity(opacity))
+      .fill(Color(.secondarySystemBackground).opacity(colorScheme == .dark ? 0.75 : 0.6))
       .padding(.horizontal, DayPartMetrics.margin)
       // Runs past its short cell: a shape cannot round more than its own height, and Free rows are short.
       .padding(.bottom, edge == .bottom ? -DayPartMetrics.endPadding : 0)
-    }
-  }
-
-  extension DayPart {
-    fileprivate var color: Color {
-      switch self {
-      case .morning: .orange
-      case .afternoon: .blue
-      case .evening: .indigo
-      }
     }
   }
 #endif
