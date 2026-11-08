@@ -525,6 +525,15 @@ final class CalendarLayoutTests: XCTestCase {
     XCTAssertEqual(
       CalendarLayout.zoomedHourHeight(48, scale: 0.1), 28, "no shorter than 28pt an hour")
   }
+
+  func testRestoredHourHeightStaysInTheZoomRange() {
+    XCTAssertEqual(CalendarLayout.restoredHourHeight(72), 72, "a saved zoom reopens as it was")
+    XCTAssertEqual(CalendarLayout.restoredHourHeight(500), 120)
+    XCTAssertEqual(CalendarLayout.restoredHourHeight(5), 28)
+    XCTAssertEqual(CalendarLayout.restoredHourHeight(0), 48, "nothing saved")
+    XCTAssertEqual(CalendarLayout.restoredHourHeight(.nan), 48)
+    XCTAssertEqual(CalendarLayout.restoredHourHeight(.infinity), 48)
+  }
 }
 
 final class SearchMatchTests: XCTestCase {

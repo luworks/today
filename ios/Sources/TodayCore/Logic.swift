@@ -470,6 +470,16 @@ public enum CalendarLayout {
 
   /// Hour heights the 2 Day grid can be pinched to, in points: compact enough for a whole day, roomy enough to read short events.
   public static let hourHeights: ClosedRange<Double> = 28...120
+  /// The 2 Day grid's zoom before the user has pinched it.
+  public static let defaultHourHeight = 48.0
+  /// The last pinched zoom, reopened after a restart (not a Settings choice).
+  public static let savedHourHeightKey = "today.last.calendarHourHeight"
+
+  /// The stored zoom kept inside `hourHeights`; anything unusable is the default.
+  public static func restoredHourHeight(_ stored: Double) -> Double {
+    guard stored.isFinite, stored > 0 else { return defaultHourHeight }
+    return min(max(stored, hourHeights.lowerBound), hourHeights.upperBound)
+  }
 
   /// The hour height after a pinch of `scale` that started at `start`, kept inside `hourHeights`.
   public static func zoomedHourHeight(_ start: Double, scale: Double) -> Double {
