@@ -62,6 +62,8 @@ public enum ActivityKind {
   public static let sysError = "sys.error"
   /// An alarm's Stop was tapped (AlarmKit's stop intent); `subject_ref` is the AlarmKit id, `title` the label.
   public static let sysAlarmStopped = "sys.alarm.stopped"
+  public static let sysUpNextSetting = "sys.upnext.setting"
+  public static let sysUpNextDismissed = "sys.upnext.dismissed"
 
   /// The tier a kind belongs to; unknown kinds are system events.
   public static func tier(of kind: String) -> ActivityTier {

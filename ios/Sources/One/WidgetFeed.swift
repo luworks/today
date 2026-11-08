@@ -20,6 +20,7 @@
     private let save: (WidgetSnapshot) -> Bool
     private let reload: () -> Void
     private let enabled: Bool
+    private let upNext: UpNextActivity?
     private var disposed = false
     private var scheduleWork: Task<Void, Never>?
     private var refreshWork: Task<Void, Never>?
@@ -28,7 +29,8 @@
       container: ModelContainer, calendar: any CalendarService, reminders: any ReminderService,
       runtime: PlannerRuntime, enabled: Bool,
       travel: @escaping (String, Date, Bool, TravelPlace?, Date) -> (minutes: Int, leaveBy: Date)?,
-      save: @escaping (WidgetSnapshot) -> Bool, reload: @escaping () -> Void
+      save: @escaping (WidgetSnapshot) -> Bool, reload: @escaping () -> Void,
+      upNext: UpNextActivity? = nil
     ) {
       self.container = container
       self.calendarService = calendar
@@ -38,6 +40,7 @@
       self.travel = travel
       self.save = save
       self.reload = reload
+      self.upNext = upNext
     }
     package func dispose() {
       disposed = true
@@ -45,6 +48,7 @@
       scheduleWork = nil
       refreshWork?.cancel()
       refreshWork = nil
+      upNext?.dispose()
       container = nil
     }
 
@@ -64,6 +68,8 @@
       // on the widget. The store bumps `CalendarSync.version` when it's ready, which calls this again.
       let sync = calendarService
       guard sync.isReady else { return }
+      // Before the unchanged-snapshot return: the card's three-hour window moves even when the items do not.
+      upNext?.refresh(items: items, now: now)
       let settings = WidgetSnapshot.CalendarSettings(
         isOn: sync.isOn, hiddenCalendarIDs: sync.hiddenCalendarIDs.sorted())
       if let last = lastWritten, last.items == items, last.calendar == settings { return }
@@ -91,14 +97,6 @@
         calendarService: calendarService, now: now, calendar: calendar)
       for entry in entries {
         switch entry.source {
-        case .task:
-          for day in days where entry.overlaps(day, calendar: calendar) {
-            let span = entry.span(on: day, calendar: calendar)
-            result.append(
-              WidgetItem(
-                id: "\(entry.id)#\(Int(day.timeIntervalSince1970))", title: entry.title,
-                start: span.allDay ? day : span.start, isAllDay: span.allDay, kind: .reminder))
-          }
         case .system(let id):
           let rows = WidgetItem.eventRows(
             id: entry.id, title: entry.title, start: entry.start, end: entry.end,
@@ -113,15 +111,15 @@
           result += withTravel(
             rows, externalID: e.externalID, start: entry.start, isAllDay: entry.isAllDay,
             fallbackAddress: "", now: now)
-        case .alarm:
-          break  // alarms are added below from `alarms`; `make` is not given any here
+        case .task, .alarm:
+          break  // both are added below, one row each; `make` is not given any alarms
         }
       }
 
       // Reminders with a time on their deadline.
-      for t in tasks where !t.isDone {
-        guard let due = t.due, due >= today, due < end,
-          calendar.dateComponents([.hour, .minute], from: due) != DateComponents(hour: 0, minute: 0)
+      for t in tasks {
+        guard let due = UpNextLive.timedDue(t.due, isDone: t.isDone, calendar: calendar),
+          due >= today, due < end
         else { continue }
         result.append(
           WidgetItem(
@@ -235,6 +233,7 @@
         }
         calendarService.prepareStore()
         rewriteFromStore()
+        await upNext?.settle()
         completion.finish(true)
       }
       refreshWork = work

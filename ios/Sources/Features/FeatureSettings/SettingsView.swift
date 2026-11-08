@@ -257,7 +257,10 @@
       Section {
         Toggle("Show alarms in Today and Calendar", isOn: $showAlarms)
         Toggle("Scroll to now when Today opens", isOn: $jumpToNow)
-        TodayTimelineSettings()
+        TodayTimelineSettings(upNextChanged: { on in
+          ledger.activity.record(ActivityEvents.upNextSetting(on: on))
+          rewriteWidgets()
+        })
         explainedToggle(
           "Travel time", isOn: $travelTime,
           caption:

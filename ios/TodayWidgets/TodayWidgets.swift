@@ -13,6 +13,7 @@ struct TodayWidgetsBundle: WidgetBundle {
   var body: some Widget {
     NextUpWidget()
     AlarmLiveActivity()
+    UpNextLiveActivity()
   }
 }
 

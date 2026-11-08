@@ -50,11 +50,15 @@
         let actions = PlannerActions(
           calendar: calendar, reminders: reminders, alarms: alarms,
           ledger: ledger, runtime: runtime, defaults: defaults)
+        let upNext =
+          UpNextLive.allowsRealActivity(arguments: ProcessInfo.processInfo.arguments)
+          ? UpNextActivity(defaults: defaults, activity: activity, runtime: runtime) : nil
         let widget = WidgetFeed(
           container: container, calendar: calendar, reminders: reminders,
           runtime: runtime, enabled: true,
           travel: { travel.widgetFields(eventID: $0, start: $1, isAllDay: $2, place: $3, now: $4) },
-          save: { $0.save() }, reload: { WidgetCenter.shared.reloadAllTimelines() })
+          save: { $0.save() }, reload: { WidgetCenter.shared.reloadAllTimelines() },
+          upNext: upNext)
         travel.didUpdateEstimate = { [weak widget] in widget?.rewriteFromStore() }
         // A fresh store must re-import from Apple Reminders, never mirror the empty store there.
         if wasReset { reminders.forgetLink() }

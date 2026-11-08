@@ -2,7 +2,7 @@ import Foundation
 
 /// The choices in Settings that were added after the first release: their keys, their defaults, and plain readers.
 /// Plain Swift (Foundation only) so the defaults run under `swift test`. Every default is what the app did before the
-/// choice existed. Screens read these through `@AppStorage`
+/// choice existed, unless its own comment says otherwise. Screens read these through `@AppStorage`
 /// with the same key and default; the readers here are for code that is not a view.
 ///
 /// The older choices (overdue, alarms, scroll to now, travel time, Health summary, chat archive) keep their keys in
@@ -23,11 +23,13 @@ public enum Preferences {
   public static let newAlarmSnoozeKey = "today.setting.newAlarmSnooze"
   public static let newAlarmSoundKey = "today.setting.newAlarmSound"
   public static let weatherSummaryKey = "today.setting.weatherSummary"
+  public static let upNextLiveActivityKey = "today.setting.upNextLiveActivity"
 
   static let allKeys = [
     compressEmptyHoursKey, dimPastDaysKey, firstWeekdayKey, weekNumbersKey, calendarStartKey,
     showFreeTimeKey, newReminderListKey, newEventCalendarKey, newEventAlertKey,
     newAlarmSnoozeKey, newAlarmSoundKey, showSettleKey, weatherSummaryKey,
+    upNextLiveActivityKey,
   ]
 
   // MARK: Defaults (the behaviour before these choices existed)
@@ -51,6 +53,9 @@ public enum Preferences {
   public static let noEventAlert = -1
   public static let newEventAlertChoices = [noEventAlert, 0, 5, 10, 30, 60]
   public static let weatherSummary = false
+  /// ON by explicit owner decision (2026-11-08), overriding the rule that a new choice defaults to the old behaviour.
+  /// The user can turn it off in Settings.
+  public static let upNextLiveActivity = true
 
   // MARK: Choices
 
@@ -169,6 +174,10 @@ public enum Preferences {
 
   public static func newAlarmSoundName(_ defaults: UserDefaults = .standard) -> String {
     defaults.string(forKey: newAlarmSoundKey) ?? newAlarmSound
+  }
+
+  public static func upNextLiveActivityEnabled(_ defaults: UserDefaults = .standard) -> Bool {
+    defaults.object(forKey: upNextLiveActivityKey) as? Bool ?? upNextLiveActivity
   }
 
   // MARK: One-time notices (not Settings)

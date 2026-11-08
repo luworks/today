@@ -106,6 +106,20 @@ public enum ActivityEvents {
       props: ActivityProps.json(["source": source]))
   }
 
+  /// The Lock Screen Up Next setting was switched in Settings.
+  public static func upNextSetting(on: Bool, at date: Date = .now) -> ActivityEvent {
+    ActivityEvent(
+      kind: ActivityKind.sysUpNextSetting, actor: "you", channel: "app", at: date,
+      props: ActivityProps.json(["on": on]))
+  }
+
+  /// The user removed the Up Next card from the Lock Screen.
+  public static func upNextDismissed(at date: Date = .now) -> ActivityEvent {
+    ActivityEvent(
+      kind: ActivityKind.sysUpNextDismissed, actor: "you", channel: "app", at: date,
+      props: ActivityProps.json(["source": "lockscreen"]))
+  }
+
   /// An error with a code, never its message (messages can carry titles).
   public static func error(source: String, code: String, at date: Date = .now) -> ActivityEvent {
     ActivityEvent(

@@ -22,11 +22,13 @@ public struct WidgetItem: Codable, Hashable, Identifiable, Sendable {
   /// Optional so older snapshots still decode.
   public var travelMinutes: Int?
   public var leaveBy: Date?
+  /// True on a later day's row of an event that began on an earlier day: `start` is that day's midnight, not a real start.
+  public var startedEarlier: Bool?
 
   public init(
     id: String, title: String, start: Date, end: Date? = nil, isAllDay: Bool = false, kind: Kind,
     externalID: String? = nil,
-    travelMinutes: Int? = nil, leaveBy: Date? = nil
+    travelMinutes: Int? = nil, leaveBy: Date? = nil, startedEarlier: Bool? = nil
   ) {
     self.id = id
     self.title = title
@@ -37,6 +39,7 @@ public struct WidgetItem: Codable, Hashable, Identifiable, Sendable {
     self.externalID = externalID
     self.travelMinutes = travelMinutes
     self.leaveBy = leaveBy
+    self.startedEarlier = startedEarlier
   }
 
   /// "Drive 18 min · Leave by 14:20" for this item at `now`, or nil without an estimate.
@@ -62,7 +65,8 @@ public struct WidgetItem: Codable, Hashable, Identifiable, Sendable {
       return WidgetItem(
         id: "\(id)#\(Int(interval.start.timeIntervalSince1970))", title: title,
         start: allDay ? interval.start : s, end: allDay ? nil : e,
-        isAllDay: allDay, kind: .event, externalID: externalID)
+        isAllDay: allDay, kind: .event, externalID: externalID,
+        startedEarlier: start < interval.start ? true : nil)
     }
   }
 }
