@@ -99,13 +99,15 @@ public enum ActionPolicy {
     public var changedSincePreview: Bool
     /// The user reported someone else's words or plans (`FastLane.isReportedSpeech`): not a request.
     public var reportedSpeech: Bool
+    /// Settings > AI Changes is Preview First: a clear request gets a card to tap, not a direct write.
+    public var previewFirst: Bool
 
     public init(
       tool: AgentTool, source: Source, words: Words = .user, kind: Kind,
       fields: Set<Field> = [], askedForAction: Bool = false,
       userAskedToMoveEvent: Bool = false, attendees: Int = 0, affectsSeries: Bool = false,
       fromNote: Bool = false, viaMakeTask: Bool = false, fromAlarmStop: Bool = false,
-      changedSincePreview: Bool = false, reportedSpeech: Bool = false
+      changedSincePreview: Bool = false, reportedSpeech: Bool = false, previewFirst: Bool = false
     ) {
       self.tool = tool
       self.source = source
@@ -121,6 +123,7 @@ public enum ActionPolicy {
       self.fromAlarmStop = fromAlarmStop
       self.changedSincePreview = changedSincePreview
       self.reportedSpeech = reportedSpeech
+      self.previewFirst = previewFirst
     }
   }
 
@@ -203,7 +206,7 @@ public enum ActionPolicy {
     // Owner decision 2026-11-02: a clear request in the user's own words is applied right after the
     // reply, with Undo. Questions, chit-chat and words written by others only get a preview.
     if r.words == .user, r.askedForAction, r.source == .fastLane || r.source == .agent {
-      return .direct
+      return r.previewFirst ? .preview : .direct
     }
     // Principle 6 needs no rule of its own: nothing here moves an overdue item without being asked.
     return .preview

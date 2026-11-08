@@ -83,6 +83,7 @@
     @AppStorage(SettingsKey.showAlarms) private var showAlarms = true
     @AppStorage(SettingsKey.jumpToNow) private var jumpToNow = true
     @AppStorage(SettingsKey.autoArchiveChats) private var autoArchiveChats = true
+    @AppStorage(Preferences.aiChangesKey) private var aiChanges = Preferences.aiChanges
     @AppStorage(SmartListLayout.orderKey) private var smartOrder = ""
     @AppStorage(SmartListLayout.hiddenKey) private var smartHidden = ""
     @AppStorage(SettingsKey.travelTime) private var travelTime = true
@@ -323,6 +324,12 @@
     private var aiSection: some View {
       Section {
         NavigationLink("Luna AI") { AIAccountView() }
+        NavigationLink {
+          AIChangesSettings(settingChanged: recordSetting)
+        } label: {
+          LabeledContent("AI Changes", value: Preferences.aiChanges(stored: aiChanges).title)
+        }
+        .accessibilityIdentifier("settings.aiChanges")
         explainedToggle(
           "Archive finished chats", isOn: $autoArchiveChats,
           caption:

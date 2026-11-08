@@ -258,4 +258,11 @@ final class PreferencesTests: XCTestCase {
       XCTAssertEqual(ReminderPlan.delivery(choice, isAlarmFallback: true), .timeSensitive)
     }
   }
+
+  func testAIChangesDefaultsAndFallbacks() {
+    XCTAssertEqual(Preferences.aiChanges(stored: nil), .applyDirectly)
+    XCTAssertEqual(Preferences.aiChanges(stored: "retired"), .applyDirectly)
+    XCTAssertEqual(Preferences.aiChanges(stored: Preferences.aiChanges), .applyDirectly)
+    XCTAssertEqual(Preferences.aiChanges(stored: "previewFirst"), .previewFirst)
+  }
 }

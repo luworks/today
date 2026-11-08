@@ -238,4 +238,24 @@ final class ActionPolicyTests: XCTestCase {
     reminder.changedSincePreview = true
     XCTAssertEqual(ActionPolicy.tier(reminder), .refuse(.changedSincePreview))
   }
+
+  func testPreviewFirstKeepsAClearRequestOnItsCard() {
+    func request(previewFirst: Bool, attendees: Int = 0) -> ActionPolicy.Request {
+      ActionPolicy.Request(
+        tool: .proposeEdit, source: .agent, kind: .event, fields: [.title],
+        askedForAction: true, attendees: attendees, previewFirst: previewFirst)
+    }
+    XCTAssertEqual(ActionPolicy.tier(request(previewFirst: false)), .direct)
+    XCTAssertEqual(ActionPolicy.tier(request(previewFirst: true)), .preview)
+    XCTAssertEqual(
+      ActionPolicy.tier(request(previewFirst: true, attendees: 2)),
+      ActionPolicy.tier(request(previewFirst: false, attendees: 2)))
+    XCTAssertEqual(
+      ActionPolicy.tier(
+        ActionPolicy.Request(
+          tool: .proposeCreate, source: .fastLane, kind: .reminder, askedForAction: true,
+          previewFirst: true)), .preview)
+    XCTAssertEqual(
+      ActionPolicy.recheck(shown: .preview, now: request(previewFirst: true)), .apply)
+  }
 }

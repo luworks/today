@@ -186,6 +186,10 @@
           ))
         return
       }
+      guard !previewsFirst else {
+        messages.append(reply("This applies only when you tap Apply."))
+        return
+      }
       apply(card)
     }
 
@@ -306,15 +310,23 @@
       persistCards()
     }
 
+    /// Settings > AI Changes: clear requests leave their cards for a tap.
+    var previewsFirst: Bool { Preferences.aiPreviewsFirst(presentation.defaults) }
+
     /// Adds each open card that has what it needs; the rest wait (an alarm asks for its time).
-    /// Returns the receipt sentence.
+    /// With Preview First a ready card waits for its Add too. Returns the receipt sentence.
     func applyOpenProposals(_ ids: [UUID], chinese: Bool) -> String {
       var receipt = AgentReply.Receipt()
       var asksTime = false
+      let previewFirst = previewsFirst
       for id in ids {
         guard let p = proposals.first(where: { $0.id == id }), p.status == .open else { continue }
         guard ActionPolicy.autoAddReady(p.capture) else {
           if p.capture.ringsAsAlarm && p.capture.hour == nil { asksTime = true }
+          continue
+        }
+        if previewFirst {
+          receipt.waiting += 1
           continue
         }
         if let written = commit(id, reportFailure: false) {

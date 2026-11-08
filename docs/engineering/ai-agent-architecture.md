@@ -163,6 +163,7 @@ AgentRunner ─ModelClient─ Worker ─ Luna  │
 ### 4.2 关键规则
 
 - **`direct`（2026-11-02 负责人决定）**：来源是快车道或 agent，原话由用户亲手输入或口述，而且明确要求操作（`ActionPolicy.asksForAction`：不是提问、闲聊、拒绝或转述别人的话；"能帮我…吗"这类礼貌请求算）。新建提醒、闹钟、事件（一句多条、重复的也算），改、挪、删自己的条目，整理逾期，都在本轮回复后由 Ask 直接执行（`autoApply`），卡片显示 Added / Applied 和 Undo。缺信息（闹钟没时间、事件没日期、不知道是哪条）就追问，不猜也不建（`ActionPolicy.autoAddReady`）。
+- **Preview First（设置 → AI → AI Changes，默认 Apply Directly）**：`ActionPolicy.Request.previewFirst` 把上面的 `direct` 降为 `preview`，快车道的 `applyOpenProposals`、`present` 和离线整理逾期也不写入；卡片等用户点 Add / Apply。本来就要点的卡片（有参会人、整个系列、提问、信息不全）不变。
 - **多轮续答**：用户补充的回答（"4点""好的""go ahead"）**只能补全快车道自己的草稿**，补全后直接添加；永远不能用来 Apply agent 的卡。
 - **执行前重新检查**：每个 Proposal 都带一份预期快照（`lastModified`、时间、参会人数、是否重复）。自动执行或用户点 Apply 时，先和 Apple 那边的最新状态对比：对不上就作废这张卡并说明原因；等级变了（比如刚多了参会人）就重新确认。
 - **后果确认**：Undo 撤不回已经发出的东西，所以有参会人（会通知别人）或影响整个系列的改动和删除定为 `confirmConsequence`，仍要用户点。没有参会人的单次事件删除可以直接做，Undo 会把它恢复成新事件。卡片写明"会通知 N 人 / 影响整个系列"，并且不能用"全部添加"一起提交。
