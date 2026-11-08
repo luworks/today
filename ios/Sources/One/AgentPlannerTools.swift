@@ -796,8 +796,8 @@
       if c.kind == .event && c.hour == nil {
         o["note"] = "No time given: shown as all-day. Ask if a time is wanted."
       } else if c.kind == .event, let start = c.clockTime(calendar: cal) {
-        // What Add writes: an event without a length lasts an hour.
-        let minutes = c.durationMinutes ?? 60
+        // What Add writes: an event without a length lasts Settings → "New event length".
+        let minutes = c.durationMinutes ?? actions.newEventMinutes
         o["minutes"] = .number(Double(minutes))
         o["end"] = stamp(start.addingTimeInterval(TimeInterval(minutes * 60)))
       }

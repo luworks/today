@@ -108,7 +108,9 @@
           if includes(.appearance) { appearanceSection }
           if includes(.apple) { appleSection }
           if includes(.today) { todaySection }
-          if includes(.calendar) { CalendarSettingsSection(calendars: calendar.calendars()) }
+          if includes(.calendar) {
+            CalendarSettingsSection(calendars: calendar.calendars(), settingChanged: recordSetting)
+          }
           if includes(.reminders) { RemindersSettingsSection() }
           if includes(.smartLists) { smartListsSection }
           if includes(.alarms) { AlarmsSettingsSection() }

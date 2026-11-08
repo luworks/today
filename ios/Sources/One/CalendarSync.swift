@@ -734,6 +734,10 @@
     }
 
     /// Settings → "New events go to" when that calendar still exists and is writable, else the system default.
+    package var newEventLength: TimeInterval {
+      TimeInterval(Preferences.newEventMinutes(defaults) * 60)
+    }
+
     package var calendarForNewEvents: EKCalendar? {
       let writable = store.calendars(for: .event).filter(\.allowsContentModifications)
       if let id = Preferences.newEventCalendar(
@@ -1181,7 +1185,7 @@
 
     /// `identifier` nil = a new event starting at `start`.
     /// `start`: for an existing event, the start of the occurrence that was tapped; for a new event, when it starts.
-    /// `end`: for a new event, when it ends (default one hour after `start`).
+    /// `end`: for a new event, when it ends (default: Settings → "New event length" after `start`).
     /// Every event, new or existing, opens in Apple's own Edit Event: it has every field Apple Calendar has (calendar,
     /// alerts, travel time, invitees, attachments), several of which EventKit gives no API to write.
     /// Like Apple Calendar, its checkmark stays grey until something changes; X closes an unchanged event.
@@ -1200,7 +1204,7 @@
       } else {
         let event = EKEvent(eventStore: sync.eventStore)
         event.startDate = start
-        event.endDate = end ?? start.addingTimeInterval(3600)
+        event.endDate = end ?? start.addingTimeInterval(sync.newEventLength)
         event.calendar = sync.calendarForNewEvents
         vc.event = event
       }
@@ -1324,7 +1328,7 @@
       } else {
         let event = EKEvent(eventStore: sync.eventStore)
         event.startDate = start
-        event.endDate = start.addingTimeInterval(3600)
+        event.endDate = start.addingTimeInterval(sync.newEventLength)
         event.calendar = sync.calendarForNewEvents
         vc.event = event
       }

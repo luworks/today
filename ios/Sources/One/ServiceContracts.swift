@@ -72,6 +72,8 @@
     var eventStore: EKEventStore { get }
     /// Settings → "New events go to" when that calendar still exists and is writable, else the system default.
     var calendarForNewEvents: EKCalendar? { get }
+    /// Settings → "New event length", in seconds, for a new event with no end of its own.
+    var newEventLength: TimeInterval { get }
     func nativeEvent(identifier: String, occurrence: Date?) -> (EKEvent, EKEventStore)?
     func edit(
       identifier: String?, start: Date, end: Date?,
