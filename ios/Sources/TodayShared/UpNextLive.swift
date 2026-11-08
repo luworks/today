@@ -27,10 +27,14 @@ public enum UpNextLive {
 
   /// Items with a clock time where `now < start <= now + 3 hours`, soonest first, at most three.
   /// Rolling, not by calendar day, so 23:00 includes 00:30 tomorrow. Ties keep the order they came in.
-  public static func rows(from items: [WidgetItem], now: Date) -> [UpNextRow] {
+  /// `settledIDs`: items the user settled today; they take no slot, so the next item moves up.
+  public static func rows(
+    from items: [WidgetItem], now: Date, settledIDs: Set<String>
+  ) -> [UpNextRow] {
     let end = now.addingTimeInterval(window)
     let timed = items.filter {
-      !$0.isAllDay && $0.startedEarlier != true && $0.start > now && $0.start <= end
+      !settledIDs.contains($0.id) && !$0.isAllDay && $0.startedEarlier != true
+        && $0.start > now && $0.start <= end
     }
     let sorted = timed.enumerated().sorted {
       $0.element.start == $1.element.start

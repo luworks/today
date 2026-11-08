@@ -21,6 +21,7 @@
     private let reload: () -> Void
     private let enabled: Bool
     private let upNext: UpNextActivity?
+    private let focus: TodayFocus?
     private var disposed = false
     private var scheduleWork: Task<Void, Never>?
     private var refreshWork: Task<Void, Never>?
@@ -30,7 +31,7 @@
       runtime: PlannerRuntime, enabled: Bool,
       travel: @escaping (String, Date, Bool, TravelPlace?, Date) -> (minutes: Int, leaveBy: Date)?,
       save: @escaping (WidgetSnapshot) -> Bool, reload: @escaping () -> Void,
-      upNext: UpNextActivity? = nil
+      upNext: UpNextActivity? = nil, focus: TodayFocus? = nil
     ) {
       self.container = container
       self.calendarService = calendar
@@ -41,6 +42,7 @@
       self.save = save
       self.reload = reload
       self.upNext = upNext
+      self.focus = focus
     }
     package func dispose() {
       disposed = true
@@ -63,13 +65,14 @@
     ) {
       // UI tests run on a throwaway store; keep them from replacing what the widget shows.
       guard enabled, !disposed else { return }
-      let items = items(tasks: tasks, events: events, alarms: alarms, now: now, calendar: calendar)
+      let (items, settledIDs) = itemsAndSettled(
+        tasks: tasks, events: events, alarms: alarms, now: now, calendar: calendar)
       // Right after launch EventKit is still warming up and system events read as none; writing now would blank them
       // on the widget. The store bumps `CalendarSync.version` when it's ready, which calls this again.
       let sync = calendarService
       guard sync.isReady else { return }
       // Before the unchanged-snapshot return: the card's three-hour window moves even when the items do not.
-      upNext?.refresh(items: items, now: now)
+      upNext?.refresh(items: items, settledIDs: settledIDs, now: now)
       let settings = WidgetSnapshot.CalendarSettings(
         isOn: sync.isOn, hiddenCalendarIDs: sync.hiddenCalendarIDs.sorted())
       if let last = lastWritten, last.items == items, last.calendar == settings { return }
@@ -82,14 +85,34 @@
     package func items(
       tasks: [OneTask], events: [OneEvent], alarms: [OneAlarm], now: Date, calendar: Calendar
     ) -> [WidgetItem] {
+      itemsAndSettled(tasks: tasks, events: events, alarms: alarms, now: now, calendar: calendar)
+        .items
+    }
+
+    /// `settledIDs` are for the Lock Screen card only; the snapshot and the other widgets still get every item.
+    package func itemsAndSettled(
+      tasks: [OneTask], events: [OneEvent], alarms: [OneAlarm], now: Date, calendar: Calendar
+    ) -> (items: [WidgetItem], settledIDs: Set<String>) {
       let today = calendar.startOfDay(for: now)
       let days = (0..<WidgetSnapshot.days).compactMap {
         calendar.date(byAdding: .day, value: $0, to: today)
       }
       guard let end = calendar.date(byAdding: .day, value: WidgetSnapshot.days, to: today) else {
-        return []
+        return ([], [])
       }
       var result: [WidgetItem] = []
+      var settledIDs = Set<String>()
+      let focus = focus.flatMap { $0.records.isEmpty ? nil : $0 }
+      // The same read as Today's timeline. It does not depend on Show Settle, which only hides the action and the section.
+      func noteSettled(_ rows: [WidgetItem], _ identity: (TodayFocus) -> FocusIdentity?) {
+        guard let focus else { return }
+        let onToday = rows.filter {
+          SettleGate.applies(to: $0.start, now: now, calendar: calendar)
+        }
+        guard !onToday.isEmpty, focus.state(for: identity(focus), now: now, on: now) == .settled
+        else { return }
+        settledIDs.formUnion(onToday.map(\.id))
+      }
 
       // Apple Calendar events, Today's own events and planned tasks, the way the Calendar tab merges them.
       let entries = CalendarEntries.make(
@@ -101,6 +124,11 @@
           let rows = WidgetItem.eventRows(
             id: entry.id, title: entry.title, start: entry.start, end: entry.end,
             isAllDay: entry.isAllDay, externalID: id, days: days, calendar: calendar)
+          noteSettled(rows) {
+            $0.identity(
+              ofSystemEvent: id, start: entry.start, repeats: entry.repeats,
+              calendar: calendarService)
+          }
           result += withTravel(
             rows, externalID: id, start: entry.start, isAllDay: entry.isAllDay,
             fallbackAddress: entry.location, now: now)
@@ -108,6 +136,7 @@
           let rows = WidgetItem.eventRows(
             id: entry.id, title: entry.title, start: entry.start, end: entry.end,
             isAllDay: entry.isAllDay, externalID: e.externalID, days: days, calendar: calendar)
+          noteSettled(rows) { $0.identity(of: e, start: entry.start, calendar: calendarService) }
           result += withTravel(
             rows, externalID: e.externalID, start: entry.start, isAllDay: entry.isAllDay,
             fallbackAddress: "", now: now)
@@ -121,9 +150,10 @@
         guard let due = UpNextLive.timedDue(t.due, isDone: t.isDone, calendar: calendar),
           due >= today, due < end
         else { continue }
-        result.append(
-          WidgetItem(
-            id: "d\(t.persistentModelID.hashValue)", title: t.title, start: due, kind: .reminder))
+        let row = WidgetItem(
+          id: "d\(t.persistentModelID.hashValue)", title: t.title, start: due, kind: .reminder)
+        noteSettled([row]) { $0.identity(of: t, reminders: reminders) }
+        result.append(row)
       }
 
       // Alarms that ring on those days.
@@ -135,14 +165,15 @@
               calendar: calendar)
           else { continue }
           let title = a.label.isEmpty ? AlarmPlan.defaultLabel : a.label
-          result.append(
-            WidgetItem(
-              id: "a\(a.persistentModelID.hashValue)#\(Int(day.timeIntervalSince1970))",
-              title: title,
-              start: fire, kind: .alarm))
+          let row = WidgetItem(
+            id: "a\(a.persistentModelID.hashValue)#\(Int(day.timeIntervalSince1970))",
+            title: title,
+            start: fire, kind: .alarm)
+          noteSettled([row]) { $0.identity(of: a, fireDate: fire) }
+          result.append(row)
         }
       }
-      return result.sorted(by: NextItems.ordered)
+      return (result.sorted(by: NextItems.ordered), settledIDs)
     }
 
     /// Adds "Drive 18 min · Leave by" data to the row where the event starts, when Travel time has an estimate.

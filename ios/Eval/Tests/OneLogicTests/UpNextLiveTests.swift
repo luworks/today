@@ -23,7 +23,7 @@ final class UpNextLiveTests: XCTestCase {
   }
 
   private func titles(_ items: [WidgetItem], now: Date) -> [String] {
-    UpNextLive.rows(from: items, now: now).map(\.title)
+    UpNextLive.rows(from: items, now: now, settledIDs: []).map(\.title)
   }
 
   // MARK: Selection
@@ -76,7 +76,7 @@ final class UpNextLiveTests: XCTestCase {
 
   func testLongTitleFitsTheActivityPayload() {
     let row = UpNextLive.rows(
-      from: [item(String(repeating: "x", count: 5000), at(10))], now: at(9))[0]
+      from: [item(String(repeating: "x", count: 5000), at(10))], now: at(9), settledIDs: [])[0]
     XCTAssertEqual(row.title.count, UpNextLive.maxTitleLength)
   }
 
@@ -87,11 +87,42 @@ final class UpNextLiveTests: XCTestCase {
       externalID: nil, days: days, calendar: calendar)
     XCTAssertEqual(rows.count, 2)
     XCTAssertEqual(rows.map(\.startedEarlier), [nil, true])
-    XCTAssertEqual(UpNextLive.rows(from: rows, now: at(23)), [], "midnight is not its start")
+    XCTAssertEqual(
+      UpNextLive.rows(from: rows, now: at(23), settledIDs: []), [], "midnight is not its start")
     let midnightStart = WidgetItem.eventRows(
       id: "m", title: "midnight", start: at(0, day: 9), end: at(1, day: 9), isAllDay: false,
       externalID: nil, days: days, calendar: calendar)
     XCTAssertEqual(titles(midnightStart, now: at(23)), ["midnight"], "a real 00:00 start counts")
+  }
+
+  // MARK: Settled
+
+  func testASettledItemOfEveryKindIsExcluded() {
+    let now = at(9)
+    for kind in [WidgetItem.Kind.event, .reminder, .alarm] {
+      let items = [item("settled", at(10), kind: kind), item("next", at(11), kind: kind)]
+      XCTAssertEqual(
+        UpNextLive.rows(from: items, now: now, settledIDs: ["settled"]).map(\.title), ["next"])
+    }
+  }
+
+  func testTheNextItemFillsASettledSlot() {
+    let now = at(9)
+    let items = [
+      item("a", at(10)), item("b", at(10, 30)), item("c", at(11)), item("d", at(11, 30)),
+    ]
+    XCTAssertEqual(
+      UpNextLive.rows(from: items, now: now, settledIDs: ["b"]).map(\.title), ["a", "c", "d"])
+  }
+
+  func testAllSettledMeansNoCard() {
+    let now = at(9)
+    let items = [item("a", at(10)), item("b", at(11))]
+    let rows = UpNextLive.rows(from: items, now: now, settledIDs: ["a", "b"])
+    XCTAssertEqual(rows, [])
+    XCTAssertEqual(action(rows: rows, live: nil, now: now), .none)
+    let live = UpNextLifecycle.Live(rows: row, requestedAt: at(8))
+    XCTAssertEqual(action(rows: rows, live: live, now: now), .end)
   }
 
   func testTimedDueExcludesCompletedAndUntimed() {

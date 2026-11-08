@@ -985,36 +985,30 @@
     private func target(_ task: OneTask) -> FocusTarget {
       let ref = TodayFocus.reference(task.persistentModelID)
       return FocusTarget(
-        identity: actions.focus.identity(
-          resolution: reminders.focusIdentity(task), localReference: ref, kind: "reminder",
-          occurrence: task.repeats == nil ? nil : task.due),
+        identity: actions.focus.identity(of: task, reminders: reminders),
         reference: ref, title: task.title, subject: AskSubject(task: task))
     }
 
     private func target(_ event: OneEvent, start: Date) -> FocusTarget {
       let ref = TodayFocus.reference(event.persistentModelID)
       return FocusTarget(
-        identity: actions.focus.identity(
-          resolution: calendar.cachedFocusIdentity(externalID: event.externalID, occurrence: start),
-          localReference: ref, kind: "event", occurrence: event.repeats == nil ? nil : start),
+        identity: actions.focus.identity(of: event, start: start, calendar: calendar),
         reference: ref, title: event.title, subject: AskSubject(event: event, start: start))
     }
 
     private func target(_ event: ExternalEvent) -> FocusTarget {
-      let ref = "eventkit:" + event.eventIdentifier
-      return FocusTarget(
+      FocusTarget(
         identity: actions.focus.identity(
-          resolution: calendar.cachedFocusIdentity(
-            externalID: event.eventIdentifier, occurrence: event.start),
-          localReference: ref, kind: "event", occurrence: event.repeats ? event.start : nil),
-        reference: ref, title: event.title, subject: AskSubject(event: event))
+          ofSystemEvent: event.eventIdentifier, start: event.start, repeats: event.repeats,
+          calendar: calendar),
+        reference: "eventkit:" + event.eventIdentifier, title: event.title,
+        subject: AskSubject(event: event))
     }
 
     private func target(_ alarm: OneAlarm, fireDate: Date) -> FocusTarget {
       let ref = TodayFocus.reference(alarm.persistentModelID)
       return FocusTarget(
-        identity: actions.focus.identity(
-          resolution: .localOnly, localReference: ref, kind: "alarm", occurrence: fireDate),
+        identity: actions.focus.identity(of: alarm, fireDate: fireDate),
         reference: ref, title: alarm.label.isEmpty ? "Alarm" : alarm.label,
         subject: AskSubject(alarm: alarm))
     }

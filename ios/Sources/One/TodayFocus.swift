@@ -12,6 +12,8 @@
     @ObservationIgnored private let ledger: Ledger
     @ObservationIgnored private let runtime: PlannerRuntime
     @ObservationIgnored private var invalidatedReferences: Set<String> = []
+    /// Runs after every committed change, Undo included, so what depends on Settle off-screen can recompute.
+    @ObservationIgnored package var onChange: (@MainActor () -> Void)?
     package private(set) var revision = 0
     package private(set) var errorMessage: String?
 
@@ -88,6 +90,38 @@
       }
     }
 
+    // The single mapping from an item to its Settle identity, shared by Today's rows and the Lock Screen card.
+
+    package func identity(of task: OneTask, reminders: any ReminderService) -> FocusIdentity? {
+      identity(
+        resolution: reminders.focusIdentity(task),
+        localReference: Self.reference(task.persistentModelID), kind: "reminder",
+        occurrence: task.repeats == nil ? nil : task.due)
+    }
+
+    package func identity(of event: OneEvent, start: Date, calendar: any CalendarService)
+      -> FocusIdentity?
+    {
+      identity(
+        resolution: calendar.cachedFocusIdentity(externalID: event.externalID, occurrence: start),
+        localReference: Self.reference(event.persistentModelID), kind: "event",
+        occurrence: event.repeats == nil ? nil : start)
+    }
+
+    package func identity(
+      ofSystemEvent id: String, start: Date, repeats: Bool, calendar: any CalendarService
+    ) -> FocusIdentity? {
+      identity(
+        resolution: calendar.cachedFocusIdentity(externalID: id, occurrence: start),
+        localReference: "eventkit:" + id, kind: "event", occurrence: repeats ? start : nil)
+    }
+
+    package func identity(of alarm: OneAlarm, fireDate: Date) -> FocusIdentity? {
+      identity(
+        resolution: .localOnly, localReference: Self.reference(alarm.persistentModelID),
+        kind: "alarm", occurrence: fireDate)
+    }
+
     package func state(for identity: FocusIdentity?, now: Date, on day: Date? = nil)
       -> TodayFocusState?
     {
@@ -127,7 +161,7 @@
         toast?.showNotice("Couldn't save this Focus choice. Nothing was changed. Try again.")
         return false
       }
-      revision += 1
+      changed()
       let committed = store.record(for: identity, on: selectedDay, calendar: runtime.calendar)
       let action: LedgerAction
       let message: String
@@ -169,7 +203,7 @@
           try store.set(
             state: restored, for: identity, now: self.runtime.now(), localReference: localReference,
             on: selectedDay, calendar: self.runtime.calendar)
-          self.revision += 1
+          self.changed()
           self.ledger.recordUndo(of: entry, context: context)
         } catch {
           toast?.showNotice("Couldn't undo this Focus choice. Use Restore in Today to retry.")
@@ -181,7 +215,12 @@
     package func clear() throws {
       guard let store else { throw CocoaError(.fileReadCorruptFile) }
       try store.clear()
+      changed()
+    }
+
+    private func changed() {
       revision += 1
+      onChange?()
     }
 
     private func label(_ state: TodayFocusState?) -> String {

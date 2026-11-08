@@ -152,7 +152,7 @@ words in `Sources/TodayShared/LockScreenNext.swift`; or "Nothing else today" plu
 circular (next time in a ring of how much of today is done) and inline (above the clock). Home Screen: small (next item,
 "in 2 hr") and medium (next three, each row opens Today on its day via `today://today?day=YYYY-MM-DD`).
 
-**Up Next Live Activity**: at most three timed items with `now < start <= now + 3 h`, as time and title rows on the Lock Screen
+**Up Next Live Activity**: at most three timed items with `now < start <= now + 3 h`, not settled today (a settled item takes no slot), as time and title rows on the Lock Screen
 (`UpNextLive.swift` decides, `Sources/One/UpNextActivity.swift` talks to ActivityKit, `TodayWidgets/UpNextLiveActivity.swift` draws).
 Local updates only, from foreground, data changes and `BGAppRefreshTask`; only the foreground can start a card. No push entitlement.
 Near the 8-hour system cap a foreground replaces the card. A Lock Screen dismissal holds for that calendar day. Never under `-uiTesting`.
