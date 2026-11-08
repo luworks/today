@@ -5,7 +5,7 @@ on:
     types: [checks_requested]
   push:
     branches: [main]
-  # Manual only: the complete suites (`full`).
+  # Manual only: the simulator-hosted non-UI suites (`full`). CI runs no UI tests.
   workflow_dispatch:
 permissions:
   contents: read
@@ -103,4 +103,7 @@ jobs:
         with:
           persist-credentials: false
       - run: ./dev bootstrap --tool xcodegen
-      - run: ./dev test release --full --timeout 1800
+      - run: ./dev test unit --timeout 1800
+      - run: ./dev test ios-unit --timeout 1800
+      - run: ./dev test integration --timeout 1800
+      - run: ./dev test snapshot --timeout 1800
