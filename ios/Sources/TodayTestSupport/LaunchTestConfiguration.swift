@@ -105,6 +105,7 @@ public enum LaunchTestConfiguration {
     CalendarLayout.savedHourHeightKey,
     Preferences.afternoonStartKey, Preferences.eveningStartKey, Preferences.freeRowMinutesKey,
     Preferences.newEventMinutesKey, Preferences.quickPresetsKey,
+    Preferences.reminderInterruptionKey,
   ]
 }
 

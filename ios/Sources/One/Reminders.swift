@@ -32,16 +32,18 @@
     private let reminders: any ReminderService
     private let ledger: Ledger
     private let runtime: PlannerRuntime
+    private let defaults: UserDefaults
 
     package init(
       center: UNUserNotificationCenter, alarms: any AlarmService, reminders: any ReminderService,
-      ledger: Ledger, runtime: PlannerRuntime
+      ledger: Ledger, runtime: PlannerRuntime, defaults: UserDefaults
     ) {
       self.center = center
       self.alarms = alarms
       self.reminders = reminders
       self.ledger = ledger
       self.runtime = runtime
+      self.defaults = defaults
       super.init()
     }
 
@@ -119,6 +121,7 @@
 
       // "Ring as alarm" replaces the notification when AlarmKit can ring it; otherwise the notification is the fallback.
       let rings = alarms.authorization == .authorized
+      let choice = Preferences.reminderInterruption(defaults)
       var requests: [(Date, UNNotificationRequest)] = []
       for task in tasks {
         guard let fire = plannerReminderDate(task, runtime: runtime), fire > now, fire < horizon
@@ -126,6 +129,8 @@
         if rings, task.ringsAsAlarm { continue }
         // A synced reminder with only a due time is alerted by Apple Reminders itself; ours would be a duplicate.
         if task.externalID != nil { continue }
+        let delivery = ReminderPlan.delivery(choice, isAlarmFallback: task.ringsAsAlarm)
+        guard let level = Self.level(delivery) else { continue }
         let id = Self.key(task.persistentModelID)
         let when = task.due.map { "Due " + plannerDayLabel($0, runtime: runtime) } ?? ""
         requests.append(
@@ -135,7 +140,7 @@
               id: "\(id)#0", title: task.title, body: when,
               category: ReminderAlert(rawValue: task.reminderAlert)?.category ?? Self.taskCategory,
               key: id,
-              at: fire, alert: ReminderAlert(rawValue: task.reminderAlert))
+              at: fire, alert: ReminderAlert(rawValue: task.reminderAlert), level: level)
           ))
       }
       for event in events {
@@ -156,9 +161,35 @@
       }
 
       let pending = await center.pendingNotificationRequests()
-      let snoozed = pending.filter { $0.identifier.hasPrefix(Self.snoozePrefix) }
+      let fallbacks = rings ? [] : Set(tasks.filter(\.ringsAsAlarm).map(\.persistentModelID))
+      var snoozed: [UNNotificationRequest] = []
+      var dropped: [String] = []
+      for snooze in pending where snooze.identifier.hasPrefix(Self.snoozePrefix) {
+        // A snoozed event isn't a reminder; this setting leaves it alone.
+        guard snooze.content.categoryIdentifier != Self.eventCategory else {
+          snoozed.append(snooze)
+          continue
+        }
+        let id = (snooze.content.userInfo["key"] as? String).flatMap(Self.identifier(from:))
+        let delivery = ReminderPlan.delivery(
+          choice, isAlarmFallback: id.map { fallbacks.contains($0) } ?? false)
+        guard let level = Self.level(delivery) else {
+          dropped.append(snooze.identifier)
+          continue
+        }
+        snoozed.append(snooze)
+        if snooze.content.interruptionLevel != level,
+          let content = snooze.content.mutableCopy() as? UNMutableNotificationContent
+        {
+          content.interruptionLevel = level
+          try? await center.add(
+            UNNotificationRequest(
+              identifier: snooze.identifier, content: content, trigger: snooze.trigger))
+        }
+      }
       center.removePendingNotificationRequests(
-        withIdentifiers: pending.map(\.identifier).filter { !$0.hasPrefix(Self.snoozePrefix) })
+        withIdentifiers: dropped
+          + pending.map(\.identifier).filter { !$0.hasPrefix(Self.snoozePrefix) })
       for (_, r) in requests.sorted(by: { $0.0 < $1.0 }).prefix(
         max(0, Self.maxPending - snoozed.count))
       {
@@ -170,7 +201,7 @@
 
     private func request(
       id: String, title: String, body: String, category: String, key: String, at date: Date,
-      alert: ReminderAlert? = nil
+      alert: ReminderAlert? = nil, level: UNNotificationInterruptionLevel = .timeSensitive
     ) -> UNNotificationRequest {
       let content = UNMutableNotificationContent()
       content.title = title
@@ -183,12 +214,21 @@
       content.categoryIdentifier = category
       content.threadIdentifier = key
       content.userInfo = ["key": key]
-      content.interruptionLevel = .timeSensitive
+      content.interruptionLevel = level
       let parts = runtime.calendar.dateComponents(
         [.year, .month, .day, .hour, .minute, .second], from: date)
       return UNNotificationRequest(
         identifier: id, content: content,
         trigger: UNCalendarNotificationTrigger(dateMatching: parts, repeats: false))
+    }
+
+    private static func level(_ delivery: ReminderPlan.Delivery) -> UNNotificationInterruptionLevel?
+    {
+      switch delivery {
+      case .timeSensitive: .timeSensitive
+      case .active: .active
+      case .skip: nil
+      }
     }
 
     private static func key(_ id: PersistentIdentifier) -> String {
@@ -227,19 +267,29 @@
       async
     {
       guard !disposed else { return }
-      let alert: ReminderAlert? = {
-        guard let id = Self.identifier(from: key),
-          let task = container?.mainContext.model(for: id) as? OneTask
-        else { return nil }
-        return ReminderAlert(rawValue: task.reminderAlert)
-      }()
+      let snoozedTask = Self.identifier(from: key).flatMap {
+        container?.mainContext.model(for: $0) as? OneTask
+      }
+      let alert = snoozedTask.flatMap { ReminderAlert(rawValue: $0.reminderAlert) }
       let customFire =
         action == "SNOOZE_CUSTOM"
         ? alert?.snoozeMinutes.map { runtime.now().addingTimeInterval(Double($0 * 60)) } : nil
       if let fire = customFire ?? ReminderPlan.snoozed(action, now: runtime.now()) {
+        // An event's snooze stays as it was; a reminder's follows the setting.
+        let delivery: ReminderPlan.Delivery =
+          category == Self.eventCategory
+          ? .timeSensitive
+          : ReminderPlan.delivery(
+            Preferences.reminderInterruption(defaults),
+            isAlarmFallback: snoozedTask?.ringsAsAlarm == true
+              && alarms.authorization != .authorized)
+        guard let level = Self.level(delivery) else {
+          await clearDelivered(key: key)
+          return
+        }
         let r = request(
           id: Self.snoozePrefix + runtime.nextID().uuidString, title: title, body: body,
-          category: category, key: key, at: fire, alert: alert)
+          category: category, key: key, at: fire, alert: alert, level: level)
         do { try await center.add(r) } catch { return }
         await clearDelivered(key: key)
         return

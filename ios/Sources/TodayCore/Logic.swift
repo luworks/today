@@ -213,6 +213,22 @@ public enum ReminderPlan {
   public static func snoozed(_ action: String, now: Date) -> Date? {
     snoozeMinutes[action].map { now.addingTimeInterval(TimeInterval($0 * 60)) }
   }
+
+  /// How a reminder's notification reaches the user.
+  public enum Delivery: Equatable, Sendable { case timeSensitive, active, skip }
+
+  /// A "Ring as alarm" reminder that AlarmKit can't ring is held to the same promise by its notification,
+  /// so that fallback keeps breaking through Focus whatever the setting says.
+  public static func delivery(
+    _ choice: Preferences.ReminderInterruption, isAlarmFallback: Bool
+  ) -> Delivery {
+    if isAlarmFallback { return .timeSensitive }
+    switch choice {
+    case .breakThroughFocus: return .timeSensitive
+    case .standard: return .active
+    case .off: return .skip
+    }
+  }
 }
 
 /// The day view's single timeline: the free time shown between items.
