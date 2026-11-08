@@ -106,6 +106,8 @@ public enum LaunchTestConfiguration {
     Preferences.afternoonStartKey, Preferences.eveningStartKey, Preferences.freeRowMinutesKey,
     Preferences.newEventMinutesKey, Preferences.quickPresetsKey,
     Preferences.reminderInterruptionKey, Preferences.aiChangesKey,
+    Preferences.upNextWindowHoursKey, Preferences.upNextMaxItemsKey, Preferences.upNextEventsKey,
+    Preferences.upNextRemindersKey, Preferences.upNextAlarmsKey,
   ]
 }
 

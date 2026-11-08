@@ -31,6 +31,11 @@ public enum Preferences {
   public static let reminderInterruptionKey = "today.setting.reminderInterruption"
   public static let aiChangesKey = "today.setting.aiChanges"
   public static let quickPresetsKey = "today.setting.quickPresets"
+  public static let upNextWindowHoursKey = "today.setting.upNextWindowHours"
+  public static let upNextMaxItemsKey = "today.setting.upNextMaxItems"
+  public static let upNextEventsKey = "today.setting.upNextEvents"
+  public static let upNextRemindersKey = "today.setting.upNextReminders"
+  public static let upNextAlarmsKey = "today.setting.upNextAlarms"
 
   static let allKeys = [
     compressEmptyHoursKey, dimPastDaysKey, firstWeekdayKey, weekNumbersKey, calendarStartKey,
@@ -38,6 +43,8 @@ public enum Preferences {
     newAlarmSnoozeKey, newAlarmSoundKey, showSettleKey, weatherSummaryKey,
     upNextLiveActivityKey, afternoonStartKey, eveningStartKey, freeRowMinutesKey,
     newEventMinutesKey, quickPresetsKey, reminderInterruptionKey, aiChangesKey,
+    upNextWindowHoursKey, upNextMaxItemsKey, upNextEventsKey,
+    upNextRemindersKey, upNextAlarmsKey,
   ]
 
   // MARK: Defaults (the behaviour before these choices existed)
@@ -74,6 +81,13 @@ public enum Preferences {
   public static let newEventMinutesChoices = [15, 30, 45, 60, 90, 120]
   /// "" = the four preset times Today shipped with (`QuickTime.presets`).
   public static let quickPresets = ""
+  public static let upNextWindowHours = 3
+  public static let upNextWindowHourChoices = [1, 2, 3, 4]
+  public static let upNextMaxItems = 3
+  public static let upNextMaxItemChoices = [1, 2, 3]
+  public static let upNextEvents = true
+  public static let upNextReminders = true
+  public static let upNextAlarms = true
 
   // MARK: Choices
 
@@ -272,6 +286,28 @@ public enum Preferences {
     case 120: "2 hours"
     default: "\(minutes) minutes"
     }
+  }
+
+  public static func upNextWindowHoursChoice(_ defaults: UserDefaults = .standard) -> Int {
+    let stored = defaults.object(forKey: upNextWindowHoursKey) as? Int ?? upNextWindowHours
+    return upNextWindowHourChoices.contains(stored) ? stored : upNextWindowHours
+  }
+
+  public static func upNextMaxItemsChoice(_ defaults: UserDefaults = .standard) -> Int {
+    let stored = defaults.object(forKey: upNextMaxItemsKey) as? Int ?? upNextMaxItems
+    return upNextMaxItemChoices.contains(stored) ? stored : upNextMaxItems
+  }
+
+  public static func upNextEventsEnabled(_ defaults: UserDefaults = .standard) -> Bool {
+    defaults.object(forKey: upNextEventsKey) as? Bool ?? upNextEvents
+  }
+
+  public static func upNextRemindersEnabled(_ defaults: UserDefaults = .standard) -> Bool {
+    defaults.object(forKey: upNextRemindersKey) as? Bool ?? upNextReminders
+  }
+
+  public static func upNextAlarmsEnabled(_ defaults: UserDefaults = .standard) -> Bool {
+    defaults.object(forKey: upNextAlarmsKey) as? Bool ?? upNextAlarms
   }
 
   // MARK: One-time notices (not Settings)

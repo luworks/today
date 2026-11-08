@@ -20,27 +20,39 @@ public struct UpNextRow: Codable, Hashable, Sendable {
 }
 
 public enum UpNextLive {
-  public static let window: TimeInterval = 3 * 3600
-  public static let maxRows = 3
+  /// What the user chose in Settings > Today > Customize Up Next.
+  public struct Options: Equatable, Sendable {
+    public var windowHours: Int
+    public var maxItems: Int
+    public var kinds: Set<WidgetItem.Kind>
+
+    public init(windowHours: Int, maxItems: Int, kinds: Set<WidgetItem.Kind>) {
+      self.windowHours = windowHours
+      self.maxItems = maxItems
+      self.kinds = kinds
+    }
+  }
+
   /// ActivityKit caps the state at 4 KB and the card truncates long before this.
   static let maxTitleLength = 120
 
-  /// Items with a clock time where `now < start <= now + 3 hours`, soonest first, at most three.
+  /// Items of the chosen kinds with a clock time where `now < start <= now + window`, soonest first, at most `maxItems`.
   /// Rolling, not by calendar day, so 23:00 includes 00:30 tomorrow. Ties keep the order they came in.
   /// `settledIDs`: items the user settled today; they take no slot, so the next item moves up.
   public static func rows(
-    from items: [WidgetItem], now: Date, settledIDs: Set<String>
+    from items: [WidgetItem], now: Date, options: Options, settledIDs: Set<String>
   ) -> [UpNextRow] {
-    let end = now.addingTimeInterval(window)
+    let end = now.addingTimeInterval(TimeInterval(options.windowHours) * 3600)
     let timed = items.filter {
-      !settledIDs.contains($0.id) && !$0.isAllDay && $0.startedEarlier != true
+      options.kinds.contains($0.kind) && !settledIDs.contains($0.id) && !$0.isAllDay
+        && $0.startedEarlier != true
         && $0.start > now && $0.start <= end
     }
     let sorted = timed.enumerated().sorted {
       $0.element.start == $1.element.start
         ? $0.offset < $1.offset : $0.element.start < $1.element.start
     }
-    return sorted.prefix(maxRows).map {
+    return sorted.prefix(options.maxItems).map {
       UpNextRow(start: $0.element.start, title: String($0.element.title.prefix(maxTitleLength)))
     }
   }

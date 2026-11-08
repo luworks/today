@@ -22,8 +22,12 @@ final class UpNextLiveTests: XCTestCase {
     WidgetItem(id: title, title: title, start: start, isAllDay: allDay, kind: kind)
   }
 
+  private let defaultOptions = UpNextLive.Options(
+    windowHours: Preferences.upNextWindowHours, maxItems: Preferences.upNextMaxItems,
+    kinds: [.event, .reminder, .alarm])
+
   private func titles(_ items: [WidgetItem], now: Date) -> [String] {
-    UpNextLive.rows(from: items, now: now, settledIDs: []).map(\.title)
+    UpNextLive.rows(from: items, now: now, options: defaultOptions, settledIDs: []).map(\.title)
   }
 
   // MARK: Selection
@@ -76,7 +80,8 @@ final class UpNextLiveTests: XCTestCase {
 
   func testLongTitleFitsTheActivityPayload() {
     let row = UpNextLive.rows(
-      from: [item(String(repeating: "x", count: 5000), at(10))], now: at(9), settledIDs: [])[0]
+      from: [item(String(repeating: "x", count: 5000), at(10))], now: at(9),
+      options: defaultOptions, settledIDs: [])[0]
     XCTAssertEqual(row.title.count, UpNextLive.maxTitleLength)
   }
 
@@ -88,7 +93,8 @@ final class UpNextLiveTests: XCTestCase {
     XCTAssertEqual(rows.count, 2)
     XCTAssertEqual(rows.map(\.startedEarlier), [nil, true])
     XCTAssertEqual(
-      UpNextLive.rows(from: rows, now: at(23), settledIDs: []), [], "midnight is not its start")
+      UpNextLive.rows(from: rows, now: at(23), options: defaultOptions, settledIDs: []), [],
+      "midnight is not its start")
     let midnightStart = WidgetItem.eventRows(
       id: "m", title: "midnight", start: at(0, day: 9), end: at(1, day: 9), isAllDay: false,
       externalID: nil, days: days, calendar: calendar)
@@ -102,7 +108,8 @@ final class UpNextLiveTests: XCTestCase {
     for kind in [WidgetItem.Kind.event, .reminder, .alarm] {
       let items = [item("settled", at(10), kind: kind), item("next", at(11), kind: kind)]
       XCTAssertEqual(
-        UpNextLive.rows(from: items, now: now, settledIDs: ["settled"]).map(\.title), ["next"])
+        UpNextLive.rows(from: items, now: now, options: defaultOptions, settledIDs: ["settled"])
+          .map(\.title), ["next"])
     }
   }
 
@@ -112,17 +119,110 @@ final class UpNextLiveTests: XCTestCase {
       item("a", at(10)), item("b", at(10, 30)), item("c", at(11)), item("d", at(11, 30)),
     ]
     XCTAssertEqual(
-      UpNextLive.rows(from: items, now: now, settledIDs: ["b"]).map(\.title), ["a", "c", "d"])
+      UpNextLive.rows(from: items, now: now, options: defaultOptions, settledIDs: ["b"]).map(
+        \.title), ["a", "c", "d"])
   }
 
   func testAllSettledMeansNoCard() {
     let now = at(9)
     let items = [item("a", at(10)), item("b", at(11))]
-    let rows = UpNextLive.rows(from: items, now: now, settledIDs: ["a", "b"])
+    let rows = UpNextLive.rows(
+      from: items, now: now, options: defaultOptions, settledIDs: ["a", "b"])
     XCTAssertEqual(rows, [])
     XCTAssertEqual(action(rows: rows, live: nil, now: now), .none)
     let live = UpNextLifecycle.Live(rows: row, requestedAt: at(8))
     XCTAssertEqual(action(rows: rows, live: live, now: now), .end)
+  }
+
+  func testASettledItemTakesNoSlotUnderASmallerMaximum() {
+    var options = defaultOptions
+    options.maxItems = 1
+    let rows = UpNextLive.rows(
+      from: [item("a", at(10)), item("b", at(11))], now: at(9), options: options,
+      settledIDs: ["a"])
+    XCTAssertEqual(rows.map(\.title), ["b"])
+  }
+
+  // MARK: Options
+
+  func testEachWindowIncludesItsEdgeAndExcludesPastIt() {
+    let now = at(9)
+    for hours in Preferences.upNextWindowHourChoices {
+      var options = defaultOptions
+      options.windowHours = hours
+      let edge = now.addingTimeInterval(TimeInterval(hours) * 3600)
+      let items = [item("edge", edge), item("past", edge.addingTimeInterval(1))]
+      XCTAssertEqual(
+        UpNextLive.rows(from: items, now: now, options: options, settledIDs: []).map(\.title),
+        ["edge"],
+        "\(hours) h")
+    }
+  }
+
+  func testEachMaximumLimitsTheRows() {
+    let now = at(9)
+    let items = [item("a", at(10)), item("b", at(11)), item("c", at(11, 30)), item("d", at(12))]
+    for count in Preferences.upNextMaxItemChoices {
+      var options = defaultOptions
+      options.maxItems = count
+      XCTAssertEqual(
+        UpNextLive.rows(from: items, now: now, options: options, settledIDs: []).map(\.title),
+        Array(["a", "b", "c"].prefix(count)))
+    }
+  }
+
+  func testEachKindCanBeTurnedOff() {
+    let now = at(9)
+    let items = [
+      item("e", at(10), kind: .event), item("r", at(11), kind: .reminder),
+      item("al", at(11, 30), kind: .alarm),
+    ]
+    func shown(without kind: WidgetItem.Kind) -> [String] {
+      var options = defaultOptions
+      options.kinds.remove(kind)
+      return UpNextLive.rows(from: items, now: now, options: options, settledIDs: []).map(\.title)
+    }
+    XCTAssertEqual(shown(without: .event), ["r", "al"])
+    XCTAssertEqual(shown(without: .reminder), ["e", "al"])
+    XCTAssertEqual(shown(without: .alarm), ["e", "r"])
+  }
+
+  func testAllKindsOffMeansNoCard() {
+    var options = defaultOptions
+    options.kinds = []
+    let rows = UpNextLive.rows(
+      from: [item("e", at(10))], now: at(9), options: options, settledIDs: [])
+    XCTAssertEqual(rows, [])
+    XCTAssertEqual(action(rows: rows, live: nil, now: at(9)), .none)
+    let live = UpNextLifecycle.Live(rows: row, requestedAt: at(8))
+    XCTAssertEqual(action(rows: rows, live: live, now: at(9)), .end)
+  }
+
+  func testOptionReadersDefaultAndRejectUnknownValues() throws {
+    let suite = "UpNextLiveTests.\(UUID().uuidString)"
+    let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    XCTAssertEqual(Preferences.upNextWindowHoursChoice(defaults), 3)
+    XCTAssertEqual(Preferences.upNextMaxItemsChoice(defaults), 3)
+    XCTAssertTrue(Preferences.upNextEventsEnabled(defaults))
+    XCTAssertTrue(Preferences.upNextRemindersEnabled(defaults))
+    XCTAssertTrue(Preferences.upNextAlarmsEnabled(defaults))
+
+    defaults.set(2, forKey: Preferences.upNextWindowHoursKey)
+    defaults.set(1, forKey: Preferences.upNextMaxItemsKey)
+    defaults.set(false, forKey: Preferences.upNextEventsKey)
+    defaults.set(false, forKey: Preferences.upNextRemindersKey)
+    defaults.set(false, forKey: Preferences.upNextAlarmsKey)
+    XCTAssertEqual(Preferences.upNextWindowHoursChoice(defaults), 2)
+    XCTAssertEqual(Preferences.upNextMaxItemsChoice(defaults), 1)
+    XCTAssertFalse(Preferences.upNextEventsEnabled(defaults))
+    XCTAssertFalse(Preferences.upNextRemindersEnabled(defaults))
+    XCTAssertFalse(Preferences.upNextAlarmsEnabled(defaults))
+
+    defaults.set(9, forKey: Preferences.upNextWindowHoursKey)
+    defaults.set(7, forKey: Preferences.upNextMaxItemsKey)
+    XCTAssertEqual(Preferences.upNextWindowHoursChoice(defaults), 3)
+    XCTAssertEqual(Preferences.upNextMaxItemsChoice(defaults), 3)
   }
 
   func testTimedDueExcludesCompletedAndUntimed() {
@@ -218,9 +318,12 @@ final class UpNextLiveTests: XCTestCase {
   }
 
   func testEventsCarryNoFreeText() {
-    let setting = ActivityEvents.upNextSetting(on: false)
+    let setting = ActivityEvents.upNextSetting(on: true)
     XCTAssertEqual(setting.kind, ActivityKind.sysUpNextSetting)
-    XCTAssertTrue(setting.props.contains("\"on\""))
+    XCTAssertTrue(setting.props.contains("true"))
+    let option = ActivityEvents.settingChanged(key: Preferences.upNextWindowHoursKey, value: "2")
+    XCTAssertTrue(option.props.contains(Preferences.upNextWindowHoursKey))
+    XCTAssertTrue(option.props.contains("\"value\":\"2\""))
     let dismissed = ActivityEvents.upNextDismissed()
     XCTAssertEqual(dismissed.kind, ActivityKind.sysUpNextDismissed)
     XCTAssertTrue(dismissed.props.contains("lockscreen"))

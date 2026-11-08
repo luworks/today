@@ -276,6 +276,10 @@
             ledger.activity.record(ActivityEvents.upNextSetting(on: on))
             rewriteWidgets()
           },
+          upNextOptionChanged: { key, value in
+            recordSetting(key, value)
+            rewriteWidgets()
+          },
           settingChanged: recordSetting)
         explainedToggle(
           "Travel time", isOn: $travelTime,
