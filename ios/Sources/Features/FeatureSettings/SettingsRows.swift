@@ -12,15 +12,18 @@
 
   /// Settings > Today: the timeline's extras. Rows only; they sit inside the Today section.
   package struct TodayTimelineSettings: View {
-    /// Records the Lock Screen Up Next switch and applies it.
+    /// `upNextChanged` and `upNextOptionChanged` record a Lock Screen Up Next choice and apply it.
     package init(
       upNextChanged: @escaping @MainActor (Bool) -> Void = { _ in },
+      upNextOptionChanged: @escaping @MainActor (String, String) -> Void = { _, _ in },
       settingChanged: @escaping @MainActor (String, String) -> Void = { _, _ in }
     ) {
       self.upNextChanged = upNextChanged
+      self.upNextOptionChanged = upNextOptionChanged
       self.settingChanged = settingChanged
     }
     private let upNextChanged: @MainActor (Bool) -> Void
+    private let upNextOptionChanged: @MainActor (String, String) -> Void
     private let settingChanged: @MainActor (String, String) -> Void
     @AppStorage(Preferences.upNextLiveActivityKey) private var upNext =
       Preferences.upNextLiveActivity
@@ -44,9 +47,12 @@
       .accessibilityIdentifier("settings.divideTheDay")
       ExplainedToggle(
         title: "Up Next on Lock Screen", isOn: $upNext,
-        caption: "A quiet card with what's coming in the next 3 hours. It never alerts you."
+        caption: "A quiet card with what's coming up soon. It never alerts you."
       )
       .onChange(of: upNext) { _, on in upNextChanged(on) }
+      if upNext {
+        NavigationLink("Customize Up Next") { UpNextSettingsView(changed: upNextOptionChanged) }
+      }
     }
   }
 

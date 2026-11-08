@@ -37,7 +37,7 @@
     }
 
     package func refresh(items: [WidgetItem], settledIDs: Set<String>, now: Date) {
-      pendingRows = UpNextLive.rows(from: items, now: now, settledIDs: settledIDs)
+      pendingRows = UpNextLive.rows(from: items, now: now, options: options, settledIDs: settledIDs)
       guard pump == nil else { return }
       // One at a time: an update or end suspends, and a second pass in between could request a second card.
       pump = Task { [weak self] in
@@ -47,6 +47,16 @@
         }
         self?.pump = nil
       }
+    }
+
+    private var options: UpNextLive.Options {
+      var kinds = Set<WidgetItem.Kind>()
+      if Preferences.upNextEventsEnabled(defaults) { kinds.insert(.event) }
+      if Preferences.upNextRemindersEnabled(defaults) { kinds.insert(.reminder) }
+      if Preferences.upNextAlarmsEnabled(defaults) { kinds.insert(.alarm) }
+      return UpNextLive.Options(
+        windowHours: Preferences.upNextWindowHoursChoice(defaults),
+        maxItems: Preferences.upNextMaxItemsChoice(defaults), kinds: kinds)
     }
 
     /// Lets background refresh finish its ActivityKit work before it tells iOS it is done.
