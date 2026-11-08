@@ -211,3 +211,25 @@ public enum EventUndo {
     return attendees == 0
   }
 }
+
+/// When deleting an event may go straight through and when it must ask.
+public enum EventDeletePrompt {
+  /// Only an event Undo could bring back goes at once. A series needs "this event or the series?", and a cancellation
+  /// that has reached attendees cannot be recalled; an Apple event that could not be read is treated the same way.
+  public static func asksFirst(repeats: Bool, inAppleCalendar: Bool, attendees: Int?) -> Bool {
+    !EventUndo.canRestore(repeats: repeats, inAppleCalendar: inAppleCalendar, attendees: attendees)
+  }
+
+  /// A full swipe runs the first swipe button, so it needs Delete to be there. A series never full-swipes. An event with
+  /// attendees may, because Delete then opens the question; `audience` is read on the swipe, not for every row.
+  public static func allowsFullSwipe(canDelete: Bool, repeats: Bool) -> Bool {
+    canDelete && !repeats
+  }
+
+  public static func message(title: String, repeats: Bool, attendees: Int?) -> String {
+    let lead = repeats ? "“\(title)” repeats." : "Delete “\(title)”? This changes its source."
+    guard let attendees, attendees > 0 else { return lead }
+    let who = attendees == 1 ? "1 attendee gets" : "\(attendees) attendees get"
+    return lead + " \(who) a cancellation, and Undo can’t recall it."
+  }
+}

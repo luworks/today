@@ -1364,9 +1364,9 @@
       }
     }
 
-    /// A one-off event is deleted at once (Undo toast); only a repeating one asks "this event or the series?".
+    /// An event Undo can bring back is deleted at once (Undo toast); a series or an event with attendees asks first.
     private func requestEventDelete(_ entry: CalEntry) {
-      if entry.repeats {
+      if actions.deleteAsksFirst(entry) {
         pendingDelete = entry
       } else {
         actions.delete(entry, span: .futureEvents, context: context, toast: toast)

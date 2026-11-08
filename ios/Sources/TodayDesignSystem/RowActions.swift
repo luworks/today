@@ -48,6 +48,20 @@
       .tint(.yellow)
     }
 
+    public static func settle(_ action: @escaping () -> Void) -> some View {
+      Button(action: action) {
+        Label("Settle", systemImage: "checkmark.circle.fill").labelStyle(.iconOnly)
+      }
+      .tint(.indigo)
+    }
+
+    public static func tomorrow(_ action: @escaping () -> Void) -> some View {
+      Button(action: action) {
+        Label("Tomorrow", systemImage: "sunrise").labelStyle(.iconOnly)
+      }
+      .tint(.blue)
+    }
+
     public static func info(_ action: @escaping () -> Void) -> some View {
       Button(action: action) {
         Label("Info", systemImage: "info.circle.fill").labelStyle(.iconOnly)
