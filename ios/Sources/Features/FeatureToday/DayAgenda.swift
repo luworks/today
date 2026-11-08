@@ -118,8 +118,7 @@
     @State private var pendingTime: Date?
     @State private var timeError: String?
     @State private var timeBusy = false
-    @State private var dragPreview: TimelineDragPreview?
-    @State private var dragRow: AnyView?
+    @State private var drag = TimelineDragModel()
     @State private var frozenDayItems: DayItems?
     @State private var swipes = DayPartSwipes()
     @State private var retryTime: Date?
@@ -149,8 +148,7 @@
           showsAllOverdue = false
           timeRequest = nil
           pendingTime = nil
-          dragPreview = nil
-          dragRow = nil
+          drag.end()
           frozenDayItems = nil
           retryTime = nil
           scrollToNow(proxy)
@@ -164,7 +162,7 @@
       .onChange(of: alarms.map { "\($0.label)|\($0.hour)|\($0.minute)|\($0.isOn)" }) { _, _ in
         loadHistory()
       }
-      .overlay { timeAdjustmentPreview.allowsHitTesting(false) }
+      .overlay { TimelineDragOverlay(model: drag).allowsHitTesting(false) }
       .onChange(of: scenePhase) { _, phase in
         if phase == .active { refreshClock() }
       }
@@ -229,29 +227,6 @@
           if !Task.isCancelled, !showsWeekStrip, showsWeather, isTodayTab, scenePhase == .active {
             weather.update(enabled: true)
           }
-        }
-      }
-    }
-
-    private var timeAdjustmentPreview: some View {
-      GeometryReader { geometry in
-        if let preview = dragPreview {
-          let width = min(300.0, geometry.size.width - 24)
-          let origin = geometry.frame(in: .global).origin
-          let x = min(
-            geometry.size.width - width / 2 - 12,
-            max(width / 2 + 12, preview.finger.x - origin.x - width / 2 - 24))
-          let y = min(
-            max(160, geometry.size.height - 160),
-            max(160, preview.finger.y - origin.y - 100))
-          VStack(alignment: .leading, spacing: 8) {
-            if let row = dragRow { row.accessibilityHidden(true) }
-            TimelineDragRuler(preview: preview)
-          }.padding(12).frame(width: width)
-            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
-            .shadow(radius: reduceMotion ? 0 : 5)
-            .position(x: x, y: y)
-            .allowsHitTesting(false)
         }
       }
     }
@@ -431,6 +406,11 @@
       .listSectionSpacing(showsWeekStrip ? 6 : 0)
       .scrollContentBackground(.hidden)
       .background(alignment: .topLeading) { DayPartSwipeLayer(swipes: swipes) }
+      .background {
+        TimelineHoldDragInstaller(
+          model: drag, canLift: { liftCandidate(at: $0) != nil }, began: { beginDrag(at: $0) },
+          ended: { endDrag(cancelled: $0) })
+      }
       .entryDeleteDialog($pendingDelete)
     }
 
@@ -447,7 +427,8 @@
           DayPartRows(
             rows: DayPart.rows(
               history.facts.filter { $0.isPrimary && !$0.isUntimedPlan }, day: day, calendar: cal,
-              boundaries: dayBoundaries, start: \.at, isPlanned: { _ in true }), swipes: swipes
+              boundaries: dayBoundaries, start: \.at, isPlanned: { _ in true }), swipes: swipes,
+            drag: drag
           ) { fact in
             HistoricalFactRow(fact: fact, todayStyle: !showsWeekStrip)
           }
@@ -472,12 +453,7 @@
         Text("Nothing planned").foregroundStyle(.secondary)
           .listRowSeparator(.hidden)
       }
-      DayPartRows(
-        rows: DayPart.rows(
-          items.timeline, day: day, calendar: cal, boundaries: dayBoundaries, start: \.start,
-          isPlanned: \.isPlanned),
-        swipes: swipes
-      ) { item in
+      DayPartRows(rows: timelineRows(items), swipes: swipes, drag: drag) { item in
         dayItemRow(item, items: items)
       }
       if !items.anytime.isEmpty {
@@ -491,72 +467,91 @@
       }
     }
 
-    /// A timeline row, with its time handle where it can move.
+    /// The day's rows; during a drag the dragged row sits at the place it would land, and Free rows step aside.
+    private func timelineRows(_ items: DayItems) -> [DayPartRow<TimelineItem>] {
+      guard let session = drag.session else {
+        return DayPart.rows(
+          items.timeline, day: day, calendar: cal, boundaries: dayBoundaries, start: \.start,
+          isPlanned: \.isPlanned)
+      }
+      let stop = session.stops[drag.stopIndex]
+      var rows = session.anchors
+      rows.insert(session.item, at: stop.index)
+      return DayPart.rows(
+        rows, day: day, calendar: cal, boundaries: dayBoundaries,
+        start: { $0.id == session.id ? stop.target : $0.start },
+        isPlanned: { _ in true }, showsEmptyParts: true)
+    }
+
+    /// A timeline row: where it can move, its time label opens the exact editor and a hold can drag it.
     @ViewBuilder
     private func dayItemRow(_ item: TimelineItem, items: DayItems) -> some View {
-      if !isPastDay, let timing = dragTiming(item) {
+      if !isPastDay, dragTiming(item) != nil {
         timelineRow(item, on: day)
-          .modifier(
-            TimelineTimeAdjustment(
-              timing: timing,
-              begin: {
-                guard !timeBusy else { return false }
-                prepareTime(item, timing: timing)
-                guard timeRequest != nil else { return false }
-                frozenDayItems = items
-                dragRow = AnyView(timelineRow(item, on: day))
-                return true
-              },
-              commit: { date in
-                guard timeRequest != nil else { return }
-                if (timeRequest?.attendees ?? 0) > 0 {
-                  pendingTime = date
-                } else {
-                  submitTime(date)
-                }
-              }, edit: { editTime(item) },
-              previewChanged: { preview in
-                dragPreview = preview
-                if preview == nil {
-                  dragRow = nil
-                  frozenDayItems = nil
-                }
-              },
-              overlaps: { date in
-                items.timeline.contains { other in
-                  guard other.id != item.id else { return false }
-                  let length: TimeInterval
-                  switch other {
-                  case .event(let event, _): length = event.duration
-                  case .external(let event): length = event.end.timeIntervalSince(event.start)
-                  case .due(let task):
-                    guard !task.isDone else { return false }
-                    length = 0
-                  case .alarm(_, _, let stopped):
-                    guard stopped == nil else { return false }
-                    length = 0
-                  default: return false
-                  }
-                  if timing.duration == 0 {
-                    return length == 0
-                      ? date == other.start
-                      : date >= other.start && date < other.start.addingTimeInterval(length)
-                  }
-                  if length == 0 {
-                    return other.start >= date
-                      && other.start < date.addingTimeInterval(timing.duration)
-                  }
-                  return date < other.start.addingTimeInterval(length)
-                    && date.addingTimeInterval(timing.duration) > other.start
-                }
-              })
-          )
+          .environment(\.agendaTimeEdit, { editTime(item) })
+          .accessibilityAction(named: "Change time") { editTime(item) }
+          .modifier(TimelineDragRowChrome(model: drag, id: item.id))
           .listRowInsets(EdgeInsets(top: 0, leading: 12, bottom: 0, trailing: 12))
           .listRowSeparator(.hidden)
           .disabled(timeBusy)
       } else {
         timelineRow(item, on: day)
       }
+    }
+
+    /// The movable row under the finger, if a drag may start now. An open swipe must close first.
+    private func liftCandidate(at point: CGPoint) -> TimelineItem? {
+      guard !isPastDay, !timeBusy, pendingTime == nil, swipes.slides.isEmpty,
+        let id = drag.rowID(at: point)
+      else { return nil }
+      return items(on: day, now: now).timeline.first { $0.id == id && dragTiming($0) != nil }
+    }
+
+    private func beginDrag(at point: CGPoint) -> Bool {
+      guard let item = liftCandidate(at: point), let timing = dragTiming(item) else { return false }
+      prepareTime(item, timing: timing)
+      guard timeRequest != nil else { return false }
+      let items = items(on: day, now: now)
+      let others = items.timeline.filter { if case .gap = $0 { false } else { true } }
+      guard let originalIndex = others.firstIndex(where: { $0.id == item.id }) else { return false }
+      var anchors = others
+      anchors.remove(at: originalIndex)
+      let stops = TimelineDropPlan.stops(
+        anchors: anchors.map(\.dropAnchor), originalIndex: originalIndex, timing: timing, day: day,
+        calendar: cal, boundaries: dayBoundaries)
+      let part = DayPart.of(timing.original, day: day, calendar: cal, boundaries: dayBoundaries)
+      guard let original = stops.firstIndex(where: { $0.part == part && $0.index == originalIndex })
+      else { return false }
+      frozenDayItems = items
+      return drag.begin(
+        TimelineDragModel.Session(
+          item: item, timing: timing, anchors: anchors, stops: stops, originalStop: original,
+          row: AnyView(timelineRow(item, on: day)),
+          overlaps: { date in
+            anchors.contains { $0.overlaps(date, timing: timing) }
+          }),
+        at: point, reduceMotion: reduceMotion)
+    }
+
+    private func endDrag(cancelled: Bool) {
+      drag.release(cancelled: cancelled, reduceMotion: reduceMotion) { target in
+        guard let target, timeRequest != nil else {
+          finishDrag()
+          return
+        }
+        if (timeRequest?.attendees ?? 0) > 0 {
+          pendingTime = target
+          finishDrag()
+        } else {
+          // The frozen list holds the new order until the source has saved, so nothing jumps back.
+          submitTime(target, then: finishDrag)
+        }
+      }
+    }
+
+    private func finishDrag() {
+      drag.end()
+      frozenDayItems = nil
     }
 
     @ViewBuilder
@@ -841,14 +836,22 @@
       }
     }
 
-    private func submitTime(_ date: Date) {
-      guard !timeBusy, let request = timeRequest else { return }
+    private func submitTime(_ date: Date, then finished: @escaping () -> Void = {}) {
+      guard !timeBusy, let request = timeRequest else {
+        finished()
+        return
+      }
       timeBusy = true
       retryTime = date
       Task { @MainActor in
-        defer { timeBusy = false }
+        defer {
+          timeBusy = false
+          finished()
+        }
         do {
-          try await request.apply(date, toast: toast)
+          let time = date.plannerFormatted(
+            date: .omitted, time: .shortened, runtime: presentation.runtime)
+          try await request.apply(date, label: "Moved to \(time)", toast: toast)
           timeRequest = nil
           retryTime = nil
         } catch { timeError = error.localizedDescription }
@@ -1441,6 +1444,42 @@
     }
 
     var isNow: Bool { if case .nowMarker = self { true } else { false } }
+
+    /// What a dragged row lands between: only events take up time.
+    var dropAnchor: TimelineDropAnchor {
+      switch self {
+      case .event(let event, let start):
+        TimelineDropAnchor(start: start, end: start.addingTimeInterval(event.duration))
+      case .external(let event): TimelineDropAnchor(start: event.start, end: event.end)
+      default: TimelineDropAnchor(start: start)
+      }
+    }
+
+    /// Whether this item would clash with a row moved to `date`.
+    func overlaps(_ date: Date, timing: TimelineDragTime) -> Bool {
+      let length: TimeInterval
+      switch self {
+      case .event(let event, _): length = event.duration
+      case .external(let event): length = event.end.timeIntervalSince(event.start)
+      case .due(let task):
+        guard !task.isDone else { return false }
+        length = 0
+      case .alarm(_, _, let stopped):
+        guard stopped == nil else { return false }
+        length = 0
+      default: return false
+      }
+      if timing.duration == 0 {
+        return length == 0
+          ? date == start
+          : date >= start && date < start.addingTimeInterval(length)
+      }
+      if length == 0 {
+        return start >= date && start < date.addingTimeInterval(timing.duration)
+      }
+      return date < start.addingTimeInterval(length)
+        && date.addingTimeInterval(timing.duration) > start
+    }
 
     /// Something on the day's plan, as opposed to free time or the Now line.
     var isPlanned: Bool {
