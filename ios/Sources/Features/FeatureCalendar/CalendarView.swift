@@ -1219,8 +1219,14 @@
     /// Days from today of the first column.
     @State private var pos: Int? = 0
     @State private var scroll = DayScroll()
-    /// Points per hour; pinch the grid to change it.
-    @State private var hourHeight: CGFloat = 48
+    /// Points per hour; pinch the grid to change it. Saved when the pinch ends, so it survives a restart.
+    @AppStorage(CalendarLayout.savedHourHeightKey) private var savedHourHeight =
+      CalendarLayout.defaultHourHeight
+    /// The hour height while a pinch is under way; nil at rest.
+    @State private var pinchedHourHeight: CGFloat?
+    private var hourHeight: CGFloat {
+      pinchedHourHeight ?? CGFloat(CalendarLayout.restoredHourHeight(savedHourHeight))
+    }
     /// The hour height when the current pinch started.
     @State private var pinchStart: CGFloat?
     @State private var pendingDelete: CalEntry?
@@ -1420,10 +1426,14 @@
           .onChanged { value in
             let start = pinchStart ?? hourHeight
             pinchStart = start
-            hourHeight = CGFloat(
+            pinchedHourHeight = CGFloat(
               CalendarLayout.zoomedHourHeight(Double(start), scale: Double(value.magnification)))
           }
-          .onEnded { _ in pinchStart = nil }
+          .onEnded { _ in
+            if let pinchedHourHeight { savedHourHeight = Double(pinchedHourHeight) }
+            pinchedHourHeight = nil
+            pinchStart = nil
+          }
       )
       .accessibilityIdentifier("calendar.dayGrid")
     }
