@@ -65,18 +65,25 @@
     ) {
       // UI tests run on a throwaway store; keep them from replacing what the widget shows.
       guard enabled, !disposed else { return }
-      let (items, settledIDs) = itemsAndSettled(
+      let (all, settledIDs) = itemsAndSettled(
         tasks: tasks, events: events, alarms: alarms, now: now, calendar: calendar)
+      // One list for the card and every widget, so one Settle, Unsettle or Undo moves them together.
+      let (items, settledEvents) = NextItems.removingSettled(all, settledIDs: settledIDs)
       // Right after launch EventKit is still warming up and system events read as none; writing now would blank them
       // on the widget. The store bumps `CalendarSync.version` when it's ready, which calls this again.
       let sync = calendarService
       guard sync.isReady else { return }
       // Before the unchanged-snapshot return: the card's three-hour window moves even when the items do not.
-      upNext?.refresh(items: items, settledIDs: settledIDs, now: now)
+      upNext?.refresh(items: items, now: now)
       let settings = WidgetSnapshot.CalendarSettings(
         isOn: sync.isOn, hiddenCalendarIDs: sync.hiddenCalendarIDs.sorted())
-      if let last = lastWritten, last.items == items, last.calendar == settings { return }
-      let snapshot = WidgetSnapshot(generatedAt: now, items: items, calendar: settings)
+      if let last = lastWritten, last.items == items, last.calendar == settings,
+        last.settledEvents ?? [] == settledEvents
+      {
+        return
+      }
+      let snapshot = WidgetSnapshot(
+        generatedAt: now, items: items, calendar: settings, settledEvents: settledEvents)
       guard save(snapshot) else { return }
       lastWritten = snapshot
       reload()
@@ -89,7 +96,7 @@
         .items
     }
 
-    /// `settledIDs` are for the Lock Screen card only; the snapshot and the other widgets still get every item.
+    /// Every item, plus the IDs of those settled today, which `update` keeps off the card and the widgets.
     package func itemsAndSettled(
       tasks: [OneTask], events: [OneEvent], alarms: [OneAlarm], now: Date, calendar: Calendar
     ) -> (items: [WidgetItem], settledIDs: Set<String>) {

@@ -30,7 +30,7 @@
     @ViewBuilder package var menu: some View {
       if let settle {
         Button(action: settle) { Label("Settle", systemImage: "checkmark.circle.fill") }
-          .accessibilityHint("Hides this item in Today only. Alerts stay unchanged.")
+          .accessibilityHint("Hides this item in Today and on widgets. Alerts stay unchanged.")
       }
     }
   }

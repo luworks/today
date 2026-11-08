@@ -27,7 +27,7 @@ final class UpNextLiveTests: XCTestCase {
     kinds: [.event, .reminder, .alarm])
 
   private func titles(_ items: [WidgetItem], now: Date) -> [String] {
-    UpNextLive.rows(from: items, now: now, options: defaultOptions, settledIDs: []).map(\.title)
+    UpNextLive.rows(from: items, now: now, options: defaultOptions).map(\.title)
   }
 
   // MARK: Selection
@@ -81,7 +81,7 @@ final class UpNextLiveTests: XCTestCase {
   func testLongTitleFitsTheActivityPayload() {
     let row = UpNextLive.rows(
       from: [item(String(repeating: "x", count: 5000), at(10))], now: at(9),
-      options: defaultOptions, settledIDs: [])[0]
+      options: defaultOptions)[0]
     XCTAssertEqual(row.title.count, UpNextLive.maxTitleLength)
   }
 
@@ -93,7 +93,7 @@ final class UpNextLiveTests: XCTestCase {
     XCTAssertEqual(rows.count, 2)
     XCTAssertEqual(rows.map(\.startedEarlier), [nil, true])
     XCTAssertEqual(
-      UpNextLive.rows(from: rows, now: at(23), options: defaultOptions, settledIDs: []), [],
+      UpNextLive.rows(from: rows, now: at(23), options: defaultOptions), [],
       "midnight is not its start")
     let midnightStart = WidgetItem.eventRows(
       id: "m", title: "midnight", start: at(0, day: 9), end: at(1, day: 9), isAllDay: false,
@@ -103,44 +103,44 @@ final class UpNextLiveTests: XCTestCase {
 
   // MARK: Settled
 
+  private func rows(
+    _ items: [WidgetItem], now: Date, settled: Set<String>, options: UpNextLive.Options? = nil
+  ) -> [UpNextRow] {
+    UpNextLive.rows(
+      from: NextItems.removingSettled(items, settledIDs: settled).items, now: now,
+      options: options ?? defaultOptions)
+  }
+
   func testASettledItemOfEveryKindIsExcluded() {
     let now = at(9)
     for kind in [WidgetItem.Kind.event, .reminder, .alarm] {
       let items = [item("settled", at(10), kind: kind), item("next", at(11), kind: kind)]
-      XCTAssertEqual(
-        UpNextLive.rows(from: items, now: now, options: defaultOptions, settledIDs: ["settled"])
-          .map(\.title), ["next"])
+      XCTAssertEqual(rows(items, now: now, settled: ["settled"]).map(\.title), ["next"])
     }
   }
 
   func testTheNextItemFillsASettledSlot() {
-    let now = at(9)
     let items = [
       item("a", at(10)), item("b", at(10, 30)), item("c", at(11)), item("d", at(11, 30)),
     ]
-    XCTAssertEqual(
-      UpNextLive.rows(from: items, now: now, options: defaultOptions, settledIDs: ["b"]).map(
-        \.title), ["a", "c", "d"])
+    XCTAssertEqual(rows(items, now: at(9), settled: ["b"]).map(\.title), ["a", "c", "d"])
   }
 
   func testAllSettledMeansNoCard() {
     let now = at(9)
-    let items = [item("a", at(10)), item("b", at(11))]
-    let rows = UpNextLive.rows(
-      from: items, now: now, options: defaultOptions, settledIDs: ["a", "b"])
-    XCTAssertEqual(rows, [])
-    XCTAssertEqual(action(rows: rows, live: nil, now: now), .none)
+    let result = rows([item("a", at(10)), item("b", at(11))], now: now, settled: ["a", "b"])
+    XCTAssertEqual(result, [])
+    XCTAssertEqual(action(rows: result, live: nil, now: now), .none)
     let live = UpNextLifecycle.Live(rows: row, requestedAt: at(8))
-    XCTAssertEqual(action(rows: rows, live: live, now: now), .end)
+    XCTAssertEqual(action(rows: result, live: live, now: now), .end)
   }
 
   func testASettledItemTakesNoSlotUnderASmallerMaximum() {
     var options = defaultOptions
     options.maxItems = 1
-    let rows = UpNextLive.rows(
-      from: [item("a", at(10)), item("b", at(11))], now: at(9), options: options,
-      settledIDs: ["a"])
-    XCTAssertEqual(rows.map(\.title), ["b"])
+    let items = [item("a", at(10)), item("b", at(11))]
+    XCTAssertEqual(
+      rows(items, now: at(9), settled: ["a"], options: options).map(\.title), ["b"])
   }
 
   // MARK: Options
@@ -153,7 +153,7 @@ final class UpNextLiveTests: XCTestCase {
       let edge = now.addingTimeInterval(TimeInterval(hours) * 3600)
       let items = [item("edge", edge), item("past", edge.addingTimeInterval(1))]
       XCTAssertEqual(
-        UpNextLive.rows(from: items, now: now, options: options, settledIDs: []).map(\.title),
+        UpNextLive.rows(from: items, now: now, options: options).map(\.title),
         ["edge"],
         "\(hours) h")
     }
@@ -166,7 +166,7 @@ final class UpNextLiveTests: XCTestCase {
       var options = defaultOptions
       options.maxItems = count
       XCTAssertEqual(
-        UpNextLive.rows(from: items, now: now, options: options, settledIDs: []).map(\.title),
+        UpNextLive.rows(from: items, now: now, options: options).map(\.title),
         Array(["a", "b", "c"].prefix(count)))
     }
   }
@@ -180,7 +180,7 @@ final class UpNextLiveTests: XCTestCase {
     func shown(without kind: WidgetItem.Kind) -> [String] {
       var options = defaultOptions
       options.kinds.remove(kind)
-      return UpNextLive.rows(from: items, now: now, options: options, settledIDs: []).map(\.title)
+      return UpNextLive.rows(from: items, now: now, options: options).map(\.title)
     }
     XCTAssertEqual(shown(without: .event), ["r", "al"])
     XCTAssertEqual(shown(without: .reminder), ["e", "al"])
@@ -191,7 +191,7 @@ final class UpNextLiveTests: XCTestCase {
     var options = defaultOptions
     options.kinds = []
     let rows = UpNextLive.rows(
-      from: [item("e", at(10))], now: at(9), options: options, settledIDs: [])
+      from: [item("e", at(10))], now: at(9), options: options)
     XCTAssertEqual(rows, [])
     XCTAssertEqual(action(rows: rows, live: nil, now: at(9)), .none)
     let live = UpNextLifecycle.Live(rows: row, requestedAt: at(8))

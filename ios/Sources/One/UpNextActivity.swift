@@ -36,8 +36,8 @@
       observer?.cancel()
     }
 
-    package func refresh(items: [WidgetItem], settledIDs: Set<String>, now: Date) {
-      pendingRows = UpNextLive.rows(from: items, now: now, options: options, settledIDs: settledIDs)
+    package func refresh(items: [WidgetItem], now: Date) {
+      pendingRows = UpNextLive.rows(from: items, now: now, options: options)
       guard pump == nil else { return }
       // One at a time: an update or end suspends, and a second pass in between could request a second card.
       pump = Task { [weak self] in

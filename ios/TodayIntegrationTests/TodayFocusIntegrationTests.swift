@@ -74,7 +74,9 @@
         #expect(refreshes == before + 1)
         expected = (expected + [title]).sorted()
         #expect(read().settled == expected)
-        #expect(read().titles == ["Alarm", "Event", "Reminder"], "the snapshot keeps every item")
+        #expect(
+          read().titles == ["Alarm", "Event", "Reminder"], "Settle does not change the source items"
+        )
       }
 
       // Undo reaches the same hook and brings the item back.

@@ -38,13 +38,10 @@ public enum UpNextLive {
 
   /// Items of the chosen kinds with a clock time where `now < start <= now + window`, soonest first, at most `maxItems`.
   /// Rolling, not by calendar day, so 23:00 includes 00:30 tomorrow. Ties keep the order they came in.
-  /// `settledIDs`: items the user settled today; they take no slot, so the next item moves up.
-  public static func rows(
-    from items: [WidgetItem], now: Date, options: Options, settledIDs: Set<String>
-  ) -> [UpNextRow] {
+  public static func rows(from items: [WidgetItem], now: Date, options: Options) -> [UpNextRow] {
     let end = now.addingTimeInterval(TimeInterval(options.windowHours) * 3600)
     let timed = items.filter {
-      options.kinds.contains($0.kind) && !settledIDs.contains($0.id) && !$0.isAllDay
+      options.kinds.contains($0.kind) && !$0.isAllDay
         && $0.startedEarlier != true
         && $0.start > now && $0.start <= end
     }
