@@ -53,6 +53,13 @@
         )
       }
       #expect(read().settled.isEmpty)
+      /// What Siri's "What's Next Today" reads.
+      func spoken() -> [String] {
+        widget.items(
+          tasks: [task], events: [event], alarms: [alarm], now: a.now, calendar: calendar
+        ).map(\.title).sorted()
+      }
+      #expect(spoken() == ["Alarm", "Event", "Reminder"])
 
       let fire = try #require(
         AlarmPlan.fire(
@@ -77,6 +84,7 @@
         #expect(
           read().titles == ["Alarm", "Event", "Reminder"], "Settle does not change the source items"
         )
+        #expect(spoken() == read().titles.filter { !expected.contains($0) })
       }
 
       // Undo reaches the same hook and brings the item back.
@@ -84,6 +92,7 @@
       a.toast.performUndo()
       #expect(refreshes == before + 1)
       #expect(read().settled == ["Event", "Reminder"])
+      #expect(spoken() == ["Alarm"])
 
       // So does Unsettle.
       #expect(
