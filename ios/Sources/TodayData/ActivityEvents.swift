@@ -106,6 +106,15 @@ public enum ActivityEvents {
       props: ActivityProps.json(["source": source]))
   }
 
+  /// A Settings choice changed. `value` is an enum raw value or a number, never free text.
+  public static func settingChanged(key: String, value: String, at date: Date = .now)
+    -> ActivityEvent
+  {
+    ActivityEvent(
+      kind: ActivityKind.sysSettingChange, actor: "you", channel: "app", at: date,
+      props: ActivityProps.json(["key": key, "value": value]))
+  }
+
   /// The Lock Screen Up Next setting was switched in Settings.
   public static func upNextSetting(on: Bool, at date: Date = .now) -> ActivityEvent {
     ActivityEvent(

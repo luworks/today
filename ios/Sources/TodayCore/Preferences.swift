@@ -24,12 +24,15 @@ public enum Preferences {
   public static let newAlarmSoundKey = "today.setting.newAlarmSound"
   public static let weatherSummaryKey = "today.setting.weatherSummary"
   public static let upNextLiveActivityKey = "today.setting.upNextLiveActivity"
+  public static let afternoonStartKey = "today.setting.afternoonStart"
+  public static let eveningStartKey = "today.setting.eveningStart"
+  public static let freeRowMinutesKey = "today.setting.freeRowMinutes"
 
   static let allKeys = [
     compressEmptyHoursKey, dimPastDaysKey, firstWeekdayKey, weekNumbersKey, calendarStartKey,
     showFreeTimeKey, newReminderListKey, newEventCalendarKey, newEventAlertKey,
     newAlarmSnoozeKey, newAlarmSoundKey, showSettleKey, weatherSummaryKey,
-    upNextLiveActivityKey,
+    upNextLiveActivityKey, afternoonStartKey, eveningStartKey, freeRowMinutesKey,
   ]
 
   // MARK: Defaults (the behaviour before these choices existed)
@@ -56,6 +59,11 @@ public enum Preferences {
   /// ON by explicit owner decision (2026-11-08), overriding the rule that a new choice defaults to the old behaviour.
   /// The user can turn it off in Settings.
   public static let upNextLiveActivity = true
+  public static let afternoonStart = DayPart.Boundaries.standard.afternoon
+  public static let eveningStart = DayPart.Boundaries.standard.evening
+  /// The shortest gap that gets a "Free" row on Today. The AI planner keeps its own minimum.
+  public static let freeRowMinutes = 30
+  public static let freeRowMinutesChoices = [15, 30, 60]
 
   // MARK: Choices
 
@@ -178,6 +186,17 @@ public enum Preferences {
 
   public static func upNextLiveActivityEnabled(_ defaults: UserDefaults = .standard) -> Bool {
     defaults.object(forKey: upNextLiveActivityKey) as? Bool ?? upNextLiveActivity
+  }
+
+  public static func dayBoundaries(_ defaults: UserDefaults = .standard) -> DayPart.Boundaries {
+    DayPart.Boundaries(
+      afternoon: defaults.object(forKey: afternoonStartKey) as? Int ?? afternoonStart,
+      evening: defaults.object(forKey: eveningStartKey) as? Int ?? eveningStart)
+  }
+
+  /// A stored Free-row minimum, or the default if it is not one of the choices.
+  public static func freeRowMinutes(stored: Int) -> Int {
+    freeRowMinutesChoices.contains(stored) ? stored : freeRowMinutes
   }
 
   // MARK: One-time notices (not Settings)

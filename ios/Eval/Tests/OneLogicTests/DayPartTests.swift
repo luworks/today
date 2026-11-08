@@ -47,6 +47,36 @@ final class DayPartTests: XCTestCase {
     XCTAssertEqual(part(23, 59), .evening)
   }
 
+  func testChosenBoundariesMoveTheParts() {
+    let early = DayPart.Boundaries(afternoon: 11, evening: 17)
+    func moved(_ hour: Int, _ minute: Int = 0) -> DayPart {
+      DayPart.of(at(hour, minute), day: at(0), calendar: cal, boundaries: early)
+    }
+    XCTAssertEqual(moved(10, 59), .morning)
+    XCTAssertEqual(moved(11), .afternoon)
+    XCTAssertEqual(moved(16, 59), .afternoon)
+    XCTAssertEqual(moved(17), .evening)
+  }
+
+  func testBoundariesThatBreakTheOrderAreTheStandardOnes() {
+    let standard = DayPart.Boundaries.standard
+    XCTAssertEqual(standard.afternoon, 12)
+    XCTAssertEqual(standard.evening, 18)
+    XCTAssertEqual(DayPart.Boundaries(afternoon: 18, evening: 12), standard)
+    XCTAssertEqual(DayPart.Boundaries(afternoon: 14, evening: 14), standard)
+    XCTAssertEqual(DayPart.Boundaries(afternoon: 0, evening: 18), standard, "morning needs an hour")
+    XCTAssertEqual(DayPart.Boundaries(afternoon: 12, evening: 24), standard)
+    XCTAssertEqual(DayPart.Boundaries(afternoon: 1, evening: 23).afternoon, 1)
+  }
+
+  func testChoicesKeepThePartsInOrder() {
+    let b = DayPart.Boundaries(afternoon: 13, evening: 15)
+    XCTAssertEqual(b.afternoonChoices.last, 14)
+    XCTAssertEqual(b.afternoonChoices.first, 1)
+    XCTAssertEqual(b.eveningChoices.first, 14)
+    XCTAssertEqual(b.eveningChoices.last, 23)
+  }
+
   func testAnEventStaysInThePartItStarts() {
     XCTAssertEqual(part(11, 30), .morning, "11:30 to 13:00 is a morning event")
   }

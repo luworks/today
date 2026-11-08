@@ -197,6 +197,10 @@
       }
     }
 
+    private func recordSetting(_ key: String, _ value: String) {
+      ledger.activity.record(ActivityEvents.settingChanged(key: key, value: value))
+    }
+
     private func includes(_ section: Selection) -> Bool {
       selection == .all || selection == section
     }
@@ -257,10 +261,12 @@
       Section {
         Toggle("Show alarms in Today and Calendar", isOn: $showAlarms)
         Toggle("Scroll to now when Today opens", isOn: $jumpToNow)
-        TodayTimelineSettings(upNextChanged: { on in
-          ledger.activity.record(ActivityEvents.upNextSetting(on: on))
-          rewriteWidgets()
-        })
+        TodayTimelineSettings(
+          upNextChanged: { on in
+            ledger.activity.record(ActivityEvents.upNextSetting(on: on))
+            rewriteWidgets()
+          },
+          settingChanged: recordSetting)
         explainedToggle(
           "Travel time", isOn: $travelTime,
           caption:
