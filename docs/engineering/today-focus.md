@@ -13,12 +13,12 @@ store error line and the hiding of settled rows. A past or future day offers no 
 shows every row: a past day exactly as `DayHistory` rebuilds it, a future day as planned. A choice belongs to the
 local day it was made on and ends with it; the next day the item is a normal row again, with no "returned" history.
 
-The Lock Screen Up Next card and every Next Up widget leave out what is settled today, through the same identities and
+The Lock Screen Up Next card, every Next Up widget and Siri's What's Next Today leave out what is settled today, through the same identities and
 state as the timeline (`WidgetFeed.itemsAndSettled`, `NextItems.removingSettled`). A settled item is off the snapshot,
 including a "Now" row, takes no slot and is not counted in "+N". The widget reads Apple Calendar itself, so the snapshot
 also lists the settled occurrences (`settledEvents`) and `NextItems.merge` drops their live copies. Every change or Undo
 recomputes the card and reloads the widgets together (`TodayFocus.onChange`). Turning Show Settle off keeps the rows
-hidden, so it does not bring them back on the card or the widgets either.
+hidden, so it does not bring them back on the card, the widgets or in Siri either.
 
 Hidden meetings still count as busy time for free gaps and suggestions. Individual overdue reminders can be settled
 on today (the owner's explicit exception to "overdue stays visible"); the "N overdue" count leaves them out.

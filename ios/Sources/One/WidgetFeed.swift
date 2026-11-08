@@ -65,10 +65,8 @@
     ) {
       // UI tests run on a throwaway store; keep them from replacing what the widget shows.
       guard enabled, !disposed else { return }
-      let (all, settledIDs) = itemsAndSettled(
+      let (items, settledEvents) = visibleItems(
         tasks: tasks, events: events, alarms: alarms, now: now, calendar: calendar)
-      // One list for the card and every widget, so one Settle, Unsettle or Undo moves them together.
-      let (items, settledEvents) = NextItems.removingSettled(all, settledIDs: settledIDs)
       // Right after launch EventKit is still warming up and system events read as none; writing now would blank them
       // on the widget. The store bumps `CalendarSync.version` when it's ready, which calls this again.
       let sync = calendarService
@@ -89,14 +87,23 @@
       reload()
     }
 
+    /// What Siri reads: the same list as the card and the widgets.
     package func items(
       tasks: [OneTask], events: [OneEvent], alarms: [OneAlarm], now: Date, calendar: Calendar
     ) -> [WidgetItem] {
-      itemsAndSettled(tasks: tasks, events: events, alarms: alarms, now: now, calendar: calendar)
-        .items
+      visibleItems(tasks: tasks, events: events, alarms: alarms, now: now, calendar: calendar).items
     }
 
-    /// Every item, plus the IDs of those settled today, which `update` keeps off the card and the widgets.
+    /// One list for the card, every widget and Siri, so one Settle, Unsettle or Undo moves them together.
+    private func visibleItems(
+      tasks: [OneTask], events: [OneEvent], alarms: [OneAlarm], now: Date, calendar: Calendar
+    ) -> (items: [WidgetItem], settledEvents: [String]) {
+      let (all, settledIDs) = itemsAndSettled(
+        tasks: tasks, events: events, alarms: alarms, now: now, calendar: calendar)
+      return NextItems.removingSettled(all, settledIDs: settledIDs)
+    }
+
+    /// Every item, plus the IDs of those settled today, which the card, the widgets and Siri leave out.
     package func itemsAndSettled(
       tasks: [OneTask], events: [OneEvent], alarms: [OneAlarm], now: Date, calendar: Calendar
     ) -> (items: [WidgetItem], settledIDs: Set<String>) {
