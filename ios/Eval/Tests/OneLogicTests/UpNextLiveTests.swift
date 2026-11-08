@@ -12,7 +12,8 @@ final class UpNextLiveTests: XCTestCase {
   }()
 
   private func at(_ hour: Int, _ minute: Int = 0, day: Int = 8) -> Date {
-    calendar.date(from: DateComponents(year: 2026, month: 11, day: day, hour: hour, minute: minute))!
+    calendar.date(
+      from: DateComponents(year: 2026, month: 11, day: day, hour: hour, minute: minute))!
   }
 
   private func item(
@@ -40,7 +41,8 @@ final class UpNextLiveTests: XCTestCase {
   func testExactWindowBoundaries() {
     let now = at(9)
     XCTAssertEqual(titles([item("at now", now)], now: now), [], "already started")
-    XCTAssertEqual(titles([item("just after", now.addingTimeInterval(1))], now: now), ["just after"])
+    XCTAssertEqual(
+      titles([item("just after", now.addingTimeInterval(1))], now: now), ["just after"])
     XCTAssertEqual(titles([item("edge", at(12))], now: now), ["edge"], "now + 3h is included")
     XCTAssertEqual(titles([item("past", at(12).addingTimeInterval(1))], now: now), [])
   }
