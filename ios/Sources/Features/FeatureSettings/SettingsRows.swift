@@ -238,11 +238,18 @@
 
   /// Settings > Reminders: where a new reminder goes when nothing else decides.
   package struct RemindersSettingsSection: View {
-    package init(settingChanged: @escaping @MainActor (String, String) -> Void = { _, _ in }) {
+    package init(
+      settingChanged: @escaping @MainActor (String, String) -> Void = { _, _ in },
+      interruptionChanged: @escaping @MainActor (String) -> Void = { _ in }
+    ) {
       self.settingChanged = settingChanged
+      self.interruptionChanged = interruptionChanged
     }
     private let settingChanged: @MainActor (String, String) -> Void
+    private let interruptionChanged: @MainActor (String) -> Void
     @AppStorage(Preferences.newReminderListKey) private var chosen = Preferences.newReminderList
+    @AppStorage(Preferences.reminderInterruptionKey) private var interruption =
+      Preferences.reminderInterruption
     @Query(sort: \OneList.order) private var lists: [OneList]
 
     package var body: some View {
@@ -264,9 +271,51 @@
           Text("Quick-Add Times")
         }
         .accessibilityIdentifier("settings.quickPresets")
+        NavigationLink {
+          ReminderInterruptionSettings(changed: interruptionChanged)
+        } label: {
+          LabeledContent(
+            "Notifications", value: Preferences.reminderInterruption(stored: interruption).title)
+        }
+        .accessibilityIdentifier("settings.reminderInterruption")
       } header: {
         Text("Reminders")
       }
+    }
+  }
+
+  /// Settings > Reminders > Notifications: how much a reminder's notification interrupts.
+  struct ReminderInterruptionSettings: View {
+    let changed: @MainActor (String) -> Void
+    @AppStorage(Preferences.reminderInterruptionKey) private var stored =
+      Preferences.reminderInterruption
+
+    private var choice: Binding<Preferences.ReminderInterruption> {
+      Binding(
+        get: { Preferences.reminderInterruption(stored: stored) },
+        set: { stored = $0.rawValue })
+    }
+
+    var body: some View {
+      Form {
+        Section {
+          Picker("Notifications", selection: choice) {
+            ForEach(Preferences.ReminderInterruption.allCases, id: \.self) {
+              Text($0.title).tag($0)
+            }
+          }
+          .pickerStyle(.inline)
+          .labelsHidden()
+          .accessibilityIdentifier("settings.reminderInterruption.picker")
+        } footer: {
+          Text(
+            "Alarms and Ring as Alarm always ring. Reminders synced with Apple Reminders are alerted by Apple's app, so this doesn't change them."
+          )
+        }
+      }
+      .navigationTitle("Notifications")
+      .navigationBarTitleDisplayMode(.inline)
+      .onChange(of: stored) { _, value in changed(value) }
     }
   }
 

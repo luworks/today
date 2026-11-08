@@ -111,7 +111,14 @@
           if includes(.calendar) {
             CalendarSettingsSection(calendars: calendar.calendars(), settingChanged: recordSetting)
           }
-          if includes(.reminders) { RemindersSettingsSection(settingChanged: recordSetting) }
+          if includes(.reminders) {
+            RemindersSettingsSection(
+              settingChanged: recordSetting,
+              interruptionChanged: { value in
+                recordSetting(Preferences.reminderInterruptionKey, value)
+                Task { await notifications.resync() }
+              })
+          }
           if includes(.smartLists) { smartListsSection }
           if includes(.alarms) { AlarmsSettingsSection() }
           if includes(.holidays) { holidaysSection }

@@ -44,7 +44,7 @@
         let ledger = Ledger(activity: activity, reminders: reminders, runtime: runtime)
         let notifications = Reminders(
           center: .current(), alarms: alarms, reminders: reminders,
-          ledger: ledger, runtime: runtime)
+          ledger: ledger, runtime: runtime, defaults: defaults)
         let travel = TravelTimes(defaults: defaults, runtime: runtime)
         let sound = SoundPreview()
         let actions = PlannerActions(

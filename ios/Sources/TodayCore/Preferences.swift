@@ -28,6 +28,7 @@ public enum Preferences {
   public static let eveningStartKey = "today.setting.eveningStart"
   public static let freeRowMinutesKey = "today.setting.freeRowMinutes"
   public static let newEventMinutesKey = "today.setting.newEventMinutes"
+  public static let reminderInterruptionKey = "today.setting.reminderInterruption"
   public static let quickPresetsKey = "today.setting.quickPresets"
 
   static let allKeys = [
@@ -35,7 +36,7 @@ public enum Preferences {
     showFreeTimeKey, newReminderListKey, newEventCalendarKey, newEventAlertKey,
     newAlarmSnoozeKey, newAlarmSoundKey, showSettleKey, weatherSummaryKey,
     upNextLiveActivityKey, afternoonStartKey, eveningStartKey, freeRowMinutesKey,
-    newEventMinutesKey, quickPresetsKey,
+    newEventMinutesKey, quickPresetsKey, reminderInterruptionKey,
   ]
 
   // MARK: Defaults (the behaviour before these choices existed)
@@ -208,6 +209,29 @@ public enum Preferences {
   }
 
   /// A stored new-event length, or the default if it is not one of the choices.
+  /// How much a reminder's notification interrupts. Alarms and events are not this setting's business.
+  public enum ReminderInterruption: String, CaseIterable, Sendable {
+    case breakThroughFocus, standard, off
+
+    public var title: String {
+      switch self {
+      case .breakThroughFocus: "Break Through Focus"
+      case .standard: "Standard"
+      case .off: "No Notifications"
+      }
+    }
+  }
+
+  public static let reminderInterruption = ReminderInterruption.breakThroughFocus.rawValue
+
+  public static func reminderInterruption(stored: String?) -> ReminderInterruption {
+    stored.flatMap(ReminderInterruption.init(rawValue:)) ?? .breakThroughFocus
+  }
+
+  public static func reminderInterruption(_ defaults: UserDefaults) -> ReminderInterruption {
+    reminderInterruption(stored: defaults.string(forKey: reminderInterruptionKey))
+  }
+
   public static func newEventMinutes(stored: Int) -> Int {
     newEventMinutesChoices.contains(stored) ? stored : newEventMinutes
   }

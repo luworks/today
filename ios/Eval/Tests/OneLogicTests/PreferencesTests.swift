@@ -238,4 +238,24 @@ final class PreferencesTests: XCTestCase {
       d.bool(forKey: Preferences.dimPastDaysKey), false,
       "the relaunch check keeps what the first launch saved")
   }
+
+  func testReminderInterruptionDefaultsAndFallbacks() {
+    XCTAssertEqual(Preferences.reminderInterruption(stored: nil), .breakThroughFocus)
+    XCTAssertEqual(Preferences.reminderInterruption(stored: "retired"), .breakThroughFocus)
+    XCTAssertEqual(Preferences.reminderInterruption(stored: "standard"), .standard)
+    XCTAssertEqual(Preferences.reminderInterruption(stored: "off"), .off)
+    XCTAssertEqual(
+      Preferences.reminderInterruption(stored: Preferences.reminderInterruption),
+      .breakThroughFocus)
+  }
+
+  func testReminderDeliveryFollowsTheChoiceExceptTheAlarmFallback() {
+    XCTAssertEqual(
+      ReminderPlan.delivery(.breakThroughFocus, isAlarmFallback: false), .timeSensitive)
+    XCTAssertEqual(ReminderPlan.delivery(.standard, isAlarmFallback: false), .active)
+    XCTAssertEqual(ReminderPlan.delivery(.off, isAlarmFallback: false), .skip)
+    for choice in Preferences.ReminderInterruption.allCases {
+      XCTAssertEqual(ReminderPlan.delivery(choice, isAlarmFallback: true), .timeSensitive)
+    }
+  }
 }
