@@ -169,6 +169,9 @@
         actor: .todayAI, channel: .ask, approval: .asked, context: context)
     }
 
+    /// Settings → "New event length": how long a new event lasts if nothing states it.
+    package var newEventMinutes: Int { Preferences.newEventMinutes(defaults) }
+
     @discardableResult
     package func insert(
       _ capture: Capture, into context: ModelContext,
@@ -177,7 +180,8 @@
     ) throws -> (id: PersistentIdentifier, entry: LedgerItem) {
       try capture.insertRecorded(
         into: context, actor: actor, channel: channel, approval: approval,
-        ledger: ledger, runtime: runtime, alarmDefaults: AlarmPlan.newAlarmDefaults(defaults))
+        ledger: ledger, runtime: runtime, alarmDefaults: AlarmPlan.newAlarmDefaults(defaults),
+        newEventMinutes: newEventMinutes)
     }
 
     /// A proposal retains the committed system identity until local persistence succeeds.
@@ -192,7 +196,8 @@
         ?? capture.makeEvent(
           calendar: runtime.calendar,
           alertMinutes: capture.alertMinutes.map { $0 == Preferences.noEventAlert ? nil : $0 }
-            ?? Preferences.newEventAlertMinutes(defaults))
+            ?? Preferences.newEventAlertMinutes(defaults),
+          defaultMinutes: newEventMinutes)
       if event.externalID == nil { event.externalID = recoveryExternalID }
       eventCreationDrafts[requestID] = event
       if event.externalID == nil {

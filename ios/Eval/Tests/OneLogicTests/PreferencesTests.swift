@@ -53,6 +53,19 @@ final class PreferencesTests: XCTestCase {
     XCTAssertEqual(Preferences.freeRowMinutes(stored: 45), 30, "a retired value is the default")
   }
 
+  func testNewEventLengthDefaultsAndFallbacks() {
+    let d = freshDefaults()
+    XCTAssertEqual(Preferences.newEventMinutes(d), 60, "a new event lasted an hour")
+    for minutes in Preferences.newEventMinutesChoices {
+      d.set(minutes, forKey: Preferences.newEventMinutesKey)
+      XCTAssertEqual(Preferences.newEventMinutes(d), minutes)
+    }
+    d.set(50, forKey: Preferences.newEventMinutesKey)
+    XCTAssertEqual(Preferences.newEventMinutes(d), 60, "a retired value is the default")
+    XCTAssertEqual(Preferences.newEventMinutesLabel(90), "1.5 hours")
+    XCTAssertEqual(Preferences.newEventMinutesLabel(15), "15 minutes")
+  }
+
   func testSettingChangeIsRecordedWithoutFreeText() {
     let e = ActivityEvents.settingChanged(key: Preferences.freeRowMinutesKey, value: "15")
     XCTAssertEqual(e.kind, ActivityKind.sysSettingChange)

@@ -67,7 +67,9 @@
       _start = State(initialValue: start)
       _end = State(
         initialValue: event == nil
-          ? slotEnd ?? start.addingTimeInterval(3600)
+          ? slotEnd
+            ?? start.addingTimeInterval(
+              TimeInterval(Preferences.newEventMinutes(presentation.defaults) * 60))
           : start.addingTimeInterval(TimeInterval((event?.durationMinutes ?? 60) * 60)))
       _repeatRule = State(initialValue: event?.repeats)
       _reminder = State(

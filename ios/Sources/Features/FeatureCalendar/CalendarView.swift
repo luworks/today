@@ -1656,6 +1656,7 @@
   private struct DayColumn: View {
     let calendar: any CalendarService
     @Environment(PlannerPresentation.self) private var presentation
+    private var newEventMinutes: Int { Preferences.newEventMinutes(presentation.defaults) }
     @Environment(\.colorScheme) private var colorScheme
     /// Start of the day.
     let day: Date
@@ -1906,7 +1907,7 @@
         draft = nil
         guard let point, let start = cal.date(byAdding: .minute, value: minute(point), to: day)
         else { return }
-        create(start, start.addingTimeInterval(3600))
+        create(start, start.addingTimeInterval(TimeInterval(newEventMinutes * 60)))
       }
       .frame(width: width, height: CGFloat(axis.height))
       .sensoryFeedback(trigger: draft) { (old: Int?, new: Int?) -> SensoryFeedback? in
@@ -1919,7 +1920,7 @@
     /// The placeholder under the finger while a new event is placed, like Apple's "New Event" block.
     private func draftBlock(_ minute: Int, width: CGFloat) -> some View {
       let start = cal.date(byAdding: .minute, value: minute, to: day) ?? day
-      let height = CGFloat(axis.height(from: Double(minute), to: Double(minute + 60)))
+      let height = CGFloat(axis.height(from: Double(minute), to: Double(minute + newEventMinutes)))
       return VStack(alignment: .leading, spacing: 0) {
         Text("New Event").font(.system(size: 10, weight: .semibold))
         Text(

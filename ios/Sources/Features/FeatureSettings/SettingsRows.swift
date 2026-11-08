@@ -136,10 +136,17 @@
   /// Settings > Calendar: how 2 Day, Month and Year look and where Calendar opens.
   package struct CalendarSettingsSection: View {
     /// Writable Apple calendars for "New events go to"; empty when Calendar access is off (the row is hidden).
-    package init(calendars: [SystemCalendar] = []) {
+    package init(
+      calendars: [SystemCalendar] = [],
+      settingChanged: @escaping @MainActor (String, String) -> Void = { _, _ in }
+    ) {
       self.calendars = calendars.filter { $0.allowsContentModifications }
+      self.settingChanged = settingChanged
     }
     private let calendars: [SystemCalendar]
+    private let settingChanged: @MainActor (String, String) -> Void
+    @AppStorage(Preferences.newEventMinutesKey) private var newEventMinutes =
+      Preferences.newEventMinutes
     @AppStorage(Preferences.newEventCalendarKey) private var newEventCalendar = Preferences
       .newEventCalendar
     @AppStorage(Preferences.newEventAlertKey) private var newEventAlert = Preferences.newEventAlert
@@ -206,6 +213,20 @@
           ForEach(Preferences.newEventAlertChoices, id: \.self) {
             Text(Preferences.newEventAlertLabel($0)).tag($0)
           }
+        }
+        MenuChoiceRow(
+          title: "New event length",
+          selection: Binding(
+            get: { Preferences.newEventMinutes(stored: newEventMinutes) },
+            set: { newEventMinutes = $0 }),
+          caption: nil, identifier: "settings.newEventMinutes"
+        ) {
+          ForEach(Preferences.newEventMinutesChoices, id: \.self) {
+            Text(Preferences.newEventMinutesLabel($0)).tag($0)
+          }
+        }
+        .onChange(of: newEventMinutes) { _, value in
+          settingChanged(Preferences.newEventMinutesKey, String(value))
         }
       } header: {
         Text("Calendar")

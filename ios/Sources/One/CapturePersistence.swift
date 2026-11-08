@@ -46,15 +46,17 @@
     }
 
     /// `alertMinutes`: the alert before the start (Settings → "New event alert"); nil = none.
-    package func makeEvent(calendar: Calendar, alertMinutes: Int? = Preferences.newEventAlert)
-      -> OneEvent
-    {
+    /// `defaultMinutes`: how long it lasts if the capture states no length (Settings → "New event length").
+    package func makeEvent(
+      calendar: Calendar, alertMinutes: Int? = Preferences.newEventAlert,
+      defaultMinutes: Int = Preferences.newEventMinutes
+    ) -> OneEvent {
       let start =
         clockTime(calendar: calendar) ?? calendar.date(
           bySettingHour: 9, minute: 0, second: 0, of: day) ?? day
       let e = OneEvent(
         title: title, start: isAllDay ? day : start,
-        durationMinutes: isAllDay ? 1440 : durationMinutes ?? 60)
+        durationMinutes: isAllDay ? 1440 : durationMinutes ?? defaultMinutes)
       e.note = notes ?? ""
       e.isAllDay = isAllDay
       e.repeatRule = repeatRule
@@ -69,11 +71,12 @@
     package func insert(
       into context: ModelContext, actor: LedgerActor = .you, channel: LedgerChannel = .app,
       approval: LedgerApproval = .userMade, ledger: Ledger, runtime: PlannerRuntime,
-      alarmDefaults: AlarmPlan.NewAlarmDefaults = AlarmPlan.newAlarmDefaults()
+      alarmDefaults: AlarmPlan.NewAlarmDefaults = AlarmPlan.newAlarmDefaults(),
+      newEventMinutes: Int = Preferences.newEventMinutes()
     ) throws -> PersistentIdentifier {
       try insertRecorded(
         into: context, actor: actor, channel: channel, approval: approval, ledger: ledger,
-        runtime: runtime, alarmDefaults: alarmDefaults
+        runtime: runtime, alarmDefaults: alarmDefaults, newEventMinutes: newEventMinutes
       ).id
     }
 
@@ -82,7 +85,8 @@
     package func insertRecorded(
       into context: ModelContext, actor: LedgerActor = .you, channel: LedgerChannel = .app,
       approval: LedgerApproval = .userMade, ledger: Ledger, runtime: PlannerRuntime,
-      alarmDefaults: AlarmPlan.NewAlarmDefaults = AlarmPlan.newAlarmDefaults()
+      alarmDefaults: AlarmPlan.NewAlarmDefaults = AlarmPlan.newAlarmDefaults(),
+      newEventMinutes: Int = Preferences.newEventMinutes()
     ) throws -> (id: PersistentIdentifier, entry: LedgerItem) {
       let model: any PersistentModel
       switch kind {
@@ -94,7 +98,7 @@
         } else {
           model = makeTask(calendar: runtime.calendar)
         }
-      case .event: model = makeEvent(calendar: runtime.calendar)
+      case .event: model = makeEvent(calendar: runtime.calendar, defaultMinutes: newEventMinutes)
       }
       if let task = model as? OneTask { task.createdAt = runtime.now() }
       context.insert(model)

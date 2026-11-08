@@ -27,12 +27,14 @@ public enum Preferences {
   public static let afternoonStartKey = "today.setting.afternoonStart"
   public static let eveningStartKey = "today.setting.eveningStart"
   public static let freeRowMinutesKey = "today.setting.freeRowMinutes"
+  public static let newEventMinutesKey = "today.setting.newEventMinutes"
 
   static let allKeys = [
     compressEmptyHoursKey, dimPastDaysKey, firstWeekdayKey, weekNumbersKey, calendarStartKey,
     showFreeTimeKey, newReminderListKey, newEventCalendarKey, newEventAlertKey,
     newAlarmSnoozeKey, newAlarmSoundKey, showSettleKey, weatherSummaryKey,
     upNextLiveActivityKey, afternoonStartKey, eveningStartKey, freeRowMinutesKey,
+    newEventMinutesKey,
   ]
 
   // MARK: Defaults (the behaviour before these choices existed)
@@ -64,6 +66,9 @@ public enum Preferences {
   /// The shortest gap that gets a "Free" row on Today. The AI planner keeps its own minimum.
   public static let freeRowMinutes = 30
   public static let freeRowMinutesChoices = [15, 30, 60]
+  /// How long a new event lasts when nothing states its end: not the user, the AI or a selected slot.
+  public static let newEventMinutes = 60
+  public static let newEventMinutesChoices = [15, 30, 45, 60, 90, 120]
 
   // MARK: Choices
 
@@ -197,6 +202,25 @@ public enum Preferences {
   /// A stored Free-row minimum, or the default if it is not one of the choices.
   public static func freeRowMinutes(stored: Int) -> Int {
     freeRowMinutesChoices.contains(stored) ? stored : freeRowMinutes
+  }
+
+  /// A stored new-event length, or the default if it is not one of the choices.
+  public static func newEventMinutes(stored: Int) -> Int {
+    newEventMinutesChoices.contains(stored) ? stored : newEventMinutes
+  }
+
+  public static func newEventMinutes(_ defaults: UserDefaults = .standard) -> Int {
+    newEventMinutes(stored: defaults.object(forKey: newEventMinutesKey) as? Int ?? newEventMinutes)
+  }
+
+  /// "30 minutes", "1 hour", "1.5 hours".
+  public static func newEventMinutesLabel(_ minutes: Int) -> String {
+    switch minutes {
+    case 60: "1 hour"
+    case 90: "1.5 hours"
+    case 120: "2 hours"
+    default: "\(minutes) minutes"
+    }
   }
 
   // MARK: One-time notices (not Settings)
