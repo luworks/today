@@ -77,7 +77,8 @@ struct NextUpProvider: TimelineProvider {
   static func currentItems(now: Date) -> [WidgetItem] {
     let snapshot = WidgetSnapshot.load()
     return NextItems.merge(
-      snapshot: snapshot?.items ?? [], live: liveEvents(settings: snapshot?.calendar, now: now))
+      snapshot: snapshot?.items ?? [], live: liveEvents(settings: snapshot?.calendar, now: now),
+      settledEvents: snapshot?.settledEvents ?? [])
   }
 
   /// One store for the extension's lifetime: creating an EKEventStore is slow.

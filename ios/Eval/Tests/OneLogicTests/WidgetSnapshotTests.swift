@@ -187,6 +187,79 @@ final class WidgetSnapshotTests: XCTestCase {
       merged.filter { $0.title == "Lunch (mirrored)" }.count, 1, "a mirrored event shows once")
   }
 
+  // MARK: Settled
+
+  private func next(_ items: [WidgetItem]) -> LockScreenNext {
+    LockScreenNext.make(items: items, now: now, calendar: cal) { _ in "time" }
+  }
+
+  private func event(_ id: String, _ start: Date, _ end: Date) -> WidgetItem {
+    WidgetItem(id: id, title: id, start: start, end: end, kind: .event, externalID: "ek-" + id)
+  }
+
+  func testASettledItemLeavesTheSnapshotAndTheNextMovesUp() {
+    let items = [
+      item("a", date(16, 10)), item("b", date(16, 11), kind: .reminder),
+      item("c", date(16, 12), kind: .alarm), item("d", date(16, 13)),
+    ]
+    let shown = NextItems.removingSettled(items, settledIDs: ["a"])
+    XCTAssertEqual(shown.items.map(\.title), ["b", "c", "d"])
+    XCTAssertEqual(shown.settledEvents, [], "only Apple Calendar events need a key")
+    XCTAssertEqual(
+      NextItems.select(from: shown.items, now: now, calendar: cal).today.map(\.title),
+      ["b", "c", "d"])
+    XCTAssertEqual(
+      NextItems.select(from: shown.items, now: now, calendar: cal).remainingToday, 3)
+  }
+
+  func testASettledNowRowIsGoneAndTheNextItemLeads() {
+    let items = [event("church", date(16, 9), date(16, 14, 50)), item("b", date(16, 15))]
+    XCTAssertEqual(next(items).headline, "Now", "the row the owner saw")
+    let shown = NextItems.removingSettled(items, settledIDs: ["church"]).items
+    XCTAssertEqual(next(shown).title, "b")
+    XCTAssertEqual(next(shown).headline, "time")
+  }
+
+  func testPlusCountLeavesOutSettled() {
+    let items = [
+      event("church", date(16, 9), date(16, 14, 50)), item("a", date(16, 15)),
+      item("b", date(16, 16)), item("c", date(16, 17)),
+    ]
+    XCTAssertEqual(next(items).more, "+3")
+    let shown = NextItems.removingSettled(items, settledIDs: ["church", "b"]).items
+    XCTAssertEqual(next(shown).title, "a")
+    XCTAssertEqual(next(shown).more, "+1")
+  }
+
+  func testAllSettledLeavesNothingToday() {
+    let items = [item("a", date(16, 10))]
+    let shown = NextItems.removingSettled(items, settledIDs: ["a"]).items
+    XCTAssertTrue(next(shown).isEmpty)
+    XCTAssertEqual(NextItems.select(from: shown, now: now, calendar: cal).remainingToday, 0)
+  }
+
+  func testTheLiveCopyOfASettledEventStaysOff() {
+    let church = event("church", date(16, 9), date(16, 14, 50))
+    let tomorrow = event("church", date(17, 9), date(17, 14, 50))
+    let other = event("other", date(16, 15), date(16, 16))
+    let shown = NextItems.removingSettled([church, other], settledIDs: ["church"])
+    let merged = NextItems.merge(
+      snapshot: shown.items, live: [church, tomorrow, other], settledEvents: shown.settledEvents)
+    XCTAssertEqual(merged.map(\.start), [other.start, tomorrow.start], "only that occurrence")
+    XCTAssertEqual(next(merged).title, "other")
+    XCTAssertNil(next(merged).more)
+  }
+
+  func testSettledEventsSurviveTheSnapshotRoundTripAndOldSnapshotsDecode() throws {
+    let snapshot = WidgetSnapshot(generatedAt: now, items: [], settledEvents: ["ek@1"])
+    XCTAssertEqual(
+      WidgetSnapshot.decode(try snapshot.encoded())?.settledEvents, ["ek@1"])
+    let old = try JSONSerialization.data(withJSONObject: [
+      "generatedAt": ISO8601DateFormatter().string(from: now), "items": [],
+    ])
+    XCTAssertNil(try XCTUnwrap(WidgetSnapshot.decode(old)).settledEvents)
+  }
+
   func testMergeWithoutLiveKeepsSnapshot() {
     let snapshot = [
       WidgetItem(id: "x", title: "Meeting", start: date(16, 10), kind: .event, externalID: "ek1")

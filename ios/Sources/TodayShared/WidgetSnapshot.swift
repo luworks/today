@@ -79,6 +79,9 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
   /// The app's Apple Calendar settings, which the widget needs to read EventKit the way the app does:
   /// nil in snapshots from older builds (then the widget shows the snapshot as it is).
   public var calendar: CalendarSettings?
+  /// Apple Calendar occurrences settled today (`NextItems.occurrenceKey`). The widget reads those events live, so it
+  /// needs this to keep them off too. Optional so older snapshots still decode.
+  public var settledEvents: [String]?
 
   public struct CalendarSettings: Codable, Equatable, Sendable {
     /// Apple Calendar is on in Today and access is granted.
@@ -92,10 +95,14 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
     }
   }
 
-  public init(generatedAt: Date, items: [WidgetItem], calendar: CalendarSettings? = nil) {
+  public init(
+    generatedAt: Date, items: [WidgetItem], calendar: CalendarSettings? = nil,
+    settledEvents: [String]? = nil
+  ) {
     self.generatedAt = generatedAt
     self.items = items
     self.calendar = calendar
+    self.settledEvents = settledEvents
   }
 
   /// Today, tomorrow and the day after: at 00:05 "today" is the old tomorrow and "Tomorrow" is the old day after.
@@ -191,16 +198,25 @@ public enum NextItems {
   /// What the widget shows: the snapshot, with its Apple Calendar events replaced by `live` ones read from EventKit
   /// just now. `live == nil` (no access, or Apple Calendar is off) keeps the snapshot as it is. Today's own events,
   /// reminders and alarms always come from the snapshot.
-  public static func merge(snapshot: [WidgetItem], live: [WidgetItem]?) -> [WidgetItem] {
-    guard let live else { return snapshot }
+  /// `settledEvents` stay off even though EventKit still has them.
+  public static func merge(
+    snapshot: [WidgetItem], live: [WidgetItem]?, settledEvents: [String] = []
+  ) -> [WidgetItem] {
+    guard var live else { return snapshot }
+    if !settledEvents.isEmpty {
+      let settled = Set(settledEvents)
+      live.removeAll { item in
+        item.externalID.map { settled.contains(occurrenceKey($0, item.start)) } ?? false
+      }
+    }
     // The widget can't compute travel time (no location, no network): keep the app's estimate on the live copy
     // of the same occurrence (same Apple Calendar event, same start).
     var travel: [String: WidgetItem] = [:]
     for item in snapshot where item.kind == .event && item.leaveBy != nil {
-      if let id = item.externalID { travel[travelKey(id, item.start)] = item }
+      if let id = item.externalID { travel[occurrenceKey(id, item.start)] = item }
     }
     let carried = live.map { item -> WidgetItem in
-      guard let id = item.externalID, let from = travel[travelKey(id, item.start)] else {
+      guard let id = item.externalID, let from = travel[occurrenceKey(id, item.start)] else {
         return item
       }
       var copy = item
@@ -212,7 +228,20 @@ public enum NextItems {
       by: ordered)
   }
 
-  private static func travelKey(_ externalID: String, _ start: Date) -> String {
+  /// What the card and every widget may show: `items` without the ones settled today, so the next item moves up and
+  /// "+N" does not count them. `settledEvents` are the removed Apple Calendar occurrences, for `merge`.
+  public static func removingSettled(_ items: [WidgetItem], settledIDs: Set<String>) -> (
+    items: [WidgetItem], settledEvents: [String]
+  ) {
+    guard !settledIDs.isEmpty else { return (items, []) }
+    let settled = items.filter { settledIDs.contains($0.id) }
+    let keys = settled.compactMap { item in
+      item.externalID.map { occurrenceKey($0, item.start) }
+    }
+    return (items.filter { !settledIDs.contains($0.id) }, Array(Set(keys)).sorted())
+  }
+
+  static func occurrenceKey(_ externalID: String, _ start: Date) -> String {
     "\(externalID)@\(Int(start.timeIntervalSince1970))"
   }
 

@@ -1108,7 +1108,7 @@
       .accessibilityIdentifier("focus." + id)
       .accessibilityLabel("\(title) (\(count))")
       .accessibilityValue(expanded.wrappedValue ? "Expanded" : "Collapsed")
-      .accessibilityHint("Changes visibility for this day in Today only")
+      .accessibilityHint("Changes visibility for this day in Today and on widgets")
     }
 
     private var overdueRows: some View {

@@ -34,7 +34,7 @@
       ExplainedToggle(
         title: "Show Settle", isOn: $showsSettle,
         caption:
-          "Show Settle actions and Settled items in Today. Settle hides an item in Today only. Turn this back on to access settled items."
+          "Show Settle actions and Settled items in Today. Settle hides an item in Today and on the Lock Screen and widgets. Turn this back on to access settled items."
       )
       ExplainedToggle(
         title: "Show free time", isOn: $showsFreeTime,
