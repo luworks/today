@@ -33,6 +33,7 @@ final class DayPartTests: XCTestCase {
       case .label(let part): "[\(part)]"
       case .item(let row, let card, let closesCard):
         (card == nil ? "~" : "") + row.id + (closesCard ? "." : "")
+      case .emptyPart(let part): "empty:\(part.rawValue)"
       case .cardEnd(let part): "[/\(part)]"
       }
     }
@@ -93,6 +94,20 @@ final class DayPartTests: XCTestCase {
       layout([Row(id: "a", start: at(9)), Row(id: "b", start: at(20))]),
       ["[morning]", "a.", "[/morning]", "[evening]", "b.", "[/evening]"])
     XCTAssertEqual(layout([]), [])
+  }
+
+  func testADragShowsEmptyPartsAsTargets() {
+    let rows = DayPart.rows(
+      [Row(id: "a", start: at(9))], day: at(0), calendar: cal, start: \.start,
+      isPlanned: \.planned, showsEmptyParts: true)
+    XCTAssertEqual(rows.count, 9, "Three parts of label, row or target, and end")
+    guard case .emptyPart(.afternoon) = rows[4] else { return XCTFail("\(rows[4])") }
+  }
+
+  func testPartBoundsAndUsualTimes() {
+    XCTAssertEqual(DayPart.afternoon.bounds(day: at(0), calendar: cal)?.start, at(12))
+    XCTAssertEqual(DayPart.afternoon.bounds(day: at(0), calendar: cal)?.end, at(18))
+    XCTAssertEqual(DayPart.evening.usualTime(day: at(0), calendar: cal), at(19))
   }
 
   func testNowSitsInsideACardThatHasItems() {

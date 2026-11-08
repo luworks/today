@@ -42,7 +42,7 @@
     }
   }
 
-  /// A 44pt checkbox can extend into the noninteractive time gutter, never into the title.
+  /// A 44pt checkbox can extend into the time gutter, where it wins over the time label; never into the title.
   package struct AgendaIconSlot: ViewModifier {
     package var enabled: Bool
     package init(enabled: Bool) { self.enabled = enabled }
@@ -57,6 +57,13 @@
     }
   }
 
+  extension EnvironmentValues {
+    /// Set on a row whose time can change: tapping its time label calls this.
+    @Entry package var agendaTimeEdit: (@MainActor () -> Void)?
+    /// Set on the row being dragged: the time it would land at, shown as an accent pill.
+    @Entry package var agendaDragTime: Date?
+  }
+
   package struct TimeColumn: View {
     package init(date: Date, compact: Bool = false) {
       self.date = date
@@ -65,6 +72,8 @@
     package var compact = false
     package let date: Date
     @Environment(PlannerPresentation.self) private var presentation
+    @Environment(\.agendaTimeEdit) private var edit
+    @Environment(\.agendaDragTime) private var dragTime
     private func label(_ value: Date) -> Text {
       Text(
         value.formatted(
@@ -74,6 +83,21 @@
     }
 
     package var body: some View {
+      // An overlay, so the 44pt target leaves the row's height alone.
+      column.overlay(alignment: .leading) {
+        if compact, let edit {
+          Button(action: edit) {
+            Color.clear
+              .frame(width: AgendaRowStyle.timeWidth, height: ButtonConfiguration.minimumHitSize)
+              .contentShape(Rectangle())
+          }
+          .buttonStyle(.plain)
+          .accessibilityHidden(true)
+        }
+      }
+    }
+
+    private var column: some View {
       ZStack(alignment: .leading) {
         if compact {
           // Reserve the same two-digit hour and AM/PM width in every Today row.
@@ -85,7 +109,15 @@
             ).hidden()
           }
         }
-        label(date)
+        if let dragTime {
+          label(dragTime)
+            .foregroundStyle(.white)
+            .contentTransition(.numericText())
+            .background(
+              Capsule().fill(Color.accentColor).padding(.horizontal, -5).padding(.vertical, -2))
+        } else {
+          label(date)
+        }
       }
       .font(AgendaRowStyle.detail.monospacedDigit())
       .foregroundStyle(.secondary)

@@ -35,11 +35,45 @@ public enum DayPart: Int, CaseIterable, Sendable {
     return hour < boundaries.evening ? .afternoon : .evening
   }
 
+  /// From this part's first moment up to the next part's, or the end of the day.
+  public func bounds(
+    day: Date, calendar: Calendar, boundaries: Boundaries = .standard
+  ) -> DateInterval? {
+    guard let interval = calendar.dateInterval(of: .day, for: day) else { return nil }
+    func at(_ hour: Int) -> Date? {
+      calendar.date(bySettingHour: hour, minute: 0, second: 0, of: interval.start)
+    }
+    let start: Date?
+    let end: Date?
+    switch self {
+    case .morning: (start, end) = (interval.start, at(boundaries.afternoon))
+    case .afternoon: (start, end) = (at(boundaries.afternoon), at(boundaries.evening))
+    case .evening: (start, end) = (at(boundaries.evening), interval.end)
+    }
+    guard let start, let end, start < end else { return nil }
+    return DateInterval(start: start, end: end)
+  }
+
+  /// Where an item dropped into this part lands when nothing else in the part says otherwise: 09:00, 14:00
+  /// or 19:00, or the nearest whole hour still inside the part when Settings moved its boundaries.
+  public func usualTime(
+    day: Date, calendar: Calendar, boundaries: Boundaries = .standard
+  ) -> Date? {
+    let hour: Int
+    switch self {
+    case .morning: hour = min(9, boundaries.afternoon - 1)
+    case .afternoon: hour = min(max(14, boundaries.afternoon), boundaries.evening - 1)
+    case .evening: hour = max(19, boundaries.evening)
+    }
+    return calendar.date(bySettingHour: hour, minute: 0, second: 0, of: day)
+  }
+
   /// A part's rows, card label and card end, in day order. A part needs one planned item to earn a card:
   /// free time and the Now line alone never invent one, they stay loose rows at their place in the day.
+  /// `showsEmptyParts` is for a drag in progress: a part with nothing in it shows an empty card to drop into.
   public static func rows<Item>(
     _ items: [Item], day: Date, calendar: Calendar, boundaries: Boundaries = .standard,
-    start: (Item) -> Date, isPlanned: (Item) -> Bool
+    start: (Item) -> Date, isPlanned: (Item) -> Bool, showsEmptyParts: Bool = false
   ) -> [DayPartRow<Item>] {
     var parts: [DayPart: [Item]] = [:]
     for item in items {
@@ -48,6 +82,7 @@ public enum DayPart: Int, CaseIterable, Sendable {
     }
     return allCases.flatMap { part -> [DayPartRow<Item>] in
       let held = parts[part] ?? []
+      if held.isEmpty, showsEmptyParts { return [.label(part), .emptyPart(part), .cardEnd(part)] }
       guard held.contains(where: isPlanned) else {
         return held.map { .item($0, card: nil, closesCard: false) }
       }
@@ -64,6 +99,8 @@ public enum DayPart: Int, CaseIterable, Sendable {
 public enum DayPartRow<Item> {
   case label(DayPart)
   case item(Item, card: DayPart?, closesCard: Bool)
+  /// A part with no items, shown only as a drop target during a drag.
+  case emptyPart(DayPart)
   case cardEnd(DayPart)
 }
 
@@ -73,6 +110,7 @@ extension DayPartRow: Identifiable where Item: Identifiable {
     switch self {
     case .label(let part): "dayPart.label.\(part.rawValue)"
     case .item(let item, _, _): AnyHashable(item.id)
+    case .emptyPart(let part): "dayPart.empty.\(part.rawValue)"
     case .cardEnd(let part): "dayPart.end.\(part.rawValue)"
     }
   }

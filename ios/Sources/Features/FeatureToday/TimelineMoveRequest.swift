@@ -23,7 +23,7 @@
       self.perform = perform
     }
 
-    func apply(_ date: Date, toast: UndoToast?) async throws {
+    func apply(_ date: Date, label: String, toast: UndoToast?) async throws {
       guard !busy, !completed, date >= timing.earliest, date <= timing.latest else {
         throw CocoaError(.validationDateTooLate)
       }
@@ -31,7 +31,7 @@
       defer { busy = false }
       let undo = try await perform(date)
       completed = true
-      toast?.show("Time changed", undo: undo)
+      toast?.show(label, undo: undo)
     }
   }
 #endif

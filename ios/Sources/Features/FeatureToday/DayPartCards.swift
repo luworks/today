@@ -8,15 +8,24 @@
   struct DayPartRows<Item: Identifiable, Row: View>: View {
     let rows: [DayPartRow<Item>]
     let swipes: DayPartSwipes
+    let drag: TimelineDragModel
     @ViewBuilder let row: (Item) -> Row
 
     var body: some View {
       ForEach(rows) { entry in
         switch entry {
-        case .label(let part): DayPartLabel(part: part)
+        case .label(let part): DayPartLabel(part: part).modifier(drag.frameReader(entry.id))
         case .cardEnd: DayPartGap()
+        case .emptyPart:
+          Color.clear
+            .frame(height: AgendaRowStyle.minHeight)
+            .accessibilityHidden(true)
+            .listRowSeparator(.hidden)
+            .listRowInsets(EdgeInsets())
+            .listRowBackground(DayPartFill(edge: .bottom, id: entry.id, swipes: swipes))
         case .item(let item, let card, let closesCard):
           row(item)
+            .modifier(drag.frameReader(entry.id))
             .listRowBackground(
               card.map { _ in
                 DayPartFill(edge: closesCard ? .bottom : .middle, id: entry.id, swipes: swipes)
