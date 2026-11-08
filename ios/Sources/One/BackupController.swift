@@ -78,6 +78,7 @@
       "today.setting.newEventAlert", "today.setting.newAlarmSnooze", "today.setting.newAlarmSound",
       "today.setting.afternoonStart", "today.setting.eveningStart",
       "today.setting.freeRowMinutes", "today.setting.newEventMinutes",
+      "today.setting.quickPresets",
       "today.worldClock.cities", "reminders.smartOrder", "reminders.smartHidden",
       "activity.setting.tier.1", "activity.setting.tier.2", "activity.setting.tier.3",
       "activity.setting.tier.4",

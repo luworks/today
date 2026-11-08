@@ -104,7 +104,7 @@ public enum LaunchTestConfiguration {
     Preferences.weatherSummaryKey, Preferences.upNextLiveActivityKey,
     CalendarLayout.savedHourHeightKey,
     Preferences.afternoonStartKey, Preferences.eveningStartKey, Preferences.freeRowMinutesKey,
-    Preferences.newEventMinutesKey,
+    Preferences.newEventMinutesKey, Preferences.quickPresetsKey,
   ]
 }
 
