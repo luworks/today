@@ -74,7 +74,7 @@ class CheckReportTests(unittest.TestCase):
                 patch.object(benchmark, 'provenance', return_value={'valid': False, 'reason': 'missing'}), \
                 patch.object(benchmark, 'invoke') as invoke:
             for kind, kwargs in [('gallery', {}), ('cold', {'n': 2}), ('incremental', {}),
-                                 ('ui', {'arguments': ['--full']}), ('screenshot', {})]:
+                                 ('screenshot', {})]:
                 with self.subTest(kind=kind), self.assertRaises(ValueError):
                     benchmark.run(self.root, kind, conditions='Explicit host conditions', **kwargs)
             invoke.assert_not_called()

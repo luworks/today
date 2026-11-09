@@ -10,7 +10,6 @@ import re
 ROOT = Path(__file__).resolve().parents[2]
 MANIFEST = ROOT / 'tests/testing/groups.json'
 SETTINGS = json.loads(MANIFEST.read_text())['execution']
-TARGET = SETTINGS['ui_target']
 
 
 def discover(directory, root=ROOT):
@@ -97,7 +96,7 @@ def inventory(root=ROOT):
     return result
 
 
-def canonical(value, lane='ui'):
+def canonical(value, lane):
     config = lane_settings(lane)
     value = value.strip()
     objc = re.fullmatch(r'-\[(?:(\w+)\.)?(\w+) (\w+)\]', value)
@@ -105,7 +104,7 @@ def canonical(value, lane='ui'):
         value = '/'.join(part for part in objc.groups() if part)
     value = re.sub(r'\([^)]*\)', '', value).replace('.', '/')
     parts = value.split('/')
-    aliases = {'OneUITests': TARGET, 'OneLogicTests': SETTINGS['logic_target']}
+    aliases = {'OneLogicTests': SETTINGS['logic_target']}
     targets = {c['target'] for c in SETTINGS['lanes'].values()}
     targets.update(t for c in SETTINGS['lanes'].values() for t in c.get('source_targets', {}).values())
     if parts[0] in aliases:
@@ -195,7 +194,7 @@ def plan(groups, source=None, manifest=None):
         for selector in selectors:
             by_target[lane].setdefault(selector.split('/')[0], []).append(selector)
     return {'schema_version': 1, 'groups': groups, 'project': SETTINGS['project'],
-            'scheme': SETTINGS['scheme'], 'target': TARGET, 'selectors': selected,
+            'selectors': selected,
             'expected_by_target': by_target, 'lanes': SETTINGS['lanes'],
             'pending': list(dict.fromkeys(pending)), 'inventory_is_execution': False}
 
@@ -213,7 +212,7 @@ def unwrap(value):
     return value
 
 
-def xcresult_attempts(data, lane='ui'):
+def xcresult_attempts(data, lane):
     """Read leaf executions, never aggregate suite/plan success counts."""
     data = unwrap(data)
     attempts = []
@@ -366,7 +365,7 @@ def report(expected, attempts, exit_code=0, allowed_skips=(), skip_rules=(), raw
     def skip_matches(rule, attempt):
         target = attempt['test'].split('/')[0]
         lane = next((name for name, config in SETTINGS['lanes'].items()
-                     if target == config['target'] or target in config.get('source_targets', {}).values()), 'ui')
+                     if target == config['target'] or target in config.get('source_targets', {}).values()), 'logic')
         return (rule['category'] in allowed_skips
                 and canonical(rule['test'], lane) == attempt['test']
                 and re.search(rule['reason'], str(attempt.get('reason', '')), re.I))

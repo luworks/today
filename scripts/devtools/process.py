@@ -83,7 +83,7 @@ class PhaseDiagnostics:
         self.phase = 'process'
         for value in map(str, argv):
             if value in ('build', 'build-for-testing', 'test-without-building', 'bootstrap',
-                         'generate', 'resolve', 'business', 'integration', 'snapshots', 'core-ui'):
+                         'generate', 'resolve', 'business', 'integration', 'snapshots'):
                 self.phase = value
                 break
         if os.environ.get('TODAY_CI_DIAGNOSTICS') == '1':

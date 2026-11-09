@@ -62,133 +62,6 @@ class NativeProvenanceTests(unittest.TestCase):
     def ensure(self, scheme='TodayTests'):
         return core.ensure_test_products(self.root, scheme, self.invoke)
 
-    def mock_ui_products(self):
-        path, _, _ = self.products('TodayMock')
-        config = self.root / 'ios/Config/TodayMock-Debug.xcconfig'
-        config.parent.mkdir(exist_ok=True)
-        config.write_text('SWIFT_ACTIVE_COMPILATION_CONDITIONS = $(inherited) TODAY_MOCK\nPRODUCT_MODULE_NAME = TodayMockApp\n')
-        directory = path.parent / 'Debug-iphonesimulator'
-        for name in ('One', 'TodayMock'):
-            app = directory / (name + '.app')
-            app.mkdir(exist_ok=True)
-            (app / 'Info.plist').write_bytes(plistlib.dumps({
-                'CFBundleIdentifier': 'com.luworks.today', 'CFBundleExecutable': name}))
-            (app / name).write_bytes(b'Live' if name == 'One' else b'TodayMockApp MockAppComposition')
-        runner = directory / 'OneUITests-Runner.app'
-        bundle = runner / 'PlugIns/OneUITests.xctest'
-        bundle.mkdir(parents=True, exist_ok=True)
-        (runner / 'Runner').write_text('runner')
-        (bundle / 'Tests').write_text('tests')
-        prefix = '__TESTROOT__/Debug-iphonesimulator/'
-        target = {'BlueprintName': 'TodayUITests', 'IsUITestBundle': True,
-                  'TestHostPath': prefix + 'OneUITests-Runner.app',
-                  'TestBundlePath': '__TESTHOST__/PlugIns/OneUITests.xctest',
-                  'UITargetAppPath': prefix + 'TodayMock.app',
-                  'DependentProductPaths': [prefix + 'One.app', prefix + 'TodayMock.app',
-                                            prefix + 'OneUITests-Runner.app']}
-        path.write_bytes(plistlib.dumps({'TodayUITests': target}))
-        return path, target
-
-    def test_mock_ui_install_closure_selects_exact_mock_and_retains_provenance(self):
-        path, target = self.mock_ui_products()
-        with self.assertRaisesRegex(ValueError, 'Ambiguous'):
-            core.mock_ui_product(self.root, path)
-        selected = core.mock_ui_product(self.root, path, normalize=True)
-        self.assertEqual(selected['identity']['executable'], 'TodayMock')
-        self.assertTrue(selected['identity']['mock_composition_linked'])
-        data = plistlib.loads(path.read_bytes())['TodayUITests']
-        self.assertEqual(data['DependentProductPaths'], target['DependentProductPaths'][1:])
-        self.assertTrue((path.parent / 'Debug-iphonesimulator/One.app').is_dir(), 'production product retained')
-        current = self.fp('TodayMock')
-        core.record_build(self.root, current, [path], returncode=0, kind='build-for-testing', xctestrun=path)
-        self.assertTrue(core.provenance(self.root, current, kind='build-for-testing')['valid'])
-        (Path(selected['app']) / 'TodayMock').write_bytes(b'changed mock binary')
-        self.assertFalse(core.provenance(self.root, current, kind='build-for-testing')['valid'])
-
-    def test_mock_ui_rejects_live_target_unexpected_sibling_and_disguised_binary(self):
-        for fault in ('live_target', 'foreign_sibling', 'live_payload', 'missing_mock_flag'):
-            with self.subTest(fault=fault):
-                path, target = self.mock_ui_products()
-                if fault == 'live_target':
-                    target['UITargetAppPath'] = target['UITargetAppPath'].replace('TodayMock.app', 'One.app')
-                elif fault == 'foreign_sibling':
-                    target['DependentProductPaths'].append('__TESTROOT__/Debug-iphonesimulator/Other.app')
-                elif fault == 'live_payload':
-                    (path.parent / 'Debug-iphonesimulator/TodayMock.app/TodayMock').write_bytes(b'Live OneApp')
-                else:
-                    (self.root / 'ios/Config/TodayMock-Debug.xcconfig').write_text('PRODUCT_MODULE_NAME = TodayMockApp\n')
-                path.write_bytes(plistlib.dumps({'TodayUITests': target}))
-                with self.assertRaises(ValueError):
-                    core.mock_ui_product(self.root, path, normalize=True)
-
-    def test_combined_native_targets_allow_only_the_declared_isolated_host(self):
-        path, target = self.mock_ui_products()
-        prefix = '__TESTROOT__/Debug-iphonesimulator/'
-        host = path.parent / 'Debug-iphonesimulator/TodayTestHost.app'
-        host.mkdir()
-        (host / 'Info.plist').write_bytes(plistlib.dumps({
-            'CFBundleExecutable': 'TodayTestHost',
-            'CFBundleIdentifier': 'com.luworks.today.development.todaytesthost'}))
-        (host / 'TodayTestHost').write_text('native host')
-        target['DependentProductPaths'].append(prefix + 'TodayTestHost.app')
-        native = {'BlueprintName': 'TodayTests', 'TestHostPath': prefix + 'TodayTestHost.app'}
-        data = {'TodayUITests': target, 'TodayTests': native,
-                'TodaySnapshotTests': dict(native, BlueprintName='TodaySnapshotTests')}
-        path.write_bytes(plistlib.dumps(data))
-        core.mock_ui_product(self.root, path, normalize=True)
-        self.assertIn(prefix + 'TodayTestHost.app',
-                      plistlib.loads(path.read_bytes())['TodayUITests']['DependentProductPaths'])
-        current = self.fp('TodayCI')
-        # Use a scheme-matching path for the complete combined-product receipt.
-        combined = path.with_name(path.name.replace('TodayMock_', 'TodayCI_'))
-        native['TestBundlePath'] = '__TESTHOST__/PlugIns/TodayTests.xctest'
-        data['TodaySnapshotTests']['TestBundlePath'] = '__TESTHOST__/PlugIns/TodaySnapshotTests.xctest'
-        for name in ('TodayTests', 'TodaySnapshotTests'):
-            bundle = host / ('PlugIns/' + name + '.xctest')
-            bundle.mkdir(parents=True)
-            (bundle / 'Tests').write_text(name)
-        data['TodayUITests'] = plistlib.loads(path.read_bytes())['TodayUITests']
-        combined.write_bytes(plistlib.dumps(data))
-        core.record_build(self.root, current, [combined], returncode=0,
-                          kind='build-for-testing', xctestrun=combined)
-        self.assertTrue(core.provenance(self.root, current, kind='build-for-testing')['valid'])
-        del data['TodayTests']
-        del data['TodaySnapshotTests']
-        path.write_bytes(plistlib.dumps(data))
-        with self.assertRaisesRegex(ValueError, 'Ambiguous'):
-            core.mock_ui_product(self.root, path, normalize=True)
-        data['TodayTests'] = native
-        (host / 'Info.plist').write_bytes(plistlib.dumps({'CFBundleExecutable': 'One'}))
-        path.write_bytes(plistlib.dumps(data))
-        with self.assertRaisesRegex(ValueError, 'host identity'):
-            core.mock_ui_product(self.root, path, normalize=True)
-
-    def test_mock_dependency_aliases_preserve_identity_and_reject_other_products(self):
-        path, target = self.mock_ui_products()
-        prefix = '__TESTROOT__/Debug-iphonesimulator/'
-        mock = path.parent / 'Debug-iphonesimulator/TodayMock.app'
-        target['DependentProductPaths'] = [prefix + 'TodayMock.app', str(mock),
-                                          prefix + './TodayMock.app',
-                                          '__TESTHOST__/../TodayMock.app',
-                                          target['TestHostPath']]
-        path.write_bytes(plistlib.dumps({'TodayUITests': target}))
-        core.mock_ui_product(self.root, path, normalize=True)
-        self.assertEqual(plistlib.loads(path.read_bytes())['TodayUITests']['DependentProductPaths'],
-                         [prefix + 'TodayMock.app', target['TestHostPath']])
-        for dependency in (prefix + 'One.app', str(self.root / 'Outside.app'),
-                           '__TESTROOT__/../Outside.app'):
-            with self.subTest(dependency=dependency):
-                target['DependentProductPaths'] = [prefix + 'TodayMock.app', dependency]
-                path.write_bytes(plistlib.dumps({'TodayUITests': target}))
-                with self.assertRaises(ValueError):
-                    core.mock_ui_product(self.root, path)
-        alias = mock.with_name('Alias.app')
-        alias.symlink_to(mock, target_is_directory=True)
-        target['DependentProductPaths'] = [str(alias)]
-        path.write_bytes(plistlib.dumps({'TodayUITests': target}))
-        with self.assertRaisesRegex(ValueError, 'Symlink'):
-            core.mock_ui_product(self.root, path, normalize=True)
-
     def test_scheme_and_build_environment_invalidate_source_identity(self):
         before = self.fp()
         self.assertNotEqual(before, self.fp('TodaySnapshotTests'))
@@ -238,7 +111,7 @@ class NativeProvenanceTests(unittest.TestCase):
     def test_routine_compiler_mode_rebuilds_existing_products_and_reuses_only_same_mode(self):
         self.ensure()
         ordinary = self.fp()
-        for lane in ('integration', 'snapshots', 'core-ui'):
+        for lane in ('integration', 'snapshots'):
             with patch.dict(os.environ, {'TODAY_CI_SYNTHETIC': '1', 'TODAY_LANE': lane}):
                 self.assertNotEqual(ordinary, self.fp())
                 self.ensure()
@@ -307,7 +180,7 @@ class NativeProvenanceTests(unittest.TestCase):
             self.assertIsNone(core.compiler_module_cache(self.root, self.fp('TodayMock')))
             other_arch = core.fingerprint(self.root, scheme='TodayTests', architecture='x86_64')
             self.assertIsNone(core.compiler_module_cache(self.root, other_arch))
-            for lane, scheme in (('snapshots', 'TodaySnapshotTests'), ('core-ui', 'TodayMock')):
+            for lane, scheme in (('snapshots', 'TodaySnapshotTests'),):
                 with patch.dict(os.environ, {'TODAY_LANE': lane}):
                     self.assertNotEqual(before['prefix'], core.compiler_module_cache(self.root, self.fp(scheme))['prefix'])
         for lane in ('release', 'protected-release', 'extended', 'business'):

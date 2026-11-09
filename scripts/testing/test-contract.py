@@ -11,11 +11,10 @@ def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('operation', choices=['plan', 'report', 'inventory'])
     p.add_argument('--group', action='append', choices=list(contract.load_manifest()['groups']))
-    p.add_argument('--lane', choices=['logic', 'ui'])
+    p.add_argument('--lane', choices=list(contract.SETTINGS['lanes']))
     p.add_argument('--xcresult-json', type=Path, help='xcresulttool get test-results tests JSON')
     p.add_argument('--log', type=Path)
     p.add_argument('--exit-code', type=int, default=0)
-    p.add_argument('--allow-skip', action='append', default=[], choices=['hardware', 'screenshot', 'time'])
     args = p.parse_args(argv)
     try:
         if args.operation == 'inventory':
@@ -33,9 +32,9 @@ def main(argv=None):
                 elif args.lane == 'logic' and args.log:
                     attempts = contract.log_attempts(raw)
                 else:
-                    raise ValueError('UI reports require structured xcresult JSON; logic requires log or xcresult JSON')
+                    raise ValueError('Xcode reports require structured xcresult JSON; logic requires log or xcresult JSON')
                 result = contract.report(result['selectors'][args.lane], attempts, args.exit_code,
-                    args.allow_skip, contract.load_manifest()['skip_rules'], raw, result['pending'])
+                    (), contract.load_manifest()['skip_rules'], raw, result['pending'])
     except (ValueError, OSError) as error:
         result = {'schema_version': 1, 'status': 'failed', 'errors': ['parser_error'], 'detail': str(error)}
     print(json.dumps(result, indent=2))

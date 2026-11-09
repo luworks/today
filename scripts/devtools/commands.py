@@ -1,4 +1,4 @@
-"""Real local adapters. The UI/preview/test contracts retain orchestration ownership."""
+"""Real local adapters. The preview and test contracts retain orchestration ownership."""
 import json
 from pathlib import Path
 import shutil
@@ -157,10 +157,10 @@ def testing_contract(root):
     return contract
 
 
-def test(root, group, *, only=(), timeout=600, full=False, allow_skips=(), _locked=False):
+def test(root, group, *, only=(), timeout=600, full=False, _locked=False):
     from . import xcode_tests
-    if full and (group not in ('ui', 'release') or only):
-        raise ValueError('--full requires ui or release without --only')
+    if full and (group != 'release' or only):
+        raise ValueError('--full requires release without --only')
     if group == 'release':
         if not full:
             raise ValueError('release collection requires explicit --full')
@@ -172,16 +172,14 @@ def test(root, group, *, only=(), timeout=600, full=False, allow_skips=(), _lock
             first = test(root, 'unit', timeout=timeout, _locked=True)
             code = xcode_tests.run(root, testing_contract(root), ['ios-unit', 'integration', 'snapshot'],
                                    timeout=timeout, locked=True, reuse=True)
-            first = first or code
-            code = test(root, 'ui', timeout=timeout, full=True, allow_skips=allow_skips, _locked=True)
             return first or code
     if group == 'qa':
-        if only or allow_skips:
+        if only:
             raise ValueError('qa runs the bounded host QA helper collection')
         return execute(root, [sys.executable, '-m', 'unittest', 'discover',
                               '-s', 'tests/qa', '-p', 'test_*.py', '-v'], timeout=timeout, heavy=False).returncode
     if group == 'helpers':
-        if only or allow_skips:
+        if only:
             raise ValueError('helpers runs the complete bounded CI policy collection')
         return execute(root, [sys.executable, '-m', 'unittest', 'discover',
                               '-s', 'tests/ci', '-p', 'test_*.py', '-v'], timeout=timeout).returncode
@@ -217,27 +215,7 @@ def test(root, group, *, only=(), timeout=600, full=False, allow_skips=(), _lock
         print(json.dumps({'report': str(path), 'status': report['status'],
                           'executed': report['executed_count'], 'missing': len(report['missing'])}))
         return result.returncode or (0 if report['status'] == 'passed' else 1)
-    if group not in ('ui', 'core', 'accessibility'):
-        raise ValueError('Unknown test group: ' + group)
-    # Validate before launching the existing UI authority; it owns UI parsing/lifecycle.
-    source = contract.inventory(root)
-    if only:
-        selected = contract.expand(only, source, 'ui')
-        allowed = contract.plan([group], source)['selectors']['ui']
-        if set(selected) - set(allowed):
-            raise ValueError('Selection outside requested UI group')
-        command = [sys.executable, 'ios/Eval/run-e2e.py']
-        for value in selected:
-            command += ['--only', value]
-    else:
-        command = [sys.executable, 'ios/Eval/run-e2e.py', '--full'] if full else [
-            sys.executable, 'ios/Eval/run-e2e.py', '--group', group]
-    command += ['--simulator-name', xcode_tests.simulator_name(root),
-                '--derived-data', str(derived_data(root))]
-    for category in allow_skips:
-        command += ['--allow-skip', category]
-    # The nested runner needs up to 15 seconds to close Xcode and its owned device.
-    return execute(root, command, timeout=timeout, heavy=not _locked, grace=20).returncode
+    raise ValueError('Unknown test group: ' + group)
 
 
 def format_sources(root, *, check=False, timeout=600):

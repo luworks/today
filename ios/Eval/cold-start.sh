@@ -1,5 +1,5 @@
 #!/bin/zsh
-# Cold start (process start → Today's first frame), measured inside the app, outside XCUITest
+# Cold start (process start → Today's first frame), measured inside the app
 # (UI-test automation adds ~2.5 s of its own). Budget: median < 1000 ms on the simulator, debug build.
 # Usage: ios/Eval/cold-start.sh [path/to/One.app]
 set -e

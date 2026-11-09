@@ -16,8 +16,6 @@ CHECKS = {
     'ios-unit': ('test', 'ios-unit'),
     'integration': ('test', 'integration'),
     'snapshot': ('test', 'snapshot'),
-    'core': ('test', 'core'),
-    'accessibility': ('test', 'accessibility'),
 }
 DEFAULT_CHECKS = ('format', 'lint', 'unit')
 

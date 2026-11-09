@@ -1,14 +1,10 @@
 """Synthetic host contracts; no Xcode/Swift/Simulator invocation."""
-import contextlib
-import importlib.util
-import io
 import json
 from pathlib import Path
 import subprocess
 import sys
 import tempfile
 import unittest
-from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'scripts/testing'))
@@ -22,13 +18,13 @@ def tree(*results):
 
 
 class ExecutionContract(unittest.TestCase):
-    expected = ['TodayUITests/Sample/testOne', 'TodayUITests/Sample/testTwo']
+    expected = ['TodayTests/Sample/testOne', 'TodayTests/Sample/testTwo']
 
     def report(self, data, **kwargs):
-        return c.report(self.expected, c.xcresult_attempts(data), **kwargs)
+        return c.report(self.expected, c.xcresult_attempts(data, 'unit'), **kwargs)
 
     def test_modern_xctest_and_swift_testing_leaves(self):
-        result = self.report(tree(('OneUITests/Sample/testOne()', 'Passed', ''),
+        result = self.report(tree(('OneLogicTests/Sample/testOne()', 'Passed', ''),
                                   ('Sample/testTwo()', 'Passed', '')))
         self.assertEqual(result['status'], 'passed')
         self.assertEqual(result['executed_count'], 2)
@@ -37,13 +33,13 @@ class ExecutionContract(unittest.TestCase):
     def test_legacy_typed_xcresult(self):
         data = {'tests': {'_values': [{'identifier': {'_value': 'Sample/testOne()'},
                                      'testStatus': {'_value': 'Success'}}]}}
-        self.assertEqual(c.xcresult_attempts(data)[0]['test'], self.expected[0])
+        self.assertEqual(c.xcresult_attempts(data, 'unit')[0]['test'], self.expected[0])
 
     def test_zero_and_parser_error(self):
         for data in ({}, {'testNodes': [{'nodeType': 'Test Suite', 'result': 'Passed'}]},
                      tree(('Sample/testOne', 'Unknown', ''))):
             with self.subTest(data=data), self.assertRaises(ValueError):
-                c.xcresult_attempts(data)
+                c.xcresult_attempts(data, 'unit')
         self.assertIn('zero_executed', c.report(self.expected, [])['errors'])
 
     def test_missing_method_cannot_be_hidden_by_other_test(self):
@@ -80,6 +76,12 @@ class ExecutionContract(unittest.TestCase):
         for kwargs in ({'raw_log': 'badselector'}, {'raw_log': 'ParserError: invalid'},
                        {'raw_log': 'No matching test cases were run'}, {'exit_code': 65}):
             self.assertEqual(self.report(data, **kwargs)['status'], 'failed')
+
+    def test_wrong_suite_cannot_satisfy_key_method(self):
+        result = c.report(['TodayTests/Key/testOne'], [
+            {'test': 'TodayTests/Other/testOne', 'status': 'passed'}])
+        self.assertEqual(result['status'], 'failed')
+        self.assertEqual(result['missing'], ['TodayTests/Key/testOne'])
 
     def test_xctest_and_swift_testing_logs_not_aggregate_counts(self):
         text = """Test Case '-[OneLogicTests.Legacy testOne]' passed (0.1 seconds).
@@ -120,21 +122,18 @@ final class Legacy: XCTestCase {
 
     def test_all_manifest_groups_reference_actual_sources(self):
         source = c.inventory()
-        for group in ('unit', 'integration', 'ui', 'core', 'snapshot', 'accessibility', 'release'):
+        for group in ('unit', 'ios-unit', 'integration', 'snapshot', 'release'):
             result = c.plan([group], source)
             self.assertTrue(any(result['selectors'].values()))
-        self.assertFalse(c.plan(['accessibility'])['pending'])
-        original = c.load_manifest()['migration']['original_inventory']
-        self.assertTrue(set(c.available(original, 'ui')) <= set(c.available(source, 'ui')))
         with self.assertRaises(ValueError):
-            c.expand(['OneUITests/NoSuite/testMissing'], source, 'ui')
+            c.expand(['OneLogicTests/NoSuite/testMissing'], source, 'unit')
 
     def test_cli_parser_errors_are_machine_readable_failures(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / 'invalid.json'
             path.write_text('{broken')
             result = subprocess.run([sys.executable, str(ROOT / 'scripts/testing/test-contract.py'),
-                'report', '--group', 'core', '--lane', 'ui', '--xcresult-json', str(path)],
+                'report', '--group', 'snapshot', '--lane', 'snapshot', '--xcresult-json', str(path)],
                 capture_output=True, text=True)
         self.assertEqual(result.returncode, 1)
         self.assertEqual(json.loads(result.stdout)['errors'], ['parser_error'])
@@ -150,18 +149,18 @@ class CurrentBatchAuthority(unittest.TestCase):
                           for target, suite, methods in entries]}
 
     def test_native_host_target_suite_collision_and_explicit_wrong_targets(self):
-        for lane in ('unit', 'integration', 'snapshot', 'ui'):
+        for lane in ('unit', 'integration', 'snapshot'):
             target = c.lane_settings(lane)['target']
             expected = target + '/SceneRegistryTests/check'
             attempts = c.xcresult_attempts(tree(('SceneRegistryTests/check()', 'Passed', '')), lane)
             self.assertEqual(attempts[0]['test'], expected)
-            for wrong in ('TodayUITests/SceneRegistryTests/check',
+            for wrong in ('TodaySnapshotTests/SceneRegistryTests/check',
                           'SceneRegistryTests/SceneRegistryTests/check'):
                 if wrong == expected:
                     continue
                 result = c.report([expected], c.xcresult_attempts(tree((wrong, 'Passed', '')), lane))
                 self.assertIn('missing_tests', result['errors'])
-        self.assertEqual(c.canonical('TodayUITests/check()', 'unit'), 'TodayUITests/check')
+        self.assertEqual(c.canonical('TodaySnapshotTests/check()', 'unit'), 'TodaySnapshotTests/check')
 
     def test_swift_testing_suite_batches_use_authoritative_host_inventory(self):
         source = self.source(('TodayTests', 'First', ['same']), ('SceneRegistryTests', 'Second', ['same']))
@@ -209,8 +208,8 @@ class CurrentBatchAuthority(unittest.TestCase):
                 self.assertEqual(result['status'], 'failed')
                 self.assertIn('parser_error', result['errors'])
         source = self.source(('TodayTests', 'Real', ['check']))
-        for identifier in ('TodayUITests/Real/check()', 'TodayUITests/check()',
-                           '-[TodayUITests.Real check]'):
+        for identifier in ('TodaySnapshotTests/Real/check()', 'TodaySnapshotTests/check()',
+                           '-[TodaySnapshotTests.Real check]'):
             terminal = ("Test Case '" + identifier + "' passed (0.1 seconds)." if identifier.startswith('-[')
                         else '✔ Test ' + identifier + ' passed after 0.1 seconds.')
             result = c.report(c.available(source, 'logic'), c.log_attempts(
@@ -250,77 +249,6 @@ Test Case '-[TodayTests.Real testOne]' skipped (0.001 seconds).
         self.assertEqual(c.log_attempts('↷ Test skippedModern() skipped: disabled')[0]['reason'], 'disabled')
 
 
-class RunnerIntegration(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        spec = importlib.util.spec_from_file_location('runner_contract_test', ROOT / 'ios/Eval/run-e2e.py')
-        cls.runner = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(cls.runner)
-
-    def test_legacy_selectors_translate_target_and_keep_project_contract(self):
-        r = self.runner
-        args = r.parser().parse_args(['--only', 'OneUITests/JourneyTests/testJ3_completeAndUndo'])
-        selectors = r.selectors(args, r.inventory())
-        self.assertEqual(selectors, ['TodayUITests/JourneyTests/testJ3_completeAndUndo'])
-        command = r.ui_command(selectors, 'owned', Path('/cache'), Path('/evidence'))
-        self.assertEqual(command[command.index('-project') + 1], 'Today.xcodeproj')
-        self.assertEqual(command[command.index('-scheme') + 1], 'TodayMock')
-        self.assertIn('-only-testing:TodayUITests/JourneyTests/testJ3_completeAndUndo', command)
-        self.assertNotIn('-retry-tests-on-failure', command)
-        self.assertNotIn('-test-iterations', command)
-
-    def test_unit_plan_never_schedules_a_simulator(self):
-        r = self.runner
-        with patch.object(r.subprocess, 'run', side_effect=AssertionError('platform runner')), \
-             patch.object(r.subprocess, 'check_output', side_effect=AssertionError('platform probe')), \
-             contextlib.redirect_stdout(io.StringIO()) as out:
-            self.assertEqual(r.main(['--group', 'unit', '--dry-run']), 0)
-        self.assertEqual(json.loads(out.getvalue())['commands'], [['swift', 'test', '--jobs', '2']])
-
-    def test_structured_outputs_and_skip_details_are_retained(self):
-        r = self.runner
-        class Journal:
-            def action(self, command, function, **kwargs):
-                kind = command[4]
-                data = {'summary': {'passedTests': 1, 'skippedTests': 1},
-                        'tests': tree(('Sample/testOne', 'Passed', ''), ('Sample/testTwo', 'Skipped', '')),
-                        'test-details': {'testIdentifier': 'Sample/testTwo', 'skipReason': 'real device'}}[kind]
-                json.dump(data, kwargs['stdout'])
-                return subprocess.CompletedProcess(command, 0)
-            def record(self, *args, **kwargs):
-                pass
-        with tempfile.TemporaryDirectory() as tmp, \
-             patch.object(r.subprocess, 'run', side_effect=AssertionError('platform runner')):
-            output = Path(tmp)
-            (output / 'ui.xcresult').mkdir()
-            attempts = r.read_xcresult(output, Journal())
-            self.assertIn('real device', attempts[1]['reason'])
-            self.assertTrue((output / 'xcresult-tests.json').exists())
-            self.assertTrue((output / 'xcresult-test-details-1.json').exists())
-
-    def test_successful_process_with_missing_bundle_fails(self):
-        r = self.runner
-        with tempfile.TemporaryDirectory() as tmp:
-            real_journal = r.Journal
-            output = Path(tmp) / 'evidence'
-            with patch.object(r, 'Journal', side_effect=lambda: real_journal(Path(tmp) / 'qa.sqlite')), \
-                 patch.object(r, 'capture', return_value='host-fixture-head'), \
-                 patch.object(r, 'select_simulator', return_value='owned-id'), \
-                 patch.object(r, 'run_logged', return_value=0), \
-                 patch.object(r.subprocess, 'run', return_value=subprocess.CompletedProcess([], 0)), \
-                 contextlib.redirect_stdout(io.StringIO()):
-                self.assertEqual(r.main(['--group', 'core', '--output', str(output)]), 1)
-            summary = json.loads((output / 'summary.json').read_text())
-            self.assertEqual(summary['reports']['ui']['errors'], ['parser_error'])
-            self.assertEqual(summary['status'], 'failed')
-
-    def test_wrong_suite_cannot_satisfy_key_method(self):
-        result = c.report(['TodayUITests/Key/testOne'], [
-            {'test': 'TodayUITests/Other/testOne', 'status': 'passed'}])
-        self.assertEqual(result['status'], 'failed')
-        self.assertEqual(result['missing'], ['TodayUITests/Key/testOne'])
-
-
 class DiscoveryRegression(unittest.TestCase):
     def test_strings_cannot_end_suite_or_inject_tests(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -334,16 +262,16 @@ class DiscoveryRegression(unittest.TestCase):
             source = c.discover(root, root)
         self.assertEqual({s['suite']: [m['name'] for m in s['methods']] for s in source},
                          {'Real': ['testAfterJSON'], '': ['topLevel']})
-        self.assertEqual(c.canonical('NewSuite/parameterized(_:)'), 'TodayUITests/NewSuite/parameterized')
+        self.assertEqual(c.canonical('NewSuite/parameterized(_:)', 'unit'), 'TodayTests/NewSuite/parameterized')
 
     def test_original_logic_inventory_has_no_disappearing_methods(self):
         original = c.load_manifest()['migration']['original_inventory']
         self.assertTrue(set(c.available(original, 'logic')) <= set(c.available(c.inventory(), 'logic')))
 
     def test_failed_log_attempt_survives_final_structured_pass(self):
-        attempts = c.xcresult_attempts(tree(('Sample/testOne', 'Passed', '')))
-        result = c.report(['TodayUITests/Sample/testOne'], attempts,
-            raw_log="Test Case '-[OneUITests.Sample testOne]' failed (0.1 seconds).")
+        attempts = c.xcresult_attempts(tree(('Sample/testOne', 'Passed', '')), 'unit')
+        result = c.report(['TodayTests/Sample/testOne'], attempts,
+            raw_log="Test Case '-[OneLogicTests.Sample testOne]' failed (0.1 seconds).")
         self.assertIn('log_failure', result['errors'])
 
 
@@ -354,17 +282,11 @@ class LaneAuthority(unittest.TestCase):
         self.assertIn('TodayTests/StoreUpgradeTests/oldStoreOpensWithCurrentSchema',
                       integration['selectors']['integration'])
         self.assertCountEqual(integration['selectors']['integration'], c.available(source, 'integration'))
-        self.assertFalse(integration['selectors']['ui'])
         snapshots = c.plan(['snapshot'], source)
         self.assertIn('TodaySnapshotTests/NativeSnapshotTests/testHealthDataPerturbationChangesPixels',
                       snapshots['selectors']['snapshot'])
         self.assertIn('TodaySnapshotTests/NativeSnapshotTests/testStopwatchRunningDigitalDark',
                       snapshots['expected_by_target']['snapshot']['TodaySnapshotTests'])
-        self.assertFalse(snapshots['selectors']['ui'])
-        self.assertEqual(c.plan(['accessibility'], source)['selectors']['ui'], [
-            'TodayUITests/AccessibilityAuditTests/testCoreTabsAudit',
-            'TodayUITests/AccessibilityAuditTests/testHealthDetailRangeAndDismissAudit',
-            'TodayUITests/AccessibilityAuditTests/testStopwatchLargeTypeActionsAudit'])
 
     def test_host_and_ios_unit_target_membership_stays_separate(self):
         host = c.plan(['unit'])
@@ -381,9 +303,8 @@ class LaneAuthority(unittest.TestCase):
     def test_each_baseline_id_survives_in_host_and_ios_authorities(self):
         original = c.load_manifest()['migration']['original_inventory']
         source = c.inventory()
-        for old_lane, new_lanes in [('logic', ['logic', 'unit']), ('ui', ['ui'])]:
-            for lane in new_lanes:
-                self.assertFalse(set(c.available(original, old_lane)) - set(c.available(source, lane)))
+        for lane in ('logic', 'unit'):
+            self.assertFalse(set(c.available(original, 'logic')) - set(c.available(source, lane)))
 
     def test_named_lane_parser_preserves_targets_and_rejects_wrong_target(self):
         for lane, identifier in [
@@ -392,7 +313,8 @@ class LaneAuthority(unittest.TestCase):
             ('logic', 'SceneRegistryTests/SceneRegistryTests/persistedAutomationHandlesStayAvailable')]:
             attempts = c.xcresult_attempts(tree((identifier + '()', 'Passed', '')), lane)
             self.assertEqual(c.report([identifier], attempts)['status'], 'passed')
-            wrong = identifier.replace(identifier.split('/')[0], 'TodayUITests', 1)
+            other = 'TodayTests' if lane == 'snapshot' else 'TodaySnapshotTests'
+            wrong = identifier.replace(identifier.split('/')[0], other, 1)
             bad = c.xcresult_attempts(tree((wrong + '()', 'Passed', '')), lane)
             self.assertIn('missing_tests', c.report([identifier], bad)['errors'])
         self.assertEqual(c.canonical('SceneRegistryTests/persistedAutomationHandlesStayAvailable', 'logic'),
@@ -404,7 +326,7 @@ class LaneAuthority(unittest.TestCase):
         with self.assertRaises(ValueError):
             c.canonical('Suite/method', 'nonexistent')
         with self.assertRaises(ValueError):
-            c.canonical('Suite/method:invalid')
+            c.canonical('Suite/method:invalid', 'unit')
         source = {lane: [] for lane in c.SETTINGS['lanes']}
         with self.assertRaises(ValueError):
             c.plan(['unit'], source)
@@ -422,7 +344,7 @@ class LaneAuthority(unittest.TestCase):
                          [{'test': None, 'status': []}]]:
             self.assertIn('parser_error', c.report(expected, attempts)['errors'])
         attempts = c.xcresult_attempts(tree((expected[0], 'Passed', ''),
-            ('TodayUITests/Other/testUnexpected', 'Passed', '')), 'snapshot')
+            ('TodayTests/Other/testUnexpected', 'Passed', '')), 'snapshot')
         self.assertIn('unexpected_tests', c.report(expected, attempts)['errors'])
 
     def test_discovery_ignores_helper_test_names_and_does_not_leak_top_level_scope(self):

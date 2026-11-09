@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 import subprocess
 
-RENAMED = {'Today': 'One', 'TodayUITests': 'OneUITests', 'TodayShare': 'ShareExtension'}
+RENAMED = {'Today': 'One', 'TodayShare': 'ShareExtension'}
 
 
 def read(path):

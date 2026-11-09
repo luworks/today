@@ -196,7 +196,6 @@ Round 1 failing claims, weakest first: Alarms (2–10), Reliability (3–5, 8–
 
 ```bash
 ./dev test unit                                  # logic tests, including the NL-capture ratchet
-./dev test ui --only TodayUITests/<Suite>/<Method>  # one UI journey on a simulator
 ```
 
 The NL-capture cases live in `ios/Eval/Tests/OneLogicTests/capture-cases.json` (split fixed; never read test failures while fixing). The ratchet is `CaptureEvalTests.ratchet`. The agent is measured on frozen dev/holdout cases (`tests/fixtures/agent-p3-dev.json`, `agent-p3-holdout.json`) against the targets in `docs/engineering/ai-agent-architecture.md` §4.3; the first run and how to repeat it are in `docs/qa/agent-p3-eval-20261101.md`.
@@ -207,7 +206,6 @@ The NL-capture cases live in `ios/Eval/Tests/OneLogicTests/capture-cases.json` (
 - ~~Round 3 — Alarms~~ done (AlarmKit and demonstrating notification actions still open).
 - ~~Round 4 — Sidebar + icon~~ done. Tab swiping was dropped so the edge swipe can open the sidebar.
 - ~~Round 5 — Tasks~~ done.
-- **Next — UI tests (XCUITest)** for J1–J7 so undo, notification actions and journeys are demonstrated by a program, not by hand.
 - ~~Round 6 — Calendar~~ done (EventKit still open).
 - ~~Round 7 — AI parser~~ done. Saturated; needs new real-world cases.
 - ~~Round 8 — Habits~~ done, then retired in round 19 (removed from the product).

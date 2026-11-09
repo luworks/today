@@ -19,7 +19,7 @@ def inventory(root):
             'host_heavy': inspect_lock(state_root(root) / 'locks/host-heavy.lock'),
             'derived_data_lock': inspect_lock(state_root(root) / 'locks' / (worktree_id(root) + '.lock')),
             'existing_entrypoints': {name: str(root / path) for name, path in {
-                'ui_runner': 'ios/Eval/run-e2e.py', 'preview': 'scripts/swiftui_preview.py'}.items()
+                'preview': 'scripts/swiftui_preview.py'}.items()
                 if (root / path).is_file()}}
 
 
@@ -42,7 +42,7 @@ def main(argv=None, root=ROOT):
     check_parser.add_argument('--check', action='append')
     check_parser.add_argument('--timeout', type=float, default=600)
     benchmark_parser = sub.add_parser('benchmark', help='measure actual bounded command invocations')
-    benchmark_parser.add_argument('kind', choices=['cold', 'incremental', 'unit', 'ui', 'screenshot', 'gallery'])
+    benchmark_parser.add_argument('kind', choices=['cold', 'incremental', 'unit', 'screenshot', 'gallery'])
     benchmark_parser.add_argument('--n', type=int, default=1)
     benchmark_parser.add_argument('--conditions', required=True)
     benchmark_parser.add_argument('--timeout', type=float, default=600)
@@ -62,9 +62,8 @@ def main(argv=None, root=ROOT):
     build_parser.add_argument('--for-testing', action='store_true', help='prepare authoritative test products without booting a device or running tests')
     build_parser.add_argument('--timeout', type=float, default=None, help='per-process seconds; default 600')
     test_parser = sub.add_parser('test', help='run an authoritative test group')
-    test_parser.add_argument('group', choices=['helpers', 'qa', 'unit', 'ios-unit', 'integration', 'ui', 'snapshot', 'accessibility', 'core', 'release'])
+    test_parser.add_argument('group', choices=['helpers', 'qa', 'unit', 'ios-unit', 'integration', 'snapshot', 'release'])
     test_parser.add_argument('--only', action='append', default=[])
-    test_parser.add_argument('--allow-skip', action='append', default=[], choices=['hardware', 'screenshot', 'time'])
     test_parser.add_argument('--timeout', type=float, default=None, help='per-process seconds; default 600')
     test_parser.add_argument('--full', action='store_true', help='only for an explicitly authorized frozen final revision')
     format_parser = sub.add_parser('format', help='Apple swift-format only')
@@ -158,17 +157,13 @@ def main(argv=None, root=ROOT):
                                    main_run=args.main_run)
                 return commands.build(root, args.configuration, scheme=args.scheme, **options)
             if args.command == 'test':
-                if args.full and args.group not in ('ui', 'release'):
-                    raise ValueError('--full requires ui or release collection')
+                if args.full and args.group != 'release':
+                    raise ValueError('--full requires release collection')
                 options = {} if args.timeout is None else {'timeout': args.timeout}
-                if args.allow_skip:
-                    if args.group not in ('ui', 'core', 'accessibility', 'release'):
-                        raise ValueError('--allow-skip is only supported for UI collections')
-                    options['allow_skips'] = args.allow_skip
                 if args.timeout is not None and args.timeout <= 0:
                     raise ValueError('--timeout must be positive')
                 code = commands.test(root, args.group, only=args.only, full=args.full, **options)
-                if args.group in ('ui', 'core', 'accessibility', 'release'):
+                if args.group == 'release':
                     sys.path.insert(0, str(root / 'tests/qa'))
                     from retention import after_run
                     after_run(root)

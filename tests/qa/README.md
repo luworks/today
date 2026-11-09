@@ -94,41 +94,6 @@ python3 -m unittest discover -s tests/qa -p 'test_*.py'
 python3 -m unittest discover -s ios/Eval -p test_e2e_runner.py
 ```
 
-## Screen compatibility lanes
-
-`compatibility.json` selects five existing behavioral journeys for the smallest
-available screen, a standard screen, and a compact notched screen with dark mode
-and XXXL text. The installed runtime's `supportedDeviceTypes` is checked; this is
-simulator model support, not proof of real-device OS eligibility or hardware capability.
-The Xcode app target must still support the selected device family/deployment OS.
-
-Build once from the same checkout, then copy completed products into independent
-lane caches and run without building (default two workers; never share a UDID):
-
-```sh
-xcodebuild build-for-testing -jobs 2 -project ios/One.xcodeproj -scheme One \
-  -destination 'generic/platform=iOS Simulator' -derivedDataPath "$PWD/ios/.build/Today-Compatibility-Build"
-python3 tests/qa/compatibility.py \
-  --products ios/.build/Today-Compatibility-Build/Build/Products \
-  --source-head "$(git rev-parse HEAD)" --lane small --lane standard --workers 2 \
-  --output /Users/yuanlu/code/one-app/tests/results/runs/compatibility-UNIQUE
-# A subsequent --lane mini batch adds dark/XXXL coverage without recompiling.
-```
-
-Journal the build command/result using `journal.py` or the existing `RunJournal`
-helpers. Stop the build before copying Products. `--source-head` is the caller's
-explicit build provenance assertion, checked against current app/test/fixture inputs (runner/docs-only commits can reuse it); it does not infer a
-binary's source revision. Rebuild after app/UI-test/fixture changes. Relocation
-requires `__TESTROOT__`/`__TESTHOST__` bundle paths; signed bundles are copied intact.
-The runner refuses existing lane outputs and locks names/caches. SIGINT/SIGTERM
-propagate to child runners, which terminate their Xcode process groups and shut
-down their simulators. Complete logs/xcresult stay indexed under canonical results;
-`*-cache` product copies are disposable caches, not test evidence. Inspect
-`summary.json` per lane and `batch.json`; selected methods are not a full suite.
-System appearance/content size are set before tests; individual tests can override
-appearance. These checks cannot establish actual RAM/GPU/thermal/radio/sensor,
-HealthKit authorization/data or physical AlarmKit behavior.
-
 ## Generated-storage retention
 
 The owner's 2026-10-20 cleanup request authorizes this narrow exception to the raw
@@ -163,8 +128,8 @@ Policy is the small versioned [`retention.json`](retention.json):
   writers and changed manifests fail closed. No device, app container or working
   worktree is modified. A dry-run plan is descriptive; it is never trusted by apply.
 
-Automatic maintenance runs **once after each completed `./dev test ui`, `core`,
-`accessibility` or `release` command**, after the QA authority returns and releases
+Automatic maintenance runs **once after each completed `./dev test release`
+command**, after the QA authority returns and releases
 its resource locks. It uses the same apply policy and cannot replace the QA exit
 code. A busy host or missing metadata/reference access skips maintenance with its
 own message. There is no daemon, timer or new T3 schedule, and no cleanup during

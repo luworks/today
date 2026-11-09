@@ -104,7 +104,7 @@ def run(root, contract, groups, *, only=(), timeout=600, locked=False, reuse=Fal
         if not locked:
             stack.enter_context(host_lock(root))
             stack.enter_context(dd_lock(root))
-        # Share the existing UI runner's name/cache lock protocol.
+        # Exclusive simulator-name and DerivedData locks.
         for key in sorted(['name:' + simulator_name(root), 'cache:' + str(derived_data(root).resolve())]):
             path = Path(tempfile.gettempdir()) / ('today-qa-lock-' + hashlib.sha256(key.encode()).hexdigest())
             stack.enter_context(ResourceLock(path, str(root)))

@@ -1,7 +1,7 @@
-Test Case '-[OneUITests.Sample testFirst]' started.
+Test Case '-[OneLogicTests.Sample testFirst]' started.
     t =     1.23s Tap "Today" Button
-Test Case '-[OneUITests.Sample testFirst]' failed (1 s).
-Test Case '-[OneUITests.Sample testSecond]' started.
+Test Case '-[OneLogicTests.Sample testFirst]' failed (1 s).
+Test Case '-[OneLogicTests.Sample testSecond]' started.
     t =     2.34s Press and hold Today
     t =     2.56s Drag Today to Calendar
-Test Case '-[OneUITests.Sample testSecond]' passed (1 s).
+Test Case '-[OneLogicTests.Sample testSecond]' passed (1 s).
