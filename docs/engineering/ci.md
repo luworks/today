@@ -36,9 +36,10 @@ still compiles it. `tests/ci/test_scope.py` fails if a test target starts to dep
 modules. Any other file, a list of 300+ files or an API error runs everything. Pushes to
 `main` always run everything, so a failure there is visible on `main`.
 
-Merge elapsed time is the time for both jobs to turn green. The measured numbers are in
-[the measurements](../qa/ci-under-five-minutes-20261020.md). A green merge gate does **not**
-mean the app opens or stays responsive.
+Merge elapsed time is the time for both jobs to turn green. Measured from push on real pull
+requests on 2026-11-08: a one-line view edit 53–84 s (median 62, n=5), a docs change 17 s, a change
+to shared or core code about 130 s. A green merge gate does **not** mean the app opens or stays
+responsive.
 
 ## Release build on main
 
