@@ -206,6 +206,27 @@ final class ActivityUndoTests: XCTestCase {
     XCTAssertFalse(
       EventUndo.canRestore(repeats: true, inAppleCalendar: true, attendees: 0), "a series")
     XCTAssertFalse(EventUndo.canRestore(repeats: true, inAppleCalendar: false, attendees: 0))
+    XCTAssertFalse(
+      EventDeletePrompt.asksFirst(repeats: false, inAppleCalendar: false, attendees: nil))
+    XCTAssertFalse(EventDeletePrompt.asksFirst(repeats: false, inAppleCalendar: true, attendees: 0))
+    XCTAssertTrue(EventDeletePrompt.asksFirst(repeats: false, inAppleCalendar: true, attendees: 2))
+    XCTAssertTrue(
+      EventDeletePrompt.asksFirst(repeats: false, inAppleCalendar: true, attendees: nil))
+    XCTAssertTrue(
+      EventDeletePrompt.asksFirst(repeats: true, inAppleCalendar: false, attendees: nil))
+    XCTAssertTrue(EventDeletePrompt.allowsFullSwipe(canDelete: true, repeats: false))
+    XCTAssertFalse(EventDeletePrompt.allowsFullSwipe(canDelete: false, repeats: false))
+    XCTAssertFalse(EventDeletePrompt.allowsFullSwipe(canDelete: true, repeats: true))
+    XCTAssertEqual(
+      EventDeletePrompt.message(title: "Sync", repeats: false, attendees: 1),
+      "Delete “Sync”? This changes its source. 1 attendee gets a cancellation, and Undo can’t recall it."
+    )
+    XCTAssertEqual(
+      EventDeletePrompt.message(title: "Sync", repeats: true, attendees: 3),
+      "“Sync” repeats. 3 attendees get a cancellation, and Undo can’t recall it.")
+    XCTAssertEqual(
+      EventDeletePrompt.message(title: "Sync", repeats: false, attendees: nil),
+      "Delete “Sync”? This changes its source.")
     XCTAssertTrue(
       EventUndo.canRestore(repeats: false, inAppleCalendar: false, attendees: nil),
       "a Today-only event")

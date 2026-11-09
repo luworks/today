@@ -16,15 +16,11 @@
       self.canDelete = canDelete
     }
 
-    @ViewBuilder package func swipeButtons(delete: @escaping () -> Void) -> some View {
-      // SwiftUI lays trailing actions out from the outside edge: Delete stays rightmost.
-      if canDelete {
-        Button(action: delete) { Label("Delete", systemImage: "trash") }.tint(.red)
-      }
-      if let settle {
-        Button(action: settle) { Label("Settle", systemImage: "checkmark.circle.fill") }.tint(
-          .indigo)
-      }
+    @MainActor @ViewBuilder package func swipeButtons(delete: @escaping () -> Void) -> some View {
+      // SwiftUI lays trailing actions out from the outside edge: Delete stays rightmost, and a full swipe runs it.
+      // The row stays until its source accepts the delete, or the question is answered.
+      if canDelete { RowAction.delete(asksFirst: true, delete) }
+      if let settle { RowAction.settle(settle) }
     }
 
     @ViewBuilder package var menu: some View {
@@ -257,17 +253,11 @@
       )
       // Same gestures as Apple Reminders: tap the circle to complete, swipe left for Delete / Flag,
       // long-press for the menu. (Delete has an Undo toast.)
-      .swipeActions(edge: .trailing, allowsFullSwipe: attention == nil) {
+      .swipeActions(edge: .trailing, allowsFullSwipe: attention?.canDelete != false) {
         if let attention {
-          attention.swipeButtons(delete: deleteTask).labelStyle(.titleAndIcon)
+          attention.swipeButtons(delete: deleteTask)
           // Postpone in one swipe: the reminder's one date moves to tomorrow, keeping its time.
-          Button {
-            plan(tomorrow: true)
-          } label: {
-            Label("Tomorrow", systemImage: "sunrise")
-          }
-          .tint(.blue)
-          .labelStyle(.titleAndIcon)
+          RowAction.tomorrow { plan(tomorrow: true) }
         } else {
           // Confirmed Today deletion must not let SwiftUI remove a row before the source accepts it.
           RowAction.delete(asksFirst: onDelete != nil) { deleteTask() }
@@ -442,9 +432,9 @@
           Button("Delete Alarm", systemImage: "trash", role: .destructive) { deleteAlarm() }
         }
       }
-      .swipeActions(edge: .trailing, allowsFullSwipe: attention == nil) {
+      .swipeActions(edge: .trailing, allowsFullSwipe: attention?.canDelete != false) {
         if let attention {
-          attention.swipeButtons(delete: deleteAlarm).labelStyle(.titleAndIcon)
+          attention.swipeButtons(delete: deleteAlarm)
         } else {
           Button("Delete", systemImage: "trash", role: .destructive) { deleteAlarm() }
           Button("Edit", systemImage: "pencil") { open(alarm) }.tint(.orange)

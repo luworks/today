@@ -22,6 +22,25 @@
   @MainActor
   extension PlannerSessionTests {
     @Test
+    func deleteAsksFirstForAttendeesAndSeriesButNotForAnAttendeeFreeEvent() throws {
+      let a = try FocusSession()
+      defer { a.dispose() }
+      let actions = a.services.actions
+      func entry(_ id: String, repeats: Bool = false) -> CalEntry {
+        CalEntry(
+          id: id, source: .system(id), title: "Sync", start: a.now,
+          end: a.now.addingTimeInterval(1800), isAllDay: false, color: .blue, repeats: repeats)
+      }
+      a.services.calendar.audiences["solo"] = (0, true)
+      a.services.calendar.audiences["team"] = (4, true)
+      #expect(!actions.deleteAsksFirst(entry("solo")))
+      #expect(actions.deleteAsksFirst(entry("team")))
+      #expect(actions.deleteMessage(entry("team")).contains("4 attendees get a cancellation"))
+      #expect(actions.deleteAsksFirst(entry("solo", repeats: true)))
+      #expect(actions.deleteAsksFirst(entry("unreadable")), "no attendee list means no Undo")
+    }
+
+    @Test
     func upNextCardReadsSettleForEveryKindAndEveryChangeReachesTheRefreshHook() throws {
       let a = try FocusSession()
       defer { a.dispose() }

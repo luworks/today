@@ -121,6 +121,29 @@
         alarm, context: context, toast: toast, alarms: alarms, ledger: ledger, runtime: runtime)
     }
 
+    /// Whether Delete on this entry opens the question instead of deleting (`EventDeletePrompt`).
+    package func deleteAsksFirst(_ entry: CalEntry) -> Bool {
+      guard let event = deleteFacts(entry) else { return false }
+      return EventDeletePrompt.asksFirst(
+        repeats: event.repeats, inAppleCalendar: event.externalID != nil,
+        attendees: calendar.audience(externalID: event.externalID)?.attendees)
+    }
+
+    /// The question's text, naming who would get a cancellation.
+    package func deleteMessage(_ entry: CalEntry) -> String {
+      EventDeletePrompt.message(
+        title: entry.title, repeats: deleteFacts(entry)?.repeats ?? entry.repeats,
+        attendees: calendar.audience(externalID: deleteFacts(entry)?.externalID)?.attendees)
+    }
+
+    private func deleteFacts(_ entry: CalEntry) -> (repeats: Bool, externalID: String?)? {
+      switch entry.source {
+      case .system(let id): (entry.repeats, id)
+      case .local(let event): (event.repeats != nil, event.externalID)
+      case .task, .alarm: nil
+      }
+    }
+
     package func delete(_ entry: CalEntry, span: EKSpan, context: ModelContext, toast: UndoToast?) {
       EntryDeletion.perform(
         entry, span: span, context: context, toast: toast, calendar: calendar,

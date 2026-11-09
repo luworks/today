@@ -125,7 +125,7 @@
     }
 
     private func requestDelete() {
-      if isRepeating {
+      if actions.deleteAsksFirst(entry) {
         pendingDelete = entry
       } else {
         actions.delete(entry, span: .futureEvents, context: context, toast: toast)
@@ -133,7 +133,7 @@
     }
   }
 
-  /// Asks "this event or the series?" for the entry in `pending`. Put it on the list or grid that holds the rows.
+  /// Asks "this event or the series?", or names the attendees who would be told, for the entry in `pending`. Put it on the list or grid that holds the rows.
   package struct EntryDeleteDialog: ViewModifier {
     @Environment(PlannerActions.self) private var actions
     @Environment(\.modelContext) private var context
@@ -159,9 +159,7 @@
         }
         Button("Cancel", role: .cancel) {}
       } message: { entry in
-        Text(
-          entry.repeats
-            ? "“\(entry.title)” repeats." : "Delete “\(entry.title)”? This changes its source.")
+        Text(actions.deleteMessage(entry))
       }
     }
 
@@ -172,6 +170,7 @@
   }
 
   /// Swipe from the right: Delete (and Flag on a task). A repeating event never full-swipes, so the question can't be skipped.
+  /// An event with attendees may: its Delete opens the question, and the row stays.
   private struct SwipeIfRows: ViewModifier {
     let enabled: Bool
     let entry: CalEntry
@@ -183,14 +182,18 @@
 
     func body(content: Content) -> some View {
       if enabled {
-        content.swipeActions(edge: .trailing, allowsFullSwipe: attention == nil && !isRepeating) {
+        content.swipeActions(
+          edge: .trailing,
+          allowsFullSwipe: EventDeletePrompt.allowsFullSwipe(
+            canDelete: canDelete, repeats: isRepeating)
+        ) {
           if let attention {
             var commands: TodayRowAttention {
               var value = attention
               value.canDelete = canDelete
               return value
             }
-            commands.swipeButtons(delete: delete).labelStyle(.titleAndIcon)
+            commands.swipeButtons(delete: delete)
           } else {
             // Keep the row until the adapter confirms the write, including permission or network failures.
             RowAction.delete(asksFirst: true, delete)
