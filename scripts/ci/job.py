@@ -65,8 +65,11 @@ def build():
     mtimes.stamp(ROOT)
     run('defaults', 'write', 'com.apple.dt.XCBuild', 'IgnoreFileSystemDeviceInodeChanges', '-bool', 'YES')
     step('project generated')
+    # A runner's variables differ per job and xcodebuild hashes them into SwiftPM's manifest cache key
+    # and the link tasks' signatures: a stable environment skips 10 s of manifest parsing and 23 relinks.
+    stable = [f'{name}={os.environ[name]}' for name in ('HOME', 'PATH', 'DEVELOPER_DIR')]
     # No separate debug dylib for Previews: one link and one signature fewer per app, same compile.
-    run('xcodebuild', 'build-for-testing', '-quiet', '-project', 'ios/Today.xcodeproj', '-scheme', 'TodayCI',
+    run('env', '-i', *stable, 'xcodebuild', 'build-for-testing', '-quiet', '-project', 'ios/Today.xcodeproj', '-scheme', 'TodayCI',
         '-configuration', 'Debug', '-destination', 'generic/platform=iOS Simulator', '-jobs', '3',
         'ARCHS=arm64', 'ENABLE_DEBUG_DYLIB=NO', *FLAGS)
     step('built App, Widget, Share, Mock and test bundles')

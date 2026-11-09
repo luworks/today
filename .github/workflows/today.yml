@@ -78,7 +78,9 @@ jobs:
       - if: github.event_name == 'pull_request' && steps.scope.outputs.app != 'false'
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ${{ runner.temp }}/today-ci/dd
+          path: |
+            ${{ runner.temp }}/today-ci/dd
+            ~/Library/Caches/org.swift.swiftpm
           key: ${{ steps.dd.outputs.prefix }}${{ github.sha }}
           restore-keys: ${{ steps.dd.outputs.prefix }}
       - if: github.event_name != 'pull_request'
@@ -91,7 +93,9 @@ jobs:
       - if: github.event_name == 'push'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ${{ runner.temp }}/today-ci/dd
+          path: |
+            ${{ runner.temp }}/today-ci/dd
+            ~/Library/Caches/org.swift.swiftpm
           key: ${{ steps.dd.outputs.prefix }}${{ github.sha }}
       # One DerivedData is about 500 MB and the repository's cache limit is 10 GB: keep the newest two.
       - if: github.event_name == 'push'
