@@ -17,7 +17,7 @@ from scripts.ci import main_gate as gate  # noqa: E402
 class MainInstallTests(unittest.TestCase):
     def setUp(self):
         self.sha, self.tree = 'a' * 40, 'b' * 40
-        self.tools = {'xcode': {'ProductBuildVersion': '27A9275'}, 'sdks': {'iPhoneSimulator27.1.sdk': 'c' * 64}}
+        self.tools = {'xcode': {'ProductBuildVersion': '27B52'}, 'sdks': {'iPhoneSimulator27.2.sdk': 'c' * 64}}
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)

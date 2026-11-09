@@ -174,9 +174,9 @@ def bootstrap(root, *, tools=None, plan=False, timeout=120, cancel=None,
             raise BootstrapError(f'Missing tool pin: {name}')
         if name == 'swift-format':
             pin = entry.get('preferred_pin', {})
-            if pin.get('kind') != 'xcode-bundled' or pin.get('xcode_build') != '27A9275':
-                raise BootstrapError('Exact Xcode 27A9275 formatter required')
-            entries.append({'tool': name, 'kind': 'xcode-bundled', 'xcode_build': '27A9275',
+            if pin.get('kind') != 'xcode-bundled' or pin.get('xcode_build') != '27B52':
+                raise BootstrapError('Exact Xcode 27B52 formatter required')
+            entries.append({'tool': name, 'kind': 'xcode-bundled', 'xcode_build': '27B52',
                             'upstream_tag_mapping': 'unverified'})
             continue
         artifact = entry.get('artifact', {})
@@ -224,7 +224,7 @@ def bootstrap(root, *, tools=None, plan=False, timeout=120, cancel=None,
                 with (developer.parent / 'version.plist').open('rb') as stream:
                     version = plistlib.load(stream)
                 if version.get('ProductBuildVersion') != item['xcode_build']:
-                    raise BootstrapError('swift-format requires Xcode build 27A9275')
+                    raise BootstrapError('swift-format requires Xcode build 27B52')
                 executable = developer / 'Toolchains/XcodeDefault.xctoolchain/usr/bin/swift-format'
                 if not executable.is_file() or not os.access(executable, os.X_OK):
                     raise BootstrapError('Missing Xcode-bundled swift-format')

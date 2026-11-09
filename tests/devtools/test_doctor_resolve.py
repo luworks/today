@@ -175,11 +175,11 @@ class DoctorTests(Fixture):
         super().setUp()
         self.developer = self.root / 'Xcode with spaces.app/Contents/Developer'
         self.chain = {'developer_dir': str(self.developer), 'xcode': {
-            'CFBundleShortVersionString': '27.1', 'ProductBuildVersion': '27A9275'}}
+            'CFBundleShortVersionString': '27.2', 'ProductBuildVersion': '27B52'}}
         for platform in ('iPhoneOS', 'iPhoneSimulator'):
             settings = self.developer / ('Platforms/' + platform + '.platform/Developer/SDKs/' + platform + '.sdk/SDKSettings.plist')
             settings.parent.mkdir(parents=True)
-            settings.write_bytes(plistlib.dumps({'Version': '27.1', 'CanonicalName': platform.lower() + '27.1'}))
+            settings.write_bytes(plistlib.dumps({'Version': '27.2', 'CanonicalName': platform.lower() + '27.2'}))
         bin_dir = self.developer / 'Toolchains/XcodeDefault.xctoolchain/usr/bin'
         for name in ('swiftc', 'swift-format'):
             self.executable(bin_dir / name)
@@ -201,8 +201,8 @@ class DoctorTests(Fixture):
         self.assertEqual(argv[-1], '--version')
         if len(argv) == 3:
             return 'Bundler version 4.0.16' if Path(argv[1]).name == 'bundle' else 'fastlane 2.241.1'
-        return {'swiftc': 'Apple Swift version 6.4 (swiftlang-6.4.0.34.1)',
-                'swift-format': 'main', 'ruby': 'ruby 3.3.12', 'python3': 'Python 3.14.8'}[Path(argv[0]).name]
+        return {'swiftc': 'Apple Swift version 6.4.2 (swiftlang-6.4.2.1.9)',
+                'swift-format': '6.4.4', 'ruby': 'ruby 3.3.12', 'python3': 'Python 3.14.8'}[Path(argv[0]).name]
 
     def inspect_mock(self):
         with patch.object(doctor, 'toolchain', return_value=self.chain), \
@@ -259,7 +259,7 @@ class DoctorTests(Fixture):
 
     def test_bad_binary_hash_is_optional_failure_not_pass(self):
         path = self.root / '.dev-tools/swift-format.json'
-        path.write_text(json.dumps({'sha256': '0' * 64, 'xcode_build': '27A9275'}))
+        path.write_text(json.dumps({'sha256': '0' * 64, 'xcode_build': '27B52'}))
         check = self.inspect_mock()['checks']['swift-format_binary_hash']
         self.assertEqual(check['status'], 'fail')
         self.assertFalse(check['required'])

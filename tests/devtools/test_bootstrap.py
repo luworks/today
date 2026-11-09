@@ -202,9 +202,9 @@ class BootstrapTests(unittest.TestCase):
         executable.write_bytes(ARM)
         executable.chmod(0o755)
         version = developer.parent / 'version.plist'
-        version.write_bytes(plistlib.dumps({'ProductBuildVersion': '27A9275'}))
+        version.write_bytes(plistlib.dumps({'ProductBuildVersion': '27B52'}))
         self.manifest['tools']['swift-format'] = {'version': '604.0.0', 'preferred_pin': {
-            'kind': 'xcode-bundled', 'xcode_build': '27A9275'}}
+            'kind': 'xcode-bundled', 'xcode_build': '27B52'}}
         self.write_pins()
         with patch.object(subject, 'toolchain', return_value={'developer_dir': str(developer)}):
             result = subject.bootstrap(self.root, tools=['swift-format'])['tools'][0]
@@ -212,7 +212,7 @@ class BootstrapTests(unittest.TestCase):
             self.assertEqual(result['sha256'], hashlib.sha256(ARM).hexdigest())
             self.assertEqual(result['executable'], str(executable))
             version.write_bytes(plistlib.dumps({'ProductBuildVersion': 'wrong'}))
-            with self.assertRaisesRegex(subject.BootstrapError, '27A9275'):
+            with self.assertRaisesRegex(subject.BootstrapError, '27B52'):
                 subject.bootstrap(self.root, tools=['swift-format'])
 
 

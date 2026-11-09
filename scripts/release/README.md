@@ -12,7 +12,7 @@ model/intent module `One`, bundle identifiers
 
 ## Tool installation and locks
 
-Use a separately managed Ruby **3.3.12**, Bundler **4.0.16**, and Xcode **27.1 / 27A9275**.
+Use a separately managed Ruby **3.3.12**, Bundler **4.0.16**, and Xcode **27.2 / 27B52**.
 The Xcode version was observed on this host; changing it requires an intentional
 reviewed update to `tool-lock.json`. No installer or update runs during preflight.
 On a separately authorized setup, install Bundler 4.0.16 into that Ruby, then:

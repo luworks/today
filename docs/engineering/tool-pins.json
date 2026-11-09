@@ -5,14 +5,14 @@
   "access_timezone": "America/Los_Angeles",
   "baseline_commit": "395376bb126fd7415ac6b44eee91b796eb8ca60c",
   "host_observation": {
-    "xcode": "27.1",
-    "xcode_build": "27A9275",
-    "swift": "6.4",
-    "swift_build": "swiftlang-6.4.0.34.1",
+    "xcode": "27.2",
+    "xcode_build": "27B52",
+    "swift": "6.4.2",
+    "swift_build": "swiftlang-6.4.2.1.9",
     "macos": "26.6",
     "macos_build": "25G72",
     "architecture": "arm64",
-    "swift_format_version_output": "main",
+    "swift_format_version_output": "6.4.4",
     "swift_format_selection": "xcrun --find swift-format",
     "compatibility_validation": "Not built or tested; version probes only."
   },
@@ -47,15 +47,15 @@
       "license_url": "https://github.com/swiftlang/swift-format/blob/604.0.0/LICENSE.txt",
       "accessed_on": "2026-10-18",
       "compatibility": "candidate-unverified-on-host",
-      "integration_note": "Prefer the formatter bundled with exact Xcode build 27A9275. Its observed version is main, not evidence of tag 604.0.0. The tagged source is an optional reproducible alternative requiring a separate build/syntax check; never substitute nicklockwood/SwiftFormat.",
+      "integration_note": "Prefer the formatter bundled with exact Xcode build 27B52. Its observed version is 6.4.4, not evidence of tag 604.0.0. The tagged source is an optional reproducible alternative requiring a separate build/syntax check; never substitute nicklockwood/SwiftFormat.",
       "git_revision": "15d7877c6b32926948f6520f0156657945955ea3",
       "source_archive_url": "https://github.com/swiftlang/swift-format/archive/refs/tags/604.0.0.tar.gz",
       "archive_sha256": null,
       "checksum_note": "No publisher release asset checksum observed; use exact Git revision and lockfile, not an invented archive digest.",
       "preferred_pin": {
         "kind": "xcode-bundled",
-        "xcode": "27.1",
-        "xcode_build": "27A9275",
+        "xcode": "27.2",
+        "xcode_build": "27B52",
         "upstream_tag_mapping": "unverified"
       }
     },
