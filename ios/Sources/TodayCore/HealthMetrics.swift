@@ -541,6 +541,8 @@ public struct HealthRowModel: Equatable {
   public let value: HealthValueText?
   /// "Today", "Yesterday", "Oct 14", or "No data".
   public let dateLabel: String
+  /// What the row itself shows: nil for today's reading, which needs no label. VoiceOver still reads `dateLabel`.
+  public let shownDateLabel: String?
   /// Seven slots, oldest first, 0…1; nil = no data that day.
   public let spark: [Double?]
   public var hasSpark: Bool { spark.contains { $0 != nil } }
@@ -553,9 +555,11 @@ public struct HealthRowModel: Equatable {
     if let latest = series?.latest {
       value = HealthFormat.value(metric, latest.value, units: units, locale: locale)
       dateLabel = HealthFormat.dateLabel(latest.date, now: now, calendar: calendar, locale: locale)
+      shownDateLabel = calendar.isDate(latest.date, inSameDayAs: now) ? nil : dateLabel
     } else {
       value = nil
       dateLabel = "No data"
+      shownDateLabel = dateLabel
     }
     spark = HealthSpark.normalised(
       HealthSpark.slots(series ?? .empty, now: now, calendar: calendar), shape: metric.shape)

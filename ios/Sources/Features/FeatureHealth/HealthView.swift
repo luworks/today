@@ -4,7 +4,7 @@
   import TodayDesignSystem
   import TodayPlatform
 
-  /// A globally ordered read-only dashboard. Customize uses native List dragging and accessible move actions.
+  /// A globally ordered read-only dashboard: the numbers, and little else. Manage Metrics owns visibility and order.
   public struct HealthView: View {
     @Environment(\.scenePhase) private var scenePhase
     private let model: HealthModel
@@ -12,7 +12,6 @@
     @State private var adding = false
     @State private var recordsPresented = false
     @State private var draft = HealthSelection.default
-    @State private var customizing = false
 
     public init(model: HealthModel) {
       self.model = model
@@ -30,77 +29,55 @@
           unavailable
         } else {
           Section {
-            ForEach(model.selection.ordered) { metric in row(metric) }
-              .onMove { model.move(from: $0, to: $1) }
-          } header: {
-            VStack(alignment: .leading, spacing: 4) {
-              Text(customizing ? "Your order" : "Your health")
-                .font(.headline.weight(.medium))
-                .foregroundStyle(.primary)
-              Text(
-                customizing
-                  ? "Drag any metric to any position."
-                  : "Measurements from Apple Health, in your order."
-              )
-              .font(.footnote)
-              .textCase(nil)
-            }
-            .padding(.bottom, 6)
-          }
-          Section {
             if model.selection.shown.isEmpty {
               Text("No metrics shown.").font(.subheadline).foregroundStyle(.secondary)
+              Button("Manage Metrics", action: manageMetrics)
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(HealthStyle.accent)
             }
-            Button {
-              manageMetrics()
-            } label: {
-              Label("Manage Metrics", systemImage: "slider.horizontal.3")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .frame(minHeight: 44, alignment: .leading)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .listRowInsets(EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 16))
-            .accessibilityIdentifier("health.add")
-            // Today shows the simplest view; Apple Health has everything else, one tap away.
-            OpenHealthButton()
-              .listRowInsets(EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 16))
+            ForEach(model.selection.ordered) { metric in row(metric) }
+              .onMove { model.move(from: $0, to: $1) }
           }
-          if model.recordSource != nil {
-            Section {
-              Button {
-                recordsPresented = true
-              } label: {
-                Label("Browse Health Records", systemImage: "list.bullet.rectangle")
-                  .font(.subheadline)
-                  .foregroundStyle(.secondary)
-                  .frame(minHeight: 44)
-              }
-              .accessibilityIdentifier("health.records")
-            } footer: {
-              Text("Workouts, events, paired readings and profile. Choose what to read.")
+          Section {
+            // Today shows the simplest view; Apple Health has everything else, one tap away.
+            OpenHealthButton(quiet: true)
+              .listRowBackground(Color.clear)
+              .listRowSeparator(.hidden)
+            if model.isSample {
+              Text("Sample data. On iPhone this page reads Apple Health.")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: .infinity)
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+                .accessibilityIdentifier("health.sample")
             }
           }
-          footer
         }
       }
       .listStyle(.insetGrouped)
-      .environment(\.editMode, .constant(customizing ? .active : .inactive))
+      .listSectionSpacing(.compact)
       .performanceDestination("health")
       .toolbar {
-        ToolbarItem(placement: .topBarLeading) {
-          Button(customizing ? "Finish" : "Customize") {
-            withAnimation(.snappy) { customizing.toggle() }
+        if model.isAvailable {
+          ToolbarItem(placement: .topBarLeading) {
+            Menu {
+              Button("Manage Metrics", systemImage: "slider.horizontal.3", action: manageMetrics)
+                .accessibilityIdentifier("health.add")
+              if model.recordSource != nil {
+                Button("Browse Health Records", systemImage: "list.bullet.rectangle") {
+                  recordsPresented = true
+                }
+                .accessibilityIdentifier("health.records")
+              }
+            } label: {
+              Image(systemName: "ellipsis")
+            }
+            .accessibilityLabel("More")
+            .accessibilityIdentifier("health.more")
           }
-          .font(.subheadline.weight(.medium))
-          .accessibilityLabel(customizing ? "Done Customizing" : "Customize")
-          .accessibilityIdentifier("health.customize")
         }
-
       }
       .task(id: scenePhase) {
         guard scenePhase == .active else { return }
@@ -137,14 +114,12 @@
       if case .failed(let reason) = state { failure = reason }
       return VStack(alignment: .leading, spacing: 4) {
         Button {
-          guard !customizing else { return }
           PerformanceTrace.shared.beginPage("health.detail")
           detail = metric
         } label: {
           HealthRow(item: item, isLoading: state == .loading && item.value == nil)
         }
         .buttonStyle(.plain)
-        .disabled(customizing)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(
           failure == nil ? item.accessibilityText : "\(item.accessibilityText). \(Self.cantRead)"
@@ -212,24 +187,6 @@
 
     static let cantRead = "Can't read this yet. Check Health access."
 
-    /// Health never tells an app that reading was denied, so the hint covers both "no data" and "not allowed".
-    private var footer: some View {
-      VStack(alignment: .leading, spacing: 8) {
-        if model.isSample {
-          Text("Sample data. On iPhone this page reads Apple Health.")
-            .accessibilityIdentifier("health.sample")
-        }
-        Text(
-          "Today only reads Apple Health; nothing leaves your iPhone. \"No data\" can also mean Today isn't allowed to read it: check Health → Profile → Apps → Today."
-        )
-      }
-      .font(.footnote)
-      .foregroundStyle(.secondary)
-      .listRowBackground(Color.clear)
-      .listRowSeparator(.hidden)
-      .listRowInsets(EdgeInsets(top: 8, leading: 20, bottom: 24, trailing: 20))
-    }
-
     private var unavailable: some View {
       VStack(spacing: 8) {
         Image(systemName: "heart.slash").font(.largeTitle).foregroundStyle(.secondary)
@@ -246,7 +203,8 @@
     }
   }
 
-  /// One row: name over the latest value (large number, small unit, quiet date label), and the sparkline on the right.
+  /// One row: name over the latest value (large number, small unit, a date only when it isn't today's), and the
+  /// sparkline on the right.
   private struct HealthRow: View {
     let item: HealthRowModel
     /// Waiting for this metric's first answer: a small spinner in place of the number (never over the whole sheet).
@@ -256,18 +214,10 @@
     var body: some View {
       HStack(spacing: 12) {
         VStack(alignment: .leading, spacing: 2) {
-          HStack(alignment: .firstTextBaseline, spacing: 8) {
-            Text(item.metric.title)
-              .font(.subheadline.weight(.medium))
-              .foregroundStyle(.primary)
-            if !typeSize.isAccessibilitySize {
-              Text(item.metric.group.title)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-            }
-          }
-          .fixedSize(horizontal: false, vertical: true)
+          Text(item.metric.title)
+            .font(.subheadline)
+            .foregroundStyle(.primary)
+            .fixedSize(horizontal: false, vertical: true)
           HStack(alignment: .firstTextBaseline, spacing: 3) {
             if let value = item.value {
               ForEach(Array(value.parts.enumerated()), id: \.offset) { index, part in
@@ -286,8 +236,8 @@
               Text("—").font(.system(.title2, design: .rounded).weight(.semibold)).foregroundStyle(
                 .secondary)
             }
-            if !isLoading {
-              Text(item.dateLabel)
+            if !isLoading, let date = item.shownDateLabel {
+              Text(date)
                 .font(.footnote)
                 .foregroundStyle(.secondary)
                 .padding(.leading, 4)

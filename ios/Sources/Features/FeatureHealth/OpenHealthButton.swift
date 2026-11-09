@@ -3,12 +3,16 @@
   import TodayCore
 
   /// "Open Health": one tap into Apple's Health app, shared by every place Today shows Health. If iOS refuses the URL
-  /// the label says so for a moment ("Couldn't open Health"); nothing else happens.
+  /// the label says so for a moment ("Couldn't open Health"); nothing else happens. `quiet` is a centred text link.
   public struct OpenHealthButton: View {
     @Environment(\.openURL) private var openURL
     @State private var failed = false
+    private let quiet: Bool
 
-    public init() {}
+    public init(quiet: Bool = false) { self.quiet = quiet }
+
+    private var title: String { failed ? HealthLauncher.failureMessage : "Open Health" }
+    private var alignment: Alignment { quiet ? .center : .leading }
 
     public var body: some View {
       Button {
@@ -22,14 +26,17 @@
           }
         }
       } label: {
-        Label(
-          failed ? HealthLauncher.failureMessage : "Open Health",
-          systemImage: failed ? "exclamationmark.circle" : "heart.text.square"
-        )
+        Group {
+          if quiet {
+            Text(title)
+          } else {
+            Label(title, systemImage: failed ? "exclamationmark.circle" : "heart.text.square")
+          }
+        }
         .font(.subheadline.weight(.medium))
         .foregroundStyle(failed ? Color.secondary : HealthStyle.accent)
-        .frame(minHeight: 44, alignment: .leading)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(minHeight: 44, alignment: alignment)
+        .frame(maxWidth: .infinity, alignment: alignment)
         .contentShape(Rectangle())
       }
       .buttonStyle(.borderless)
