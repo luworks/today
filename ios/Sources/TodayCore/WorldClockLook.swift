@@ -105,11 +105,15 @@ extension WorldClock {
 
   /// "SATURDAY, OCTOBER 17" on the city's calendar, in the reader's language.
   public static func longDate(zone: TimeZone, at date: Date, locale: Locale = .current) -> String {
+    longDateFormatter(zone: zone, locale: locale).string(from: date).uppercased(with: locale)
+  }
+
+  static func longDateFormatter(zone: TimeZone, locale: Locale) -> DateFormatter {
     let f = DateFormatter()
     f.locale = locale
     f.timeZone = zone
     f.setLocalizedDateFormatFromTemplate("EEEEMMMMd")
-    return f.string(from: date).uppercased(with: locale)
+    return f
   }
 
   // MARK: Sentence under the graph

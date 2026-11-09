@@ -68,8 +68,10 @@ Nothing changed in `ClockLogic` for this: `DayBand`, `isWorking`, `overlap` and 
 ## Behaviour
 
 - **No Overlap capsule.** The colors, the pill and the star are automatic. The graph is reached through one quiet bell-curve icon at the right end of the pill's row (`worldClock.graph`), which swaps cards and graph (like Overlap's toolbar icon); no capsule, no toggle label. Vertical swipes are left to the list.
-- **Scrubbing**: a horizontal drag anywhere on the page moves every clock together: 10 pt per minute, up to 24 hours either way. Scrubbing has no haptic feedback, including at the limits. Past the ends the page follows the finger less and less (rubber band, at most 56 pt) and springs back. The minutes are kept (now 18:50, 15 hours back reads 03:50).
-- **Pill**: tap goes back to now.
+- **Scrubbing**: a horizontal drag anywhere on the page moves every clock together. Slow is exact (at most 150 pt/s: 10 pt per minute, one-minute steps); faster the time per point rises with the finger's speed, up to 4 minutes per point (`WorldClock.Scrub.minutesPerPoint`). A release above 300 pt/s coasts on (time constant 0.25 s, at most a day) and lands on a whole quarter hour from now; a finger coming down stops it at once. About 12 hours for a normal swipe and 2 days for a fast flick. There is no haptic feedback, at any speed.
+- **Range**: 10 years either way. The minutes are kept on a slow drag (now 18:50, 15 hours back reads 03:50).
+- **Calendar**: the calendar button at the left of the pill opens a month grid, week start from Settings. A picked day keeps the time of day shown in the home city (Calendar arithmetic, so a daylight saving day is right); "Return to Now" is below it.
+- **Pill**: tap goes back to now. Under a day it reads hours and minutes; from a day "3 DAYS 4 HOURS"; from two weeks "20 DAYS"; from a year "1 YEAR 4 DAYS".
 - **+** (the app-wide plus) adds a city; the home city is the starred first card and is the device time zone mapped to a named city (Los Angeles for America/Los_Angeles, the biggest city of the zone otherwise).
 - **Cards** also keep the long press menu (Move Up / Move Down / Delete) and press-hold-drag reordering.
 - **Graph mode**: cards are flat rows, waves and sentence fill the lower half, scrubbing still works and the waves move.
@@ -86,4 +88,4 @@ Search (picker): English and Chinese (simplified or traditional) names, country 
 
 ## Known differences from the reference
 
-See the end of the implementation report (rubber band shows as a page offset, no zoom of the graph by pinch, no share / calendar buttons, the graph x range is inferred, the font is SF Pro Rounded where Overlap uses its own).
+See the end of the implementation report (no zoom of the graph by pinch, no share button, the graph x range is inferred, the font is SF Pro Rounded where Overlap uses its own).

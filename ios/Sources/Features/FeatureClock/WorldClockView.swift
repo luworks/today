@@ -53,6 +53,9 @@
       WorldClock.others(keys, home: home.key).compactMap { database.city(forKey: $0) }
     }
 
+    /// The week start chosen in Settings, for the date sheet.
+    var firstWeekday: Preferences.FirstWeekday { Preferences.firstWeekdayChoice(defaults) }
+
     public func contains(_ city: CityRecord) -> Bool {
       city.key == home.key || keys.contains(city.key)
     }
@@ -81,8 +84,9 @@
 
   /// World Clock, a copy of the look and the gestures of the app "Overlap" (see docs/design/world-clock.md): one card per
   /// city, colored by the time of day there (green inside good hours, 9:00 to 18:00), home first with a star. Drag sideways
-  /// anywhere to move every clock together in one-minute steps; the pill at the bottom says how far ("15 HOURS BEFORE NOW",
-  /// "NOW") and a tap on it goes back to now. The bell curve at the right of the pill swaps the cards for the overlap graph.
+  /// anywhere to move every clock together: a slow drag is exact, a fast one covers hours and coasts on (`WorldClock.Scrub`).
+  /// The pill at the bottom says how far ("15 HOURS BEFORE NOW", "NOW") and a tap on it goes back to now. The calendar at
+  /// the left of the pill jumps to a date; the bell curve at the right swaps the cards for the overlap graph.
   /// No Edit button: a long press on a city offers Move Up / Move Down and Delete, press, hold and drag reorders
   /// (the sideways swipe belongs to scrubbing). + adds a city.
   public struct WorldClockView: View {
@@ -91,11 +95,9 @@
     private let showUndo: (String, @escaping () -> Void) -> Void
     @Environment(\.colorScheme) private var colorScheme
     @State private var store: WorldClockStore
-    /// Minutes away from now; 0 = now.
-    @State private var scrub = 0
-    @State private var dragStart: Int?
-    /// How far the page is pulled past the end of the scale (points, signed).
-    @State private var rubber: CGFloat = 0
+    @State private var scrub = ScrubDriver()
+    @State private var texts = WorldClock.CardTexts()
+    @State private var showsDatePicker = false
 
     /// The app supplies its existing Undo toast; Workbench can capture and exercise the same undo action.
     public init(
@@ -112,7 +114,7 @@
     public var body: some View {
       TimelineView(.everyMinute) { _ in
         let now = self.now()
-        let date = WorldClock.Scrub.date(now: now, offset: scrub)
+        let date = WorldClock.Scrub.date(now: now, offset: scrub.offset)
         let home = store.home
         let others = store.others
         let graph = store.showsGraph
@@ -126,15 +128,23 @@
             .transition(.opacity)
           }
           List {
-            CityCard(city: home, home: home, date: date, isHome: true, flat: graph, db: db)
-              .moveDisabled(true)
-              .deleteDisabled(true)
+            CityCard(
+              city: home, home: home, date: date, isHome: true, flat: graph, moving: scrub.isFast,
+              db: db,
+              texts: texts
+            )
+            .moveDisabled(true)
+            .deleteDisabled(true)
             // A sideways drag scrubs time, so there is no swipe-to-delete here: Delete and the order are in the
             // long-press menu, and a press, hold and drag reorders.
             ForEach(others) { city in
-              CityCard(city: city, home: home, date: date, isHome: false, flat: graph, db: db)
-                .contextMenu { cityMenu(city) }
-                .deleteDisabled(true)
+              CityCard(
+                city: city, home: home, date: date, isHome: false, flat: graph,
+                moving: scrub.isFast,
+                db: db, texts: texts
+              )
+              .contextMenu { cityMenu(city) }
+              .deleteDisabled(true)
             }
             .onMove { store.move(from: $0, to: $1) }
             if others.isEmpty && !graph { hint }
@@ -143,66 +153,86 @@
           .scrollContentBackground(.hidden)
           .environment(\.defaultMinListRowHeight, 0)
           .contentMargins(.top, 6, for: .scrollContent)
-          .offset(x: rubber)
-          .gesture(HorizontalPan(onChange: dragged, onEnd: dragEnded))
+          .gesture(
+            HorizontalPan(
+              onTouchDown: scrub.touchDown, onChange: scrub.dragged, onEnd: scrub.released)
+          )
           .safeAreaInset(edge: .bottom, spacing: 0) {
-            bottomArea(home: home, others: others, date: date, graph: graph)
+            bottomArea(home: home, others: others, date: date, graph: graph, now: now)
           }
         }
         .animation(.snappy, value: graph)
+        .onDisappear { scrub.touchDown() }
       }
     }
 
-    // MARK: Scrubbing
-
-    private func dragged(_ width: CGFloat) {
-      if dragStart == nil { dragStart = scrub }
-      let start = dragStart ?? 0
-      let next = WorldClock.Scrub.offset(start: start, dragWidth: Double(width))
-      if next != scrub { scrub = next }
-      let stretch = CGFloat(
-        WorldClock.Scrub.rubberBand(WorldClock.Scrub.excess(start: start, dragWidth: Double(width)))
-      )
-      rubber = width < 0 ? -stretch : stretch
+    private func returnToNow() {
+      withAnimation(.snappy) { scrub.jump(to: 0) }
     }
 
-    private func dragEnded() {
-      dragStart = nil
-      if rubber != 0 { withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) { rubber = 0 } }
-    }
+    // MARK: Bottom: sentence, pill, calendar and graph buttons
 
-    // MARK: Bottom: sentence, pill, graph button
-
-    private func bottomArea(home: CityRecord, others: [CityRecord], date: Date, graph: Bool)
-      -> some View
-    {
+    private func bottomArea(
+      home: CityRecord, others: [CityRecord], date: Date, graph: Bool, now: Date
+    ) -> some View {
       VStack(spacing: 14) {
         if graph { overlapSentence(home: home, others: others, date: date) }
-        ZStack {
+        HStack(spacing: 8) {
+          calendarButton
+          Spacer(minLength: 0)
           scrubPill
-          HStack {
-            Spacer()
-            graphButton(graph)
-          }
+          Spacer(minLength: 0)
+          graphButton(graph)
         }
       }
       .padding(.horizontal, 16)
       .padding(.top, 8)
       .padding(.bottom, 10)
+      .sheet(isPresented: $showsDatePicker) {
+        ScrubDateSheet(
+          home: home.timeZone ?? TimeZone(secondsFromGMT: 0)!, firstWeekday: store.firstWeekday,
+          shown: date, range: WorldClock.Scrub.pickableRange(now: now), isAtNow: scrub.offset == 0,
+          pick: { day, calendar in
+            let offset = WorldClock.Scrub.offset(
+              picking: day, shown: date, now: now, calendar: calendar)
+            withAnimation(.snappy) { scrub.jump(to: offset) }
+            showsDatePicker = false
+          },
+          returnToNow: {
+            returnToNow()
+            showsDatePicker = false
+          })
+      }
+    }
+
+    private var calendarButton: some View {
+      Button {
+        scrub.touchDown()
+        showsDatePicker = true
+      } label: {
+        Image(systemName: "calendar")
+          .font(.system(size: 21, weight: .medium))
+          .foregroundStyle(.secondary)
+          .frame(width: 44, height: 44)
+          .contentShape(Rectangle())
+      }
+      .buttonStyle(.plain)
+      .accessibilityLabel("Choose a date")
+      .accessibilityIdentifier("worldClock.calendar")
     }
 
     private var scrubPill: some View {
-      let parts = WorldClock.Scrub.pillParts(scrub)
+      let parts = WorldClock.Scrub.pillParts(scrub.offset)
       var text = AttributedString(parts.lead)
       text.font = .system(size: 15, weight: .regular)
       var keyword = AttributedString(parts.keyword)
       keyword.font = .system(size: 15, weight: .bold)
       text.append(keyword)
-      return Button {
-        withAnimation(.snappy) { scrub = 0 }
-      } label: {
+      return Button(action: returnToNow) {
         Text(text)
           .tracking(0.2)
+          .lineLimit(1)
+          .minimumScaleFactor(0.7)
           .foregroundStyle(.white)
           .contentTransition(.numericText())
           .padding(.horizontal, 18)
@@ -210,9 +240,9 @@
           .background(Capsule().fill(Color(WorldClock.Look.pill)))
       }
       .buttonStyle(PressScale())
-      .accessibilityLabel(WorldClock.Scrub.pillText(scrub))
+      .accessibilityLabel(WorldClock.Scrub.pillText(scrub.offset))
       .accessibilityHint(
-        scrub == 0 ? "Drag sideways on the cities to see other times." : "Goes back to now."
+        scrub.offset == 0 ? "Drag sideways on the cities to see other times." : "Goes back to now."
       )
       .accessibilityIdentifier("worldClock.scrub")
     }
@@ -235,11 +265,11 @@
 
     private func overlapSentence(home: CityRecord, others: [CityRecord], date: Date) -> some View {
       let hm = WorldClock.hourMinute(zone: home.timeZone ?? TimeZone(secondsFromGMT: 0)!, at: date)
-      let parts = AlarmPlan.timeParts(hour: hm.hour, minute: hm.minute, locale: locale)
+      let parts = texts.timeParts(hour: hm.hour, minute: hm.minute, locale: locale)
       let segments = WorldClock.overlapSegments(
         cities: others.map { db.displayName($0, locale: locale) },
         home: db.displayName(home, locale: locale),
-        time: parts.time + (parts.suffix.map { " " + $0 } ?? ""), offset: scrub)
+        time: parts.time + (parts.suffix.map { " " + $0 } ?? ""), offset: scrub.offset)
       var text = AttributedString()
       for s in segments {
         var run = AttributedString(s.text)
@@ -304,10 +334,15 @@
   /// A sideways pan that starts only when the finger moves clearly sideways, and runs alongside the list's own
   /// scrolling, so vertical scrolling stays untouched.
   private struct HorizontalPan: UIGestureRecognizerRepresentable {
-    var onChange: (CGFloat) -> Void
-    var onEnd: () -> Void
+    var onTouchDown: () -> Void
+    /// Cumulative translation and velocity, in points and points per second.
+    var onChange: (CGFloat, CGFloat) -> Void
+    /// Velocity at the release; 0 when the gesture was cancelled.
+    var onEnd: (CGFloat) -> Void
 
-    func makeCoordinator(converter: CoordinateSpaceConverter) -> Coordinator { Coordinator() }
+    func makeCoordinator(converter: CoordinateSpaceConverter) -> Coordinator {
+      Coordinator(onTouchDown: onTouchDown)
+    }
 
     func makeUIGestureRecognizer(context: Context) -> UIPanGestureRecognizer {
       let pan = UIPanGestureRecognizer()
@@ -317,13 +352,27 @@
 
     func handleUIGestureRecognizerAction(_ pan: UIPanGestureRecognizer, context: Context) {
       switch pan.state {
-      case .began, .changed: onChange(pan.translation(in: pan.view).x)
-      case .ended, .cancelled, .failed: onEnd()
+      case .began, .changed:
+        onChange(pan.translation(in: pan.view).x, pan.velocity(in: pan.view).x)
+      case .ended: onEnd(pan.velocity(in: pan.view).x)
+      case .cancelled, .failed: onEnd(0)
       default: break
       }
     }
 
     final class Coordinator: NSObject, UIGestureRecognizerDelegate {
+      private let onTouchDown: () -> Void
+
+      init(onTouchDown: @escaping () -> Void) {
+        self.onTouchDown = onTouchDown
+      }
+
+      /// Called as soon as a finger lands, long before the pan begins: this is what stops a coast at once.
+      func gestureRecognizer(_ g: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+        onTouchDown()
+        return true
+      }
+
       func gestureRecognizerShouldBegin(_ g: UIGestureRecognizer) -> Bool {
         guard let pan = g as? UIPanGestureRecognizer else { return true }
         let v = pan.velocity(in: pan.view)
@@ -333,6 +382,116 @@
       func gestureRecognizer(
         _ g: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer
       ) -> Bool { true }
+    }
+  }
+
+  /// Feeds `WorldClock.Scrub.Motion` from the finger and the display, and publishes only whole-minute changes,
+  /// so the page redraws no more often than the time it shows actually moves.
+  @MainActor
+  @Observable
+  private final class ScrubDriver: NSObject {
+    private(set) var offset = 0
+    private(set) var isFast = false
+
+    @ObservationIgnored private var motion = WorldClock.Scrub.Motion()
+    @ObservationIgnored private var lastTranslation: CGFloat = 0
+    @ObservationIgnored private var link: CADisplayLink?
+    @ObservationIgnored private var releasedAt: CFTimeInterval = 0
+
+    func touchDown() {
+      stopLink()
+      motion.touchDown()
+      publish()
+    }
+
+    func jump(to minutes: Int) {
+      stopLink()
+      motion.jump(to: minutes)
+      publish()
+    }
+
+    func dragged(translation: CGFloat, velocity: CGFloat) {
+      motion.drag(points: Double(translation - lastTranslation), speed: abs(Double(velocity)))
+      lastTranslation = translation
+      publish()
+    }
+
+    func released(velocity: CGFloat) {
+      lastTranslation = 0
+      motion.release(velocity: Double(velocity))
+      publish()
+      guard motion.isCoasting else { return }
+      releasedAt = CACurrentMediaTime()
+      let link = CADisplayLink(target: self, selector: #selector(tick))
+      link.add(to: .main, forMode: .common)
+      self.link = link
+    }
+
+    @objc private func tick(_ link: CADisplayLink) {
+      motion.advance(elapsed: link.targetTimestamp - releasedAt)
+      publish()
+      if !motion.isCoasting { stopLink() }
+    }
+
+    private func stopLink() {
+      link?.invalidate()
+      link = nil
+    }
+
+    private func publish() {
+      if offset != motion.offset { offset = motion.offset }
+      if isFast != motion.isFast { isFast = motion.isFast }
+    }
+  }
+
+  /// The month grid behind the calendar button: pick a day to go there, or come back to now.
+  private struct ScrubDateSheet: View {
+    let home: TimeZone
+    let firstWeekday: Preferences.FirstWeekday
+    let shown: Date
+    let range: ClosedRange<Date>
+    let isAtNow: Bool
+    let pick: (Date, Calendar) -> Void
+    let returnToNow: () -> Void
+
+    @Environment(\.calendar) private var environmentCalendar
+
+    private var calendar: Calendar {
+      var c = firstWeekday.calendar(base: environmentCalendar)
+      c.timeZone = home
+      return c
+    }
+
+    var body: some View {
+      let calendar = self.calendar
+      VStack(spacing: 8) {
+        DatePicker(
+          "Date", selection: Binding(get: { shown }, set: { pick($0, calendar) }), in: range,
+          displayedComponents: .date
+        )
+        .datePickerStyle(.graphical)
+        .labelsHidden()
+        .tint(Color(WorldClock.Look.green))
+        .environment(\.calendar, calendar)
+        .environment(\.timeZone, home)
+        .accessibilityIdentifier("worldClock.datePicker")
+        Button(action: returnToNow) {
+          Text("Return to Now")
+            .font(.body.weight(.semibold))
+            .foregroundStyle(.primary)
+            .frame(maxWidth: .infinity, minHeight: 50)
+            .background(Capsule().fill(Color(.tertiarySystemFill)))
+            .opacity(isAtNow ? 0.4 : 1)
+        }
+        .buttonStyle(PressScale())
+        .disabled(isAtNow)
+        .accessibilityIdentifier("worldClock.returnToNow")
+      }
+      .padding(.horizontal, 16)
+      .padding(.top, 8)
+      .presentationDetents([.height(480)])
+      .presentationDragIndicator(.visible)
+      .presentationBackground(Color(.systemBackground))
     }
   }
 
@@ -359,7 +518,10 @@
     let date: Date
     let isHome: Bool
     let flat: Bool
+    /// The time is racing by: skip the per-step color and digit animations.
+    let moving: Bool
     let db: CityDatabase
+    let texts: WorldClock.CardTexts
 
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.locale) private var locale
@@ -369,10 +531,10 @@
     private var name: String { db.displayName(city, locale: locale) }
     private var colors: WorldClock.CardColors { WorldClock.Look.card(zone: zone, at: date) }
     private var offset: String { WorldClock.offsetBadge(zone: zone, home: homeZone, at: date) }
-    private var dateText: String { WorldClock.longDate(zone: zone, at: date, locale: locale) }
+    private var dateText: String { texts.longDate(zone: zone, at: date, locale: locale) }
     private var parts: (time: String, suffix: String?) {
       let hm = WorldClock.hourMinute(zone: zone, at: date)
-      return AlarmPlan.timeParts(hour: hm.hour, minute: hm.minute, locale: locale)
+      return texts.timeParts(hour: hm.hour, minute: hm.minute, locale: locale)
     }
 
     var body: some View {
@@ -423,7 +585,7 @@
         .foregroundStyle(.white)
         .frame(height: flat ? 78 : 82, alignment: .top)
       }
-      .animation(.easeInOut(duration: 0.25), value: c)
+      .animation(moving ? nil : .easeInOut(duration: 0.25), value: c)
       .stackedCardRow()
       .accessibilityElement(children: .combine)
       .accessibilityLabel(

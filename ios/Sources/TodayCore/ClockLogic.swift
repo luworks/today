@@ -76,10 +76,10 @@ public enum WorldClock {
 
   /// Hour and minute on the city's clock, for `AlarmPlan.timeParts` (same big time as the alarm rows).
   public static func hourMinute(zone: TimeZone, at now: Date) -> (hour: Int, minute: Int) {
-    var cal = Calendar(identifier: .gregorian)
-    cal.timeZone = zone
-    let c = cal.dateComponents([.hour, .minute], from: now)
-    return (c.hour ?? 0, c.minute ?? 0)
+    // Plain arithmetic, no Calendar: this runs for every card on every frame of a scrub, and 89 times per city for the waves.
+    let local = Int(now.timeIntervalSince1970.rounded(.down)) + zone.secondsFromGMT(for: now)
+    let second = ((local % 86_400) + 86_400) % 86_400
+    return (second / 3600, second % 3600 / 60)
   }
 
   // MARK: Saved list
@@ -208,67 +208,6 @@ public struct StopwatchState: Codable, Equatable {
 // MARK: - World Clock: scrubbing, time of day, overlap (modeled on the app "Overlap")
 
 extension WorldClock {
-  /// Scrubbing moves every city's clock together, in one-minute steps, up to a day either way.
-  public enum Scrub {
-    public static let stepMinutes = 1
-    public static let limitMinutes = 24 * 60
-    /// Points of horizontal drag per one-minute step.
-    public static let pointsPerStep: Double = 10
-
-    /// The offset (in minutes) for a drag: dragging left moves time forward; dragging right moves it backward.
-    /// `start` is the offset when the drag began.
-    public static func offset(start: Int, dragWidth: Double) -> Int {
-      let steps = Int((dragWidth / pointsPerStep).rounded(.towardZero))
-      return clamp(snap(start) - steps * stepMinutes)
-    }
-
-    /// Rounds to the nearest minute.
-    static func snap(_ minutes: Int) -> Int {
-      Int((Double(minutes) / Double(stepMinutes)).rounded()) * stepMinutes
-    }
-
-    static func clamp(_ minutes: Int) -> Int { min(limitMinutes, max(-limitMinutes, minutes)) }
-
-    /// The moment the cards show: now plus the offset. Minutes are kept (18:50 minus 15 hours reads 03:50), as in Overlap.
-    public static func date(now: Date, offset minutes: Int) -> Date {
-      now.addingTimeInterval(Double(minutes) * 60)
-    }
-
-    /// The pill under the cities, in two parts so the keyword can be bold: ("", "NOW"), ("15 HOURS BEFORE ", "NOW"),
-    /// ("1 HOUR 15 MIN AFTER ", "NOW"), ("45 MIN BEFORE ", "NOW").
-    public static func pillParts(_ minutes: Int) -> (lead: String, keyword: String) {
-      guard minutes != 0 else { return ("", "NOW") }
-      let m = abs(minutes)
-      let h = m / 60
-      let rest = m % 60
-      var parts: [String] = []
-      if h > 0 { parts.append("\(h) " + (h == 1 ? "HOUR" : "HOURS")) }
-      if rest > 0 { parts.append("\(rest) MIN") }
-      return (parts.joined(separator: " ") + (minutes > 0 ? " AFTER " : " BEFORE "), "NOW")
-    }
-
-    /// The pill as one line: "NOW", "15 HOURS BEFORE NOW".
-    public static func pillText(_ minutes: Int) -> String {
-      let p = pillParts(minutes)
-      return p.lead + p.keyword
-    }
-
-    /// How far the page follows the finger past the end of the scale: the first points move nearly one to one, then it
-    /// stiffens toward `maximum` points (a rubber band).
-    public static func rubberBand(_ excess: Double, maximum: Double = 56) -> Double {
-      guard excess > 0 else { return 0 }
-      return maximum * (1 - exp(-excess / maximum))
-    }
-
-    /// How many points the drag went past the end of the scale (positive both ways), for the rubber band.
-    public static func excess(start: Int, dragWidth: Double) -> Double {
-      let raw = Double(snap(start)) - (dragWidth / pointsPerStep) * Double(stepMinutes)
-      let limit = Double(limitMinutes)
-      let over = abs(raw) > limit ? abs(raw) - limit : 0
-      return over / Double(stepMinutes) * pointsPerStep
-    }
-  }
-
   /// Time of day on a city's clock, which tints its card: who is asleep, up, or at work.
   public enum DayBand: String, CaseIterable {
     case night, morning, work, evening
