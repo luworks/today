@@ -70,6 +70,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RANGE: ${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }}
+      # A fresh VM reads Xcode from a cold disk, the slowest and least predictable part of the build.
+      # Touch the tools in the background while the cache restores.
+      - if: steps.scope.outputs.app != 'false'
+        run: nohup sh -c '(xcrun simctl list devices; xcodebuild -showsdks) >/dev/null 2>&1 & (xcrun swift-frontend -version; xcrun clang --version; xcrun ld -v) >/dev/null 2>&1 & wait' >/dev/null 2>&1 &
       # Pull requests build incrementally on the DerivedData of the newest green main. Everything
       # else builds clean, so anything a warm cache could mask is caught on main.
       - id: dd
