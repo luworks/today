@@ -161,7 +161,7 @@
           topLeading: top, bottomLeading: bottom, bottomTrailing: bottom, topTrailing: top),
         style: .continuous
       )
-      .fill(Color(.secondarySystemBackground).opacity(colorScheme == .dark ? 0.51 : 0.6))
+      .fill(Color(.secondarySystemBackground).opacity(colorScheme == .dark ? 0.52 : 0.6))
       .padding(.horizontal, DayPartMetrics.margin)
       // Runs past its short cell: a shape cannot round more than its own height, and Free rows are short.
       .padding(.bottom, edge == .bottom ? -DayPartMetrics.endPadding : 0)
