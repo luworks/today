@@ -119,6 +119,7 @@
     @State private var timeError: String?
     @State private var timeBusy = false
     @State private var drag = TimelineDragModel()
+    @State private var nowCentering = TimelineNowCentering()
     @State private var frozenDayItems: DayItems?
     @State private var swipes = DayPartSwipes()
     @State private var retryTime: Date?
@@ -138,11 +139,11 @@
               .padding(.horizontal, 8)
               .padding(.bottom, 2)
           }
-          list
+          list(proxy)
         }
         .onAppear {
           refreshClock()
-          scrollToNow(proxy)
+          startCenteringNow(proxy)
         }
         .onChange(of: day) { _, _ in
           showsAllOverdue = false
@@ -151,7 +152,7 @@
           drag.end()
           frozenDayItems = nil
           retryTime = nil
-          scrollToNow(proxy)
+          startCenteringNow(proxy)
         }
       }
       .onChange(of: tasks.map { "\($0.title)|\($0.due?.timeIntervalSince1970 ?? 0)|\($0.isDone)" })
@@ -241,11 +242,15 @@
     }
 
     /// Open on what is happening now: the day's schedule scrolls to the "now" line.
-    private func scrollToNow(_ proxy: ScrollViewProxy) {
-      guard cal.isDate(day, inSameDayAs: now), jumpsToNow else { return }
-      Task { @MainActor in
-        try? await Task.sleep(for: .milliseconds(250))
-        withAnimation(reduceMotion ? nil : .snappy) { proxy.scrollTo("now-line", anchor: .center) }
+    private func startCenteringNow(_ proxy: ScrollViewProxy) {
+      nowCentering.arm(isToday: cal.isDate(day, inSameDayAs: now), jumpsToNow: jumpsToNow)
+      if nowCentering.isHolding { centerNow(proxy) }
+    }
+
+    /// Without animation: the list may ask again a moment later, and animated scrolls would fight each other.
+    private func centerNow(_ proxy: ScrollViewProxy) {
+      withTransaction(Transaction(animation: nil)) {
+        proxy.scrollTo("now-line", anchor: .center)
       }
     }
 
@@ -315,7 +320,7 @@
     /// The Today tab on today (not the Calendar tab, not another day).
     private var isTodayTab: Bool { !showsWeekStrip && cal.isDate(day, inSameDayAs: now) }
 
-    private var list: some View {
+    private func list(_ proxy: ScrollViewProxy) -> some View {
       let items = frozenDayItems ?? items(on: day, now: now)
       return List {
         // Running timers: a live countdown at the top of today.
@@ -405,10 +410,18 @@
       .environment(\.defaultMinListRowHeight, showsWeekStrip ? 24 : 0)
       .listSectionSpacing(showsWeekStrip ? 6 : 0)
       .scrollContentBackground(.hidden)
+      .onScrollGeometryChange(for: [CGFloat].self) {
+        [$0.contentSize.height, $0.containerSize.height]
+      } action: { old, new in
+        if nowCentering.recenters(from: old, to: new, isDragging: drag.session != nil) {
+          centerNow(proxy)
+        }
+      }
       .background(alignment: .topLeading) { DayPartSwipeLayer(swipes: swipes) }
       .background {
         TimelineHoldDragInstaller(
-          model: drag, canLift: { liftCandidate(at: $0) != nil }, began: { beginDrag(at: $0) },
+          model: drag, canLift: { liftCandidate(at: $0) != nil },
+          touched: { nowCentering.touched() }, began: { beginDrag(at: $0) },
           ended: { endDrag(cancelled: $0) })
       }
       .entryDeleteDialog($pendingDelete)
