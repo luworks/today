@@ -13,4 +13,4 @@ See `docs/engineering/clock-health-consumers-integration.md` for the exact consu
 
 `WorldClockStore(database:defaults:homeZoneIdentifier:homeCity:initialKeys:)` and `StopwatchModel(defaults:now:initialState:initialPage:)` load their existing preference keys when explicit initial values are absent. Development composition selects launch-argument scenarios; feature models do not read process arguments or clear preferences.
 
-The existing card/scrub/overlap/city-reorder and stopwatch face/lap algorithms and accessibility identifiers remain in their real views. Stopwatch actions, rendered faces and current lap all use the injected clock. Deleting cities retains the caller's actual Undo action.
+Scrub acceleration, inertia, date picking and the pill text are plain Swift in `TodayCore/WorldClockScrub.swift`; `WorldClockView` only feeds it touches and display frames. The existing card/overlap/city-reorder and stopwatch face/lap algorithms and accessibility identifiers remain in their real views. Stopwatch actions, rendered faces and current lap all use the injected clock. Deleting cities retains the caller's actual Undo action.
