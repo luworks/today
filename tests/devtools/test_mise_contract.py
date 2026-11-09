@@ -59,7 +59,7 @@ class MiseContractTests(unittest.TestCase):
         self.assertIn('\n  ' + release['bundler'] + '\n', gems)
         self.assertIn('\n    fastlane (' + release['fastlane'] + ')\n', gems)
         self.assertEqual(release['bundler'], '4.0.16')
-        self.assertEqual(release['fastlane'], '2.241.1')
+        self.assertEqual(release['fastlane'], '2.241.2')
 
     def test_locked_precompiled_payloads_and_no_compile_fallback(self):
         self.assertTrue(self.config['settings']['lockfile'])

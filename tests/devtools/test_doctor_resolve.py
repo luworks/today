@@ -187,7 +187,7 @@ class DoctorTests(Fixture):
         self.executable(runtime / 'ruby/3.3.12/bin/ruby')
         self.executable(runtime / 'python/3.14.8/bin/python3')
         for path in [runtime / 'ruby/3.3.12/lib/ruby/gems/3.3.0/gems/bundler-4.0.16/exe/bundle',
-                     self.root / '.dev-tools/bundle/ruby/3.3.0/gems/fastlane-2.241.1/bin/fastlane']:
+                     self.root / '.dev-tools/bundle/ruby/3.3.0/gems/fastlane-2.241.2/bin/fastlane']:
             self.executable(path)
 
     def executable(self, path):
@@ -200,7 +200,7 @@ class DoctorTests(Fixture):
         self.assertNotIn('mise', [Path(a).name for a in argv])
         self.assertEqual(argv[-1], '--version')
         if len(argv) == 3:
-            return 'Bundler version 4.0.16' if Path(argv[1]).name == 'bundle' else 'fastlane 2.241.1'
+            return 'Bundler version 4.0.16' if Path(argv[1]).name == 'bundle' else 'fastlane 2.241.2'
         return {'swiftc': 'Apple Swift version 6.4.2 (swiftlang-6.4.2.1.9)',
                 'swift-format': '6.4.4', 'ruby': 'ruby 3.3.12', 'python3': 'Python 3.14.8'}[Path(argv[0]).name]
 
