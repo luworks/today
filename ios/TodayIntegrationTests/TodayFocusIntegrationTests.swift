@@ -571,6 +571,8 @@
         let records = a.services.actions.focus.records
 
         // Pruning actually removes an expired Activity row while leaving the independent overlay.
+        // Forever (the default) keeps raw events, so this needs a finite retention choice.
+        a.defaults.set(ActivityRetention.days90.rawValue, forKey: ActivitySettings.retentionKey)
         try a.services.activityStore.insert([
           ActivityEvent(
             kind: "change.settled", actor: "you",
