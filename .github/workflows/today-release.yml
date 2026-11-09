@@ -1,0 +1,35 @@
+name: Today Release build
+# Compiles what the merge gate does not: Release and the device SDK. Its own workflow because a
+# red run must be visible on main without gating a Debug phone install (scripts/ci/main_gate.py).
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+concurrency:
+  group: today-release-${{ github.ref }}
+  cancel-in-progress: true
+env:
+  DEVELOPER_DIR: /Applications/Xcode_27.1.app/Contents/Developer
+jobs:
+  release:
+    runs-on: xcode-27
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/today-ci/dd/SourcePackages
+          key: spm-${{ hashFiles('ios/Dependencies/Package.resolved') }}
+      - run: python3 scripts/ci/job.py --release
+      # Export allowlisted diagnostics only; raw command bytes remain runner-local/private.
+      - if: failure() || cancelled()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-failure-${{ github.sha }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/today-ci/failure
+          if-no-files-found: warn
+          retention-days: 7

@@ -2,7 +2,8 @@
 """Merge-gate CI steps with failure-only evidence.
 
 `--command <argv>...` runs one `./dev` step (the `checks` job). `--build` is `today-required`:
-one TodayCI build-for-testing and an identity check of the three production products.
+one TodayCI build-for-testing and an identity check of the three production products. `--release`
+compiles the app, widget and share extension for a device in Release, unsigned.
 Standard library only; prints elapsed seconds per step for timing.
 """
 import hashlib
@@ -38,13 +39,27 @@ def run(*argv, capture=False):
     return EVIDENCE.run(*argv, capture=capture)
 
 
-def build():
+def generate():
     TEMP.mkdir(parents=True, exist_ok=True)
     run('./dev', 'bootstrap', '--tool', 'xcodegen')
     run('./dev', 'generate')
     lock = ROOT / 'ios/Today.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved'
     lock.parent.mkdir(parents=True, exist_ok=True)
     lock.write_bytes((ROOT / 'ios/Dependencies/Package.resolved').read_bytes())
+
+
+def release():
+    generate()
+    step('project generated')
+    run('xcodebuild', 'build', '-quiet', '-project', 'ios/Today.xcodeproj', '-scheme', 'Today',
+        '-configuration', 'Release', '-destination', 'generic/platform=iOS', '-jobs', '3',
+        'CODE_SIGNING_ALLOWED=NO', *FLAGS)
+    step('built App, Widget and Share for a device in Release')
+    return 0
+
+
+def build():
+    generate()
     # A restored DerivedData is only reusable if unchanged inputs look unchanged: same content, same
     # mtime, and XCBuild must not treat the new volume and inodes as changes.
     mtimes.stamp(ROOT)
@@ -70,14 +85,14 @@ def build():
 def entry(argv):
     global EVIDENCE
     command = argv[1:] if argv[:1] == ['--command'] else None
-    if command is None and argv != ['--build']:
-        raise SystemExit('usage: job.py --build | --command <argv>...')
+    if command is None and argv not in (['--build'], ['--release']):
+        raise SystemExit('usage: job.py --build | --release | --command <argv>...')
     if command == []:
         raise SystemExit('command required')
     EVIDENCE = FailureEvidence(ROOT, TEMP, PRODUCTS, lane='checks' if command else 'build')
     code = 1
     try:
-        code = EVIDENCE.run(*command) if command else build()
+        code = EVIDENCE.run(*command) if command else release() if argv == ['--release'] else build()
     except subprocess.CalledProcessError as error:
         code = error.returncode
     except SystemExit as error:
