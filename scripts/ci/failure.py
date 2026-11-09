@@ -49,9 +49,6 @@ class FailureEvidence:
                      'run_attempt': os.environ.get('GITHUB_RUN_ATTEMPT', 'not_set'),
                      'products': {p: {'expected_bundle_id': b, 'status': 'not_checked'} for p, b in products.items()}}
         self.write()
-        self.data['toolchain'] = {'xcode': probe(root, 'xcodebuild', '-version'),
-                                  'swift': probe(root, 'swift', '--version')}
-        self.write()
 
     def write(self):
         path = self.export / 'metadata.json'
@@ -112,6 +109,9 @@ class FailureEvidence:
 
     def finish(self, code):
         self.data.update(status='passed' if code == 0 else 'failed', exit=code)
+        if code != 0:  # two cold tool launches, about 4 s: only a failure needs them
+            self.data['toolchain'] = {'xcode': probe(self.root, 'xcodebuild', '-version'),
+                                      'swift': probe(self.root, 'swift', '--version')}
         remaining = LOG_LIMIT
         first_log = (self.first_failure or {}).get('log')
         logs = sorted(self.export.glob('*.log'), key=lambda log: (log.name != first_log, log.name))
