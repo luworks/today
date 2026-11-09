@@ -83,7 +83,7 @@
           }
           .accessibilityIdentifier("activity.keepChatText")
         } header: {
-          Text("What is recorded 1")
+          Text("What is recorded 2")
         } footer: {
           Text(
             ActivityNote.neverRecorded
