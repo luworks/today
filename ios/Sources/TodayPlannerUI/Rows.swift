@@ -16,7 +16,7 @@
       self.canDelete = canDelete
     }
 
-    @ViewBuilder package func swipeButtons(delete: @escaping () -> Void) -> some View {
+    @MainActor @ViewBuilder package func swipeButtons(delete: @escaping () -> Void) -> some View {
       // SwiftUI lays trailing actions out from the outside edge: Delete stays rightmost, and a full swipe runs it.
       // The row stays until its source accepts the delete, or the question is answered.
       if canDelete { RowAction.delete(asksFirst: true, delete) }
