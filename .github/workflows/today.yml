@@ -23,7 +23,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      # Docs/prototype-only pull requests: the job stays and reports green, its steps skip.
+      # Docs/prototype-only pull requests skip every step; view-only ones skip the logic tests.
+      # The job still reports green, and pushes to main run everything.
       - id: scope
         if: github.event_name == 'pull_request'
         run: python3 scripts/ci/scope.py
@@ -36,11 +37,11 @@ jobs:
         run: python3 scripts/ci/job.py --command ./dev format --check
       - if: steps.scope.outputs.app != 'false'
         run: python3 scripts/ci/job.py --command ./dev lint
-      - if: steps.scope.outputs.app != 'false'
+      - if: steps.scope.outputs.logic != 'false'
         run: python3 scripts/ci/job.py --command ./dev test helpers
-      - if: steps.scope.outputs.app != 'false'
+      - if: steps.scope.outputs.logic != 'false'
         run: python3 scripts/ci/job.py --command ./dev test qa
-      - if: steps.scope.outputs.app != 'false'
+      - if: steps.scope.outputs.logic != 'false'
         run: python3 scripts/ci/job.py --command ./dev test unit
       # Export allowlisted diagnostics only; raw command bytes remain runner-local/private.
       - if: failure() || cancelled()

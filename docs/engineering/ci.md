@@ -27,8 +27,12 @@ zipped. Simulator only (never a phone, never next to `One.app`); launch it with 
 On a pull request that only changes prose, images or the prototype (`*.md`, `docs/**` images
 and HTML/CSS, `src/**`, `backend/luna/**`, which has its own workflow), `scripts/ci/scope.py`
 makes both jobs skip their steps and report green under the same names (~20 s instead of
-~3 min). Any other file, a list of 300+ files or an API error runs everything. Pushes to
-`main` always run everything.
+~3 min). On a pull request that changes only Swift in modules no SwiftPM test target depends on
+(`ios/Sources/Features/`, `TodayDesignSystem`, `TodayPlannerUI`, `TodayShell`, except a file a test
+reads), `checks` runs format and lint and skips `helpers`, `qa` and `unit`; `today-required`
+still compiles it. `tests/ci/test_scope.py` fails if a test target starts to depend on one of those
+modules. Any other file, a list of 300+ files or an API error runs everything. Pushes to
+`main` always run everything, so a failure there is visible on `main`.
 
 Merge elapsed time is the time for both jobs to turn green. The measured numbers are in
 [the measurements](../qa/ci-under-five-minutes-20261020.md). A green merge gate does **not**
