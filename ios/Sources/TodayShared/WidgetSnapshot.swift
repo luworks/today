@@ -311,3 +311,5 @@ public enum NextItems {
     return min(now.addingTimeInterval(interval), midnight)
   }
 }
+
+private let ciTrialShared = 1
