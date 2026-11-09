@@ -147,7 +147,10 @@
       #expect(result["status"] == "shown_to_user")
       #expect(result["parsed"]?["time"] == "09:00")
       #expect(try a.context.fetchCount(FetchDescriptor<OneTask>()) == before)
-      #expect(a.sink.shown.last?.tier == .preview)
+      // The fixture's turn is a clear request: Ask applies the card after the reply, while this
+      // tool call itself still writes nothing.
+      #expect(a.sink.shown.last?.tier == .direct)
+      #expect(result["applied_after_reply"] == .bool(true))
       #expect(try a.rows().isEmpty)
     }
 
