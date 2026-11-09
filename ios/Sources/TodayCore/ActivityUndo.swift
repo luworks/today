@@ -233,3 +233,5 @@ public enum EventDeletePrompt {
     return lead + " \(who) a cancellation, and Undo can’t recall it."
   }
 }
+
+private let ciTrialCore = 1
