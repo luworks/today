@@ -18,6 +18,8 @@
     private static let dragThreshold: CGFloat = 6
 
     var canLift: (CGPoint) -> Bool = { _ in false }
+    /// Any finger landing on the List, whether or not its row can lift.
+    var touched: () -> Void = {}
     var lifted: (CGPoint) -> Void = { _ in }
     var unlifted: () -> Void = {}
     private(set) var point = CGPoint.zero
@@ -27,6 +29,7 @@
     private var touch: UITouch?
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent) {
+      touched()
       guard touch == nil, let first = touches.first, touches.count == 1 else {
         if state == .possible {
           fail()
@@ -119,6 +122,7 @@
   struct TimelineHoldDragInstaller: UIViewRepresentable {
     let model: TimelineDragModel
     let canLift: (CGPoint) -> Bool
+    let touched: () -> Void
     let began: (CGPoint) -> Bool
     let ended: (Bool) -> Void
 
@@ -184,6 +188,7 @@
         hold.delaysTouchesBegan = false
         hold.delaysTouchesEnded = false
         hold.canLift = { [weak self] in self?.parent.canLift($0) ?? false }
+        hold.touched = { [weak self] in self?.parent.touched() }
         hold.lifted = { [weak self] in self?.parent.model.lift(at: $0) }
         hold.unlifted = { [weak self] in self?.parent.model.unlift() }
         found.addGestureRecognizer(hold)
