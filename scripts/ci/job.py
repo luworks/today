@@ -15,6 +15,7 @@ import time
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
+from scripts.ci import mtimes  # noqa: E402 - direct script execution from any cwd
 from scripts.ci.failure import FailureEvidence  # noqa: E402 - direct script execution from any cwd
 
 EVIDENCE = None
@@ -44,9 +45,13 @@ def build():
     lock = ROOT / 'ios/Today.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved'
     lock.parent.mkdir(parents=True, exist_ok=True)
     lock.write_bytes((ROOT / 'ios/Dependencies/Package.resolved').read_bytes())
+    # A restored DerivedData is only reusable if unchanged inputs look unchanged: same content, same
+    # mtime, and XCBuild must not treat the new volume and inodes as changes.
+    mtimes.stamp(ROOT)
+    run('defaults', 'write', 'com.apple.dt.XCBuild', 'IgnoreFileSystemDeviceInodeChanges', '-bool', 'YES')
     step('project generated')
     run('xcodebuild', 'build-for-testing', '-quiet', '-project', 'ios/Today.xcodeproj', '-scheme', 'TodayCI',
-        '-configuration', 'Debug', '-destination', 'generic/platform=iOS Simulator', '-jobs', '2',
+        '-configuration', 'Debug', '-destination', 'generic/platform=iOS Simulator', '-jobs', '3',
         'ARCHS=arm64', *FLAGS)
     step('built App, Widget, Share, Mock and test bundles')
     products = DD / 'Build/Products/Debug-iphonesimulator'
