@@ -128,8 +128,15 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - run: ./dev bootstrap --tool xcodegen
-      - run: ./dev test unit --timeout 1800
-      - run: ./dev test ios-unit --timeout 1800
-      - run: ./dev test integration --timeout 1800
-      - run: ./dev test snapshot --timeout 1800
+      - run: python3 scripts/ci/job.py --command ./dev bootstrap --tool xcodegen
+      - run: python3 scripts/ci/job.py --command ./dev test unit --timeout 1800
+      - run: python3 scripts/ci/job.py --command ./dev test ios-unit --timeout 1800
+      - run: python3 scripts/ci/job.py --command ./dev test integration --timeout 1800
+      - run: python3 scripts/ci/job.py --command ./dev test snapshot --timeout 1800
+      - if: failure() || cancelled()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: full-failure-${{ github.sha }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/today-ci/failure
+          if-no-files-found: warn
+          retention-days: 7
