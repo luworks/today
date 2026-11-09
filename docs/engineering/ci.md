@@ -71,3 +71,5 @@ Health, hosted AI or AlarmKit behaviour.
 (no UI suite). Not part of either gate: path-based risk selection, wrapper receipts,
 provenance and secret scans, the main acceptance artifact and the routine full suites. They
 were removed in PR #125.
+
+<!-- ci trial -->
