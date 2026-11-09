@@ -168,3 +168,8 @@
     }
   }
 #endif
+
+
+
+
+let  ciTrialFormat=1
