@@ -1,0 +1,50 @@
+name: CI Lab
+on: pull_request
+env:
+  DEVELOPER_DIR: /Applications/Xcode_27.1.app/Contents/Developer
+jobs:
+  seed:
+    runs-on: xcode-27
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix: { v: [w, mc, today] }
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/cache/restore@v4
+        with:
+          path: ${{ runner.temp }}/today-ci/dd/SourcePackages
+          key: spm-${{ hashFiles('ios/Dependencies/Package.resolved') }}
+      - run: bash .lab/run.sh ${{ matrix.v }} seed
+      - uses: actions/cache/save@v4
+        with:
+          path: |
+            ${{ runner.temp }}/today-ci/dd
+            ~/Library/Caches/org.swift.swiftpm
+          key: lab9-${{ matrix.v }}-${{ github.run_id }}-${{ github.run_attempt }}
+  edit:
+    needs: seed
+    runs-on: xcode-27
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        v: [w, mc, today]
+        n: [1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@v7
+      - if: always()
+        run: nohup sh -c '(xcrun simctl list devices; xcodebuild -showsdks) >/dev/null 2>&1 & (xcrun swift-frontend -version; xcrun clang --version; xcrun ld -v) >/dev/null 2>&1 & wait' >/dev/null 2>&1 &
+      - id: s
+        run: echo s=${{ matrix.v }} >> "$GITHUB_OUTPUT"
+      - uses: actions/cache/restore@v4
+        with:
+          path: |
+            ${{ runner.temp }}/today-ci/dd
+            ~/Library/Caches/org.swift.swiftpm
+          key: lab9-${{ steps.s.outputs.s }}-${{ github.run_id }}-${{ github.run_attempt }}
+          fail-on-cache-miss: true
+      - run: bash .lab/run.sh ${{ matrix.v }} edit
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with: { name: 'x-${{ matrix.v }}-${{ matrix.n }}', path: /tmp/x.log }
