@@ -38,6 +38,13 @@ Merge elapsed time is the time for both jobs to turn green. The measured numbers
 [the measurements](../qa/ci-under-five-minutes-20261020.md). A green merge gate does **not**
 mean the app opens or stays responsive.
 
+## Release build on main
+
+`.github/workflows/today-release.yml` runs on every push to `main`: `job.py --release` compiles
+the app, widget and share extension for a device in Release, unsigned. A red run is visible on
+the commit; it is a separate workflow so it does not gate a Debug phone install. Entitlements and
+Release permission prompts are checked statically by `tests/ci/test_app_config.py`.
+
 ## Phone install gate
 
 `./dev release preflight-local --for-install --commit <main-sha> [--main-run <push-run>]
