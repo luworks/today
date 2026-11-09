@@ -14,7 +14,14 @@ Two parallel hosted jobs, no simulator:
 | `checks` | `./dev format --check`, `./dev lint`, `./dev test helpers`, `./dev test unit` (all logic tests on the macOS host) |
 | `today-required` | `python3 scripts/ci/job.py --build`: one `TodayCI` build-for-testing (App, Widget, Share, Mock and the iOS unit and snapshot test bundles; the UI test bundle is not compiled) and an identity check of `One.app`, `TodayWidgets.appex` and `ShareExtension.appex` |
 
-`today-required` also uploads `TodayMock-sim-<sha>` (7 days): the arm64 simulator `TodayMock.app`,
+On a pull request `today-required` restores the DerivedData of the newest green `main` and builds
+incrementally (`scripts/ci/mtimes.py` makes each file's modification time a function of its
+content, so only changed files recompile). Pushes to `main` and merge groups build clean; `main`
+then saves the cache, so a problem a warm cache could mask turns `main` red. A change to
+`ios/project.yml`, `ios/Config/`, `ios/Package.swift`, the package lock or the runner image picks a
+different cache and builds cold.
+
+Pushes to `main` and merge groups also upload `TodayMock-sim-<sha>` (7 days): the arm64 simulator `TodayMock.app`,
 zipped. Simulator only (never a phone, never next to `One.app`); launch it with `-uiTesting -dataset <path>`.
 
 On a pull request that only changes prose, images or the prototype (`*.md`, `docs/**` images

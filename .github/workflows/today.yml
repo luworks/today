@@ -55,6 +55,9 @@ jobs:
     if: github.event_name != 'workflow_dispatch'
     runs-on: xcode-27
     timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: write # deletes this job's own older dd-v1- caches on push to main
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -66,18 +69,40 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RANGE: ${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }}
-      - if: steps.scope.outputs.app != 'false'
+      # Pull requests build incrementally on the DerivedData of the newest green main. Everything
+      # else builds clean, so anything a warm cache could mask is caught on main.
+      - id: dd
+        if: steps.scope.outputs.app != 'false'
+        run: echo "prefix=dd-v1-$ImageVersion-${{ hashFiles('ios/project.yml', 'ios/Config/**', 'ios/Package.swift', 'ios/Dependencies/Package.resolved') }}-" >> "$GITHUB_OUTPUT"
+      - if: github.event_name == 'pull_request' && steps.scope.outputs.app != 'false'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/today-ci/dd
+          key: ${{ steps.dd.outputs.prefix }}${{ github.sha }}
+          restore-keys: ${{ steps.dd.outputs.prefix }}
+      - if: github.event_name != 'pull_request'
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ runner.temp }}/today-ci/dd/SourcePackages
           key: spm-${{ hashFiles('ios/Dependencies/Package.resolved') }}
       - if: steps.scope.outputs.app != 'false'
         run: python3 scripts/ci/job.py --build
+      - if: github.event_name == 'push'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/today-ci/dd
+          key: ${{ steps.dd.outputs.prefix }}${{ github.sha }}
+      # One DerivedData is about 500 MB and the repository's cache limit is 10 GB: keep the newest two.
+      - if: github.event_name == 'push'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh cache list -R "$GITHUB_REPOSITORY" --key dd-v1- --sort created_at --order desc --limit 100 --json id -q '.[2:][].id' | xargs -n1 gh cache delete -R "$GITHUB_REPOSITORY"
       # TodayMock simulator build (arm64) for agents without Xcode; launch with -uiTesting -dataset <path>.
       # Simulator only: never on a phone, never next to One.app in the same simulator.
-      - if: steps.scope.outputs.app != 'false'
+      - if: github.event_name != 'pull_request'
         run: ditto -c -k --keepParent "$RUNNER_TEMP/today-ci/dd/Build/Products/Debug-iphonesimulator/TodayMock.app" "$RUNNER_TEMP/TodayMock.app.zip"
-      - if: steps.scope.outputs.app != 'false'
+      - if: github.event_name != 'pull_request'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: TodayMock-sim-${{ github.sha }}
