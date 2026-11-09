@@ -191,6 +191,7 @@ final class HealthMetricsTests: XCTestCase {
       metric: .steps, series: series, now: nowDate, calendar: cal, locale: en)
     XCTAssertEqual(row.value?.text, "4,200 steps")
     XCTAssertEqual(row.dateLabel, "Today")
+    XCTAssertNil(row.shownDateLabel, "today's reading needs no label on the row")
     XCTAssertEqual(row.spark.count, 7)
     XCTAssertEqual(row.spark.last!!, 4_200 / 7_000, accuracy: 0.001)
     XCTAssertNil(row.spark[0], "no data that day: a gap, not a zero")
@@ -203,12 +204,14 @@ final class HealthMetricsTests: XCTestCase {
       metric: .bodyFat, series: stale, now: nowDate, calendar: cal, locale: en)
     XCTAssertEqual(row.value?.text, "20.7%")
     XCTAssertEqual(row.dateLabel, "Oct 4")
+    XCTAssertEqual(row.shownDateLabel, "Oct 4", "a stale reading says its date")
     XCTAssertFalse(row.hasSpark, "nothing in the last 7 days")
 
     let none = HealthRowModel(
       metric: .mindfulMinutes, series: nil, now: nowDate, calendar: cal, locale: en)
     XCTAssertNil(none.value)
     XCTAssertEqual(none.dateLabel, "No data")
+    XCTAssertEqual(none.shownDateLabel, "No data")
     XCTAssertFalse(none.hasSpark)
     XCTAssertEqual(none.accessibilityText, "Mindful Minutes, no data, No data")
   }

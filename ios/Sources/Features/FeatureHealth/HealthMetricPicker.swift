@@ -59,7 +59,10 @@
           Section {
             OpenHealthButton()
           } footer: {
-            Text("Everything else lives in Apple Health.")
+            // Health never tells an app that reading was denied, so this covers both "no data" and "not allowed".
+            Text(
+              "Today only reads Apple Health; nothing leaves your iPhone. \"No data\" can also mean Today isn't allowed to read it: check Health → Profile → Apps → Today."
+            )
           }
         }
         .listStyle(.insetGrouped)
