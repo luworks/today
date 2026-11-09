@@ -168,3 +168,5 @@
     }
   }
 #endif
+
+let ciTrialBreak: Int = "not an int"
