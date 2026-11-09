@@ -159,7 +159,7 @@ def inspect(root):
     except (ImportError, OSError, ValueError, KeyError) as error:
         add('runtime_locks', False, 'readable, consistent runtime and gem locks', detail=type(error).__name__)
         for name, expected in [('ruby', '3.3.12'), ('python', '3.14.8'),
-                               ('bundler', '4.0.16'), ('fastlane', '2.241.1')]:
+                               ('bundler', '4.0.16'), ('fastlane', '2.241.2')]:
             if name not in checks:
                 add(name, False, expected, detail='Not checked: runtime lock prerequisites failed')
     from .resolve import locked_arguments

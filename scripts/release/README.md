@@ -21,7 +21,7 @@ On a separately authorized setup, install Bundler 4.0.16 into that Ruby, then:
 BUNDLE_FROZEN=true bundle _4.0.16_ install
 ```
 
-`Gemfile` pins Fastlane **2.241.1** exactly. `Gemfile.lock` was actually generated
+`Gemfile` pins Fastlane **2.241.2** exactly. `Gemfile.lock` was actually generated
 by Bundler 4.0.16 on Ruby 3.3.12 with `bundle lock`, including RubyGems checksums,
 on arm64-darwin-25. It was not manually resolved. The lock is not proof that this
 checkout has installed all gems. Preflight requires `bundle check` and verifies
@@ -34,8 +34,8 @@ Official research checked 2026-10-19 UTC:
 - [Fastlane setup](https://docs.fastlane.tools/getting-started/ios/setup/): Bundler
   and `bundle exec`; Ruby >=3.2, Ruby >=3.3 preferred.
 - [RubyGems Fastlane registry](https://rubygems.org/api/v1/gems/fastlane.json):
-  stable 2.241.1, published 2026-10-15; MIT; exact gem SHA-256
-  `e8e97f3274d678c74d9e473b98d202621262c40dfce2b43b7a05afde7caa2ea5`.
+  stable 2.241.2, published 2026-10-26; MIT; exact gem SHA-256
+  `9c23f6d1b4aa5d8570ff8584186d5fdb1fdf7a01dd7ad168501b43fe360fe122`.
 - [build_app](https://docs.fastlane.tools/actions/build_app/): archive/export
   separation and package-resolution controls.
 - [upload_to_testflight](https://docs.fastlane.tools/actions/upload_to_testflight/):

@@ -95,21 +95,21 @@
       "checksum_note": "No publisher release asset checksum observed; use exact Git revision and lockfile, not an invented archive digest."
     },
     "fastlane": {
-      "version": "2.241.1",
-      "tag": "2.241.1",
+      "version": "2.241.2",
+      "tag": "2.241.2",
       "repository": "https://github.com/fastlane/fastlane",
-      "release_url": "https://github.com/fastlane/fastlane/releases/tag/2.241.1",
-      "published_at": "2026-10-15T13:07:51Z",
+      "release_url": "https://github.com/fastlane/fastlane/releases/tag/2.241.2",
+      "published_at": "2026-10-26T15:32:31Z",
       "license": "MIT",
-      "license_url": "https://github.com/fastlane/fastlane/blob/2.241.1/LICENSE",
-      "accessed_on": "2026-10-18",
+      "license_url": "https://github.com/fastlane/fastlane/blob/2.241.2/LICENSE",
+      "accessed_on": "2026-11-09",
       "compatibility": "candidate-unverified-on-host",
       "integration_note": "Optional later automation. Gem requires Ruby >=3.2.0. Pin in Gemfile and lock transitive gems and Ruby separately; gem digest does not authenticate a RubyGems download. No signing/distribution lane authorized.",
       "artifact": {
-        "name": "fastlane-2.241.1.gem",
-        "url": "https://github.com/fastlane/fastlane/releases/download/2.241.1/fastlane-2.241.1.gem",
-        "sha256": "e8e97f3274d678c74d9e473b98d202621262c40dfce2b43b7a05afde7caa2ea5",
-        "checksum_source": "https://api.github.com/repos/fastlane/fastlane/releases/413823762",
+        "name": "fastlane-2.241.2.gem",
+        "url": "https://github.com/fastlane/fastlane/releases/download/2.241.2/fastlane-2.241.2.gem",
+        "sha256": "9c23f6d1b4aa5d8570ff8584186d5fdb1fdf7a01dd7ad168501b43fe360fe122",
+        "checksum_source": "https://rubygems.org/api/v1/versions/fastlane.json",
         "payload_verified": false
       }
     },

@@ -25,11 +25,11 @@ Researched and checked on 2026-10-18 (America/Los_Angeles), from baseline
   scripts' supported syntax floor. 3.14 also provides standard-library `tomllib`.
   mise uses [python-build-standalone 20261013](https://github.com/astral-sh/python-build-standalone/releases/tag/20261013)
   for the locked arm64 binary.
-- Bundler **4.0.16** and fastlane **2.241.1** stay owned by the existing release
+- Bundler **4.0.16** and fastlane **2.241.2** stay owned by the existing release
   lock and checksummed `Gemfile.lock`, including its transitive gems. Do not add
   `gem:bundler` or `gem:fastlane`: that would create another install/dependency
   authority. See [Bundler metadata](https://rubygems.org/gems/bundler/versions/4.0.16),
-  [fastlane metadata](https://rubygems.org/gems/fastlane/versions/2.241.1) and
+  [fastlane metadata](https://rubygems.org/gems/fastlane/versions/2.241.2) and
   [fastlane's Bundler setup](https://docs.fastlane.tools/getting-started/ios/setup/).
 - Xcode still supplies Swift and swift-format; the existing bootstrap/doctor owns
   their exact Xcode identity. Xcode's Python is not the managed Python pin.
