@@ -34,11 +34,14 @@
   package struct TodayItemSurface: ViewModifier {
     package var enabled: Bool
     package init(enabled: Bool) { self.enabled = enabled }
+    /// The shape a Today row has while lifted: by a long press (the system menu preview) and by a drag.
+    package static let liftShape = RoundedRectangle(cornerRadius: 12, style: .continuous)
     @ViewBuilder package func body(content: Content) -> some View {
       if enabled {
         content
           .padding(.horizontal, 8)
           .contentShape(Rectangle())
+          .contentShape(.contextMenuPreview, Self.liftShape)
           .listRowInsets(EdgeInsets(top: 0, leading: 12, bottom: 0, trailing: 12))
       } else {
         content
@@ -424,6 +427,7 @@
         .contentShape(Rectangle())
       }
       .buttonStyle(.plain)
+      .contentShape(.contextMenuPreview, TodayItemSurface.liftShape)
       .contextMenu {
         AskAIMenuButton(AskSubject(alarm: alarm))
         Button("Edit Alarm", systemImage: "pencil") { open(alarm) }

@@ -2,6 +2,7 @@
   import SwiftUI
   import TodayCore
   import TodayDesignSystem
+  import TodayPlannerUI
   import UIKit
   import UIKit.UIGestureRecognizerSubclass
 
@@ -440,7 +441,7 @@
             .environment(\.agendaDragTime, target)
             .frame(width: model.frame.width, height: model.frame.height)
             .background(
-              RoundedRectangle(cornerRadius: 12, style: .continuous)
+              TodayItemSurface.liftShape
                 .fill(Color(.systemBackground))
             )
             .overlay(alignment: .bottomTrailing) { note(session, target) }
