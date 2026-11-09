@@ -105,4 +105,14 @@ extension AlarmPlan {
       snooze: true, snoozeMinutes: Preferences.newAlarmSnoozeMinutes(defaults),
       sound: Preferences.newAlarmSoundName(defaults))
   }
+
+  /// A sound changed in the alarm editor becomes what the next new alarm starts with (owner request, 2026-11-09),
+  /// the same preference Settings → Alarms shows. Default ("") counts as a choice. A save that left the sound as it
+  /// opened changes nothing, so editing an old alarm's time cannot turn its sound into the default.
+  public static func rememberSound(
+    saved: String, opened: String, _ defaults: UserDefaults = .standard
+  ) {
+    guard saved != opened else { return }
+    defaults.set(saved, forKey: Preferences.newAlarmSoundKey)
+  }
 }
