@@ -73,3 +73,5 @@ private struct UpNextRows: View {
     .font(.system(size: 17))
   }
 }
+
+private let ciTrialWidget = 1
