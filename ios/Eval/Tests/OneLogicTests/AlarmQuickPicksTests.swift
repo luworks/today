@@ -64,4 +64,30 @@ final class AlarmQuickPicksTests: XCTestCase {
       .init(snooze: true, snoozeMinutes: 15, sound: "Daybreak")
     )
   }
+
+  func testAChangedSoundIsRememberedForTheNextNewAlarm() {
+    let name = "AlarmQuickPicksTests-\(UUID().uuidString)"
+    let defaults = UserDefaults(suiteName: name)!
+    defer { defaults.removePersistentDomain(forName: name) }
+
+    AlarmPlan.rememberSound(saved: "Marimba", opened: "", defaults)
+    XCTAssertEqual(AlarmPlan.newAlarmDefaults(defaults).sound, "Marimba")
+
+    AlarmPlan.rememberSound(saved: "", opened: "Marimba", defaults)
+    XCTAssertEqual(AlarmPlan.newAlarmDefaults(defaults).sound, "", "Default is a choice too")
+    XCTAssertNotNil(defaults.string(forKey: Preferences.newAlarmSoundKey))
+  }
+
+  func testSavingAnUntouchedSoundKeepsTheRememberedOne() {
+    let name = "AlarmQuickPicksTests-\(UUID().uuidString)"
+    let defaults = UserDefaults(suiteName: name)!
+    defer { defaults.removePersistentDomain(forName: name) }
+    defaults.set("Daybreak", forKey: Preferences.newAlarmSoundKey)
+
+    AlarmPlan.rememberSound(saved: "Marimba", opened: "Marimba", defaults)
+
+    XCTAssertEqual(
+      AlarmPlan.newAlarmDefaults(defaults).sound, "Daybreak",
+      "editing an old alarm's time must not make its sound the default")
+  }
 }

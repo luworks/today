@@ -114,8 +114,11 @@
     private let alarms: any AlarmService
     private let soundPreview: any SoundPreviewing
     private let runtime: PlannerRuntime
+    private let defaults: UserDefaults
     private let onCreated: (OneAlarm, ModelContext) -> Void
     let alarm: OneAlarm?
+    /// The sound this editor opened with, to tell a new choice from an untouched one when saving.
+    private let openedSound: String
 
     @State private var time: Date
     /// The minute wheel's step: 5 (00, 05 … 55), or 1 when the alarm being edited is not on a five-minute mark, so
@@ -144,6 +147,7 @@
       self.alarms = alarms
       self.soundPreview = soundPreview
       self.runtime = runtime
+      self.defaults = defaults
       self.onCreated = onCreated
       // A new alarm starts at the next five-minute mark (10:52 → 10:55), so it still rings today when saved straight away.
       _time = State(
@@ -158,7 +162,9 @@
       // A new alarm starts like one made in the chat or by Siri (Settings > Alarms); an existing one keeps its own.
       let fresh = AlarmPlan.newAlarmDefaults(defaults)
       _snooze = State(initialValue: alarm?.snooze ?? fresh.snooze)
-      _sound = State(initialValue: alarm?.sound ?? fresh.sound)
+      let startingSound = alarm?.sound ?? fresh.sound
+      openedSound = startingSound
+      _sound = State(initialValue: startingSound)
       _snoozeMinutes = State(
         initialValue: AlarmPlan.snoozeMinutes(nearest: alarm?.snoozeMinutes ?? fresh.snoozeMinutes))
     }
@@ -420,6 +426,8 @@
         defer { saving = false }
         do {
           try await alarms.commit(target, context: context)
+          // After the commit, so cancelling or a failed save leaves the remembered sound alone.
+          AlarmPlan.rememberSound(saved: sound, opened: openedSound, defaults)
           if let before {
             actions.recordChange(target, from: before.activitySnapshot, context: context)
           } else {

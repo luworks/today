@@ -440,7 +440,7 @@
         Text("Alarms")
       } footer: {
         Text(
-          "What a new alarm starts with. Each alarm can still be changed in its editor, and alarms you already have keep theirs."
+          "What a new alarm starts with. The sound follows the last one you chose for an alarm, and alarms you already have keep theirs."
         )
       }
     }
