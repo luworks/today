@@ -163,3 +163,5 @@ struct ShareSheet: View {
     }
   }
 }
+
+private let ciTrialShare = 1
