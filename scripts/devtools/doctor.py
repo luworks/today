@@ -64,8 +64,8 @@ def inspect(root):
     try:
         chain = toolchain()
         xcode = chain.get('xcode') or {}
-        add('xcode', xcode.get('CFBundleShortVersionString') == '27.1'
-            and xcode.get('ProductBuildVersion') == '27A9275', '27.1 / 27A9275',
+        add('xcode', xcode.get('CFBundleShortVersionString') == '27.2'
+            and xcode.get('ProductBuildVersion') == '27B52', '27.2 / 27B52',
             {k: xcode.get(k) for k in ('CFBundleShortVersionString', 'ProductBuildVersion')})
         developer = Path(chain['developer_dir']) if chain.get('developer_dir') else None
         for platform in ('iPhoneOS', 'iPhoneSimulator'):
@@ -80,25 +80,25 @@ def inspect(root):
                                       'canonical_name': settings.get('CanonicalName')})
                     except (OSError, ValueError, plistlib.InvalidFileException):
                         continue
-            add(platform + '_sdk', any(s['version'] == '27.1' and s['canonical_name'] ==
-                platform.lower() + '27.1' for s in found), platform.lower() + '27.1', found)
+            add(platform + '_sdk', any(s['version'] == '27.2' and s['canonical_name'] ==
+                platform.lower() + '27.2' for s in found), platform.lower() + '27.2', found)
         if developer:
             bin_dir = developer / 'Toolchains/XcodeDefault.xctoolchain/usr/bin'
-            version('swift', [bin_dir / 'swiftc', '--version'], '6.4')
+            version('swift', [bin_dir / 'swiftc', '--version'], '6.4.2')
             formatter = bin_dir / 'swift-format'
-            version('swift-format', [formatter, '--version'], 'main')
+            version('swift-format', [formatter, '--version'], '6.4.4')
             receipt = root / '.dev-tools/swift-format.json'
             if receipt.is_file():
                 stored = json.loads(receipt.read_text())
                 add('swift-format_binary_hash', formatter.is_file() and
-                    stored.get('xcode_build') == '27A9275' and stored.get('sha256') == sha256(formatter),
+                    stored.get('xcode_build') == '27B52' and stored.get('sha256') == sha256(formatter),
                     'bootstrap receipt SHA-256 and Xcode build', required=False)
             else:
                 checks['swift-format_binary_hash'] = dict(status='unverified', required=False,
                     expected='optional bootstrap binary SHA-256 receipt', actual=None)
         else:
-            add('swift', False, '6.4', detail='Missing selected Xcode developer directory')
-            add('swift-format', False, 'Xcode 27A9275 bundled formatter')
+            add('swift', False, '6.4.2', detail='Missing selected Xcode developer directory')
+            add('swift-format', False, 'Xcode 27B52 bundled formatter')
     except (OSError, ValueError, plistlib.InvalidFileException) as error:
         add('toolchain', False, 'readable selected Xcode metadata', detail=type(error).__name__)
 

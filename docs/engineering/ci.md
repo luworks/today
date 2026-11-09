@@ -17,7 +17,7 @@ On a pull request `today-required` restores the DerivedData of the newest green 
 incrementally (`scripts/ci/mtimes.py` makes each file's modification time a function of its
 content, so only changed files recompile). Pushes to `main` and merge groups build clean; `main`
 then saves the cache, so a problem a warm cache could mask turns `main` red. A change to
-`ios/project.yml`, `ios/Config/`, `ios/Package.swift`, the package lock or the runner image picks a
+`ios/project.yml`, `ios/Config/`, `ios/Package.swift`, the package lock, the Xcode version or the runner image picks a
 different cache and builds cold. `xcodebuild` runs in a minimal environment (`HOME`, `PATH`,
 `DEVELOPER_DIR`) because per-job runner variables would otherwise invalidate SwiftPM's manifest
 cache (saved with DerivedData) and the link tasks.

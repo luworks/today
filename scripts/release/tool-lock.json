@@ -2,5 +2,5 @@
   "ruby": "3.3.12",
   "bundler": "4.0.16",
   "fastlane": "2.241.1",
-  "xcode": "Xcode 27.1\nBuild version 27A9275"
+  "xcode": "Xcode 27.2\nBuild version 27B52"
 }

@@ -13,7 +13,7 @@ concurrency:
   group: today-${{ github.event_name }}-${{ github.ref }}-${{ github.event_name == 'workflow_dispatch' && github.run_id || '' }}
   cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' }}
 env:
-  DEVELOPER_DIR: /Applications/Xcode_27.1.app/Contents/Developer
+  DEVELOPER_DIR: /Applications/Xcode_27.2.app/Contents/Developer
 jobs:
   checks:
     if: github.event_name != 'workflow_dispatch'
@@ -78,7 +78,7 @@ jobs:
       # else builds clean, so anything a warm cache could mask is caught on main.
       - id: dd
         if: steps.scope.outputs.app != 'false'
-        run: echo "prefix=dd-v1-$ImageVersion-${{ hashFiles('ios/project.yml', 'ios/Config/**', 'ios/Package.swift', 'ios/Dependencies/Package.resolved') }}-" >> "$GITHUB_OUTPUT"
+        run: echo "prefix=dd-v1-$ImageVersion-$(basename "${DEVELOPER_DIR%/Contents/Developer}" .app)-${{ hashFiles('ios/project.yml', 'ios/Config/**', 'ios/Package.swift', 'ios/Dependencies/Package.resolved') }}-" >> "$GITHUB_OUTPUT"
       - if: github.event_name == 'pull_request' && steps.scope.outputs.app != 'false'
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
