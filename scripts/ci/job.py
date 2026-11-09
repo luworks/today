@@ -65,9 +65,10 @@ def build():
     mtimes.stamp(ROOT)
     run('defaults', 'write', 'com.apple.dt.XCBuild', 'IgnoreFileSystemDeviceInodeChanges', '-bool', 'YES')
     step('project generated')
+    # No separate debug dylib for Previews: one link and one signature fewer per app, same compile.
     run('xcodebuild', 'build-for-testing', '-quiet', '-project', 'ios/Today.xcodeproj', '-scheme', 'TodayCI',
         '-configuration', 'Debug', '-destination', 'generic/platform=iOS Simulator', '-jobs', '3',
-        'ARCHS=arm64', *FLAGS)
+        'ARCHS=arm64', 'ENABLE_DEBUG_DYLIB=NO', *FLAGS)
     step('built App, Widget, Share, Mock and test bundles')
     products = DD / 'Build/Products/Debug-iphonesimulator'
     for path, identifier in PRODUCTS.items():
