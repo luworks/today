@@ -137,7 +137,7 @@ class RetentionTests(unittest.TestCase):
     def raw(self, name, age, status='passed', archive=True, closed=True):
         path = self.results / 'runs' / name
         path.mkdir(parents=True)
-        data = {'run_id': name, 'status': status, 'selection': ['TodayUITests/Example/testAction'],
+        data = {'run_id': name, 'status': status, 'selection': ['TodayTests/Example/testAction'],
                 'derived_data': str(self.cache), 'simulator_name': 'owned-test-device'}
         (path / 'summary-retained.json').write_text(json.dumps(data))
         (path / 'ui.xcresult').mkdir()
@@ -262,7 +262,7 @@ class RetentionTests(unittest.TestCase):
             return 65
         with patch.object(commands, 'test', side_effect=completed), patch.object(
                 retention, 'after_run', side_effect=lambda root: steps.append('retention')):
-            self.assertEqual(cli.main(['test', 'ui'], root=self.root), 65)
+            self.assertEqual(cli.main(['test', 'release', '--full'], root=self.root), 65)
         self.assertEqual(steps, ['completed-and-unlocked', 'retention'])
 
 

@@ -1,7 +1,6 @@
 # Today CI
 
-One workflow, `.github/workflows/today.yml`. CI runs no UI tests (owner decision, 2026-11-08);
-`./dev test ui` stays a local command. The merge gate runs no simulator. The install-smoke lane
+One workflow, `.github/workflows/today.yml`. The repo has no UI tests (owner decisions, 2026-11-08 and 2026-11-09). The merge gate runs no simulator. The install-smoke lane
 (a Simulator usability run before phone installs) was removed on 2026-11-02 by the owner's
 decision; a phone install now needs the green merge gate on the exact `main` SHA.
 
@@ -12,7 +11,7 @@ Two parallel hosted jobs, no simulator:
 | Job | What it runs |
 | --- | --- |
 | `checks` | `./dev format --check`, `./dev lint`, `./dev test helpers`, `./dev test unit` (all logic tests on the macOS host) |
-| `today-required` | `python3 scripts/ci/job.py --build`: one `TodayCI` build-for-testing (App, Widget, Share, Mock and the iOS unit and snapshot test bundles; the UI test bundle is not compiled) and an identity check of `One.app`, `TodayWidgets.appex` and `ShareExtension.appex` |
+| `today-required` | `python3 scripts/ci/job.py --build`: one `TodayCI` build-for-testing (App, Widget, Share, Mock and the iOS unit and snapshot test bundles) and an identity check of `One.app`, `TodayWidgets.appex` and `ShareExtension.appex` |
 
 On a pull request `today-required` restores the DerivedData of the newest green `main` and builds
 incrementally (`scripts/ci/mtimes.py` makes each file's modification time a function of its
@@ -68,7 +67,7 @@ Health, hosted AI or AlarmKit behaviour.
 
 ## Manual full coverage
 
-**Run workflow** (`workflow_dispatch`, no inputs) runs `full`: `./dev test unit`, `ios-unit`, `integration` and `snapshot`, one step each, in one job
-(no UI suite). Not part of either gate: path-based risk selection, wrapper receipts,
+**Run workflow** (`workflow_dispatch`, no inputs) runs `full`: `./dev test unit`, `ios-unit`, `integration` and `snapshot`, one step each, in one job.
+Not part of either gate: path-based risk selection, wrapper receipts,
 provenance and secret scans, the main acceptance artifact and the routine full suites. They
 were removed in PR #125.

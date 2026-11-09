@@ -32,16 +32,12 @@ def run(root, kind, *, n=1, arguments=(), conditions='', timeout=600, cancel=Non
     cache = provenance(root, before)
     if kind == 'incremental' and not cache['valid']:
         raise ValueError('Incremental requires valid existing build provenance: ' + cache['reason'])
-    if kind == 'ui' and (not arguments or '--full' in arguments):
-        raise ValueError('UI benchmark requires focused --only selectors; full suite is not a benchmark default')
-    if kind == 'ui' and (arguments[::2].count('--only') != len(arguments) // 2 or len(arguments) % 2):
-        raise ValueError('UI arguments must be --only SELECTOR pairs')
     if kind == 'screenshot' and ('--scene' not in arguments or '--output' not in arguments):
         raise ValueError('Screenshot requires existing capture --scene and fresh --output inputs')
     if kind == 'screenshot' and n != 1:
         raise ValueError('Screenshot n=1 preserves the existing fresh-output contract')
     prefix = {'cold': ('build', 'Debug'), 'incremental': ('build', 'Debug'),
-              'unit': ('test', 'unit'), 'ui': ('test', 'ui'),
+              'unit': ('test', 'unit'),
               'screenshot': ('ui', 'capture')}[kind]
     samples = []
     for _ in range(n):

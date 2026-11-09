@@ -5,7 +5,7 @@ import re
 
 FORBIDDEN = {'TodayMock', 'TodayMockApp', 'TodayTestSupport', 'TodayScenes',
              'TodayWorkbench', 'Workbench', 'TestSupport', 'Development',
-             'SnapshotTesting', 'OneUITests', 'TodayTests', 'TodayUITests',
+             'SnapshotTesting', 'TodayTests',
              'PreviewFixtures', 'TestDataset', 'DevImport', 'CalendarDemoSeed', 'HealthDebugSeed'}
 
 

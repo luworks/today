@@ -1,9 +1,9 @@
-# Native visual and accessibility tests
+# Native visual tests
 
 ## Integration contract
 
 This lane starts at `3b3a9bfaed35fbbfa6fc425b13690c2966cfe165`. It owns only
-`ios/TodaySnapshotTests/`, `ios/OneUITests/AccessibilityAuditTests.swift` and this document.
+`ios/TodaySnapshotTests/` and this document.
 Package/project configuration, the shared scene registry and command adapters remain integration-owned.
 At this revision the legacy `ios/Package.swift` does not include these tests or extracted feature products.
 A successful parse is not target compilation or test execution.
@@ -14,7 +14,6 @@ The observed tag resolves to `28e5de025e3fd98991791bfbf83023ab3708da03` (2026-10
 Only the iOS-hosted `TodaySnapshotTests` test target may depend on its `SnapshotTesting` product.
 Link `FeatureHealth`, `FeatureClock`, `TodayCore` and `TodayDesignSystem` to that target;
 never add SnapshotTesting to app/extension/Release production dependencies.
-Compile `AccessibilityAuditTests.swift` into the existing UI test target alongside `UITestHelpers.swift`.
 Use the integrated target/scheme names discovered from the generated project rather than inventing them.
 
 Primary source references at the exact pin:
@@ -45,7 +44,6 @@ private fake screen implementations or HTML render substitutes:
   It uses SnapshotTesting's image diffing pipeline, writes no baselines and must be executed by integration.
 
 Versioned small inline fixtures live with these tests and require no external dataset file.
-The UI journeys use the existing catalogued `tests/fixtures/today-dataset.json` through `TestData.launchArguments`.
 No required input is held only in `/tmp`.
 
 Snapshot host launch arguments must include `-AppleLocale en_US_POSIX -AppleLanguages (en)`;
@@ -92,30 +90,6 @@ After recording, turn the flag off and run the focused tests once. Missing basel
 Set `SNAPSHOT_ARTIFACTS` to a durable run subdirectory so reference/actual/diff artifacts can be retained;
 retain complete xcresult and source/environment metadata through the canonical QA journal.
 Use the existing E2E runner's durable output and archive only after a completed command with its actual exit status.
-
-## Real accessibility audits
-
-The bounded UI selectors for the integration runner are:
-
-```text
--only-testing:OneUITests/AccessibilityAuditTests/testCoreTabsAudit
--only-testing:OneUITests/AccessibilityAuditTests/testHealthDetailRangeAndDismissAudit
--only-testing:OneUITests/AccessibilityAuditTests/testStopwatchLargeTypeActionsAudit
-```
-
-If the generated UI bundle name changes, substitute the discovered name while keeping suite/method IDs.
-Each launches a fresh in-memory fictional dataset using existing helpers and existing debug launch arguments.
-The first audits Today → Calendar → Reminders → Clock in that explicit order, checking accessible tab labels,
-hittability and selection. The second opens Health, checks a meaningful Steps label, range labels and selection,
-audits the detail, and exercises Done. The third uses the existing UIKit content-size launch argument mechanism
-with `UICTContentSizeCategoryAccessibilityXXXL`, checks spoken stopwatch time and Start/Lap/Stop/Reset state,
-and audits the initial large-text screen. These are semantic/action assertions against the running accessibility tree.
-
-All calls use the real `XCUIApplication.performAccessibilityAudit(for: .all)` API (iOS 17+).
-No issue handler suppresses failures. Audits may expose existing contrast, hit region, clipping or description defects;
-retain the diagnostic and let the source owner fix the product rather than filtering violations to obtain green results.
-Run the three journeys in one root-owned simulator batch after one integrated build, per proportionate testing policy.
-Manual VoiceOver focus order, announcements, rotor/navigation quality and physical-device behavior remain unverified.
 
 ## Evidence for this implementation lane
 

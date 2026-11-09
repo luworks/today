@@ -2,7 +2,7 @@
   import FeatureAsk
   import TodayCore
 
-  /// Scripted agent runs for TodayMock and UI tests (`-uiTestingAgentScript <name>`), in place of the
+  /// Scripted agent runs for TodayMock (`-uiTestingAgentScript <name>`), in place of the
   /// Luna Worker. Without the argument TodayMock is "not signed in": Ask uses FastLane alone (§4.7 #3).
   /// Each script plays its steps in order across the app's runs; a run with no step left fails as
   /// `incomplete`, which Ask treats like any other failure (rules, else "AI 暂时不可用").

@@ -47,5 +47,3 @@ them (the toast Undo and Unsettle are the way back). An older `snoozed` record n
 - `SettleGateTests`, `TodayFocusStoreTests` (with `tests/fixtures/settle-day-boundary.json`): the day gate, disk,
   version and failure handling, DST day boundaries.
 - `TodayFocusIntegrationTests`: production adapters, hydration, rendering without native lookups, Delete All Data.
-- `TodayFocusTests` (UI, `today-focus.json`, `remove-returned-to-today.json`): Settle / Unsettle / Undo, relaunch,
-  the next-day release, and today-only Settle (a past and a future day show none).

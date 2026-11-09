@@ -186,7 +186,7 @@ class XcodeTests(unittest.TestCase):
                 patch.object(commands, 'atomic_json'), patch.object(commands, 'Evidence'), \
                 patch.object(xcode_tests, 'run', side_effect=run):
             self.assertEqual(commands.test(ROOT, 'release', full=True), 1)
-        self.assertEqual(events, ['swift', 'xcode', sys.executable])
+        self.assertEqual(events, ['swift', 'xcode'])
         with self.assertRaises(ValueError):
             commands.test(ROOT, 'release')
         with self.assertRaises(ValueError):

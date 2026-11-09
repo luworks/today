@@ -5,7 +5,7 @@ import json
 import re
 from pathlib import Path
 
-RENAMED = {'Today': 'One', 'TodayUITests': 'OneUITests', 'TodayShare': 'ShareExtension'}
+RENAMED = {'Today': 'One', 'TodayShare': 'ShareExtension'}
 
 
 def normalized(key, value):

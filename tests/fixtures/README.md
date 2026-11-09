@@ -1,16 +1,10 @@
 # Permanent test inputs
 
-These JSON inputs are versioned, read-only assets. UI tests resolve their names through
-`TestData.fixturePath` / `TestData.fixtureArguments` in
-[`UITestHelpers.swift`](../../ios/OneUITests/UITestHelpers.swift).
-`TestData.path` and `TestData.launchArguments` continue to select the canonical
-`today-dataset.json`; that dataset is unchanged.
+These JSON inputs are versioned, read-only assets. Load one in TodayMock with
+`-uiTesting -dataset <path>`; `today-dataset.json` is the canonical dataset.
+Test names in the table below are the removed UI tests that first used a dataset.
 
 The four images in [`design-refs/due-quick-add-20261030`](design-refs/due-quick-add-20261030/) are the owner's Due quick-add visual references, including its menus and alert sheet.
-
-`PerformanceClimbTests.testTodayWeekResponse`, `testYearWeekResponse` and
-`testRepeatedNavigationRetainsCalendarSelection` reuse this canonical dataset at
-09:41 for matched navigation response samples; they create no temporary dataset.
 
 | Dataset | Consumers and original generator |
 | --- | --- |
@@ -26,7 +20,7 @@ The four images in [`design-refs/due-quick-add-20261030`](design-refs/due-quick-
 | [`reminder-time-save.json`](reminder-time-save.json) | `ReminderTimeSaveTests`: real 14:00 -> 13:10 DatePicker save, concurrent independent Apple note edit, native metadata/identity, reopen/refresh/relaunch. |
 | [`today-alarm-actions.json`](today-alarm-actions.json) | `TodayAlarmActionsTests`: two independent repeating alarms and one unchanged reminder; native Today tap, long press, swipe, retry draft and persistent deletion. |
 | [`calendar-compressed-gaps.json`](calendar-compressed-gaps.json) | Experimental 2 Day compressed-gap design fixture with morning and afternoon gaps. |
-| [`today-dataset.json`](today-dataset.json) | Shared UI journeys using `TestData.launchArguments` / `TestData.path`, including `DevDataTests.testDatasetFillsChatsAlarmsAndReminders` and the ordinary `CalendarAlarmTests.launch(pinned:)` setup. This is the canonical multi-screen dataset, not a generated per-run input. |
+| [`today-dataset.json`](today-dataset.json) | Canonical dataset; first used by `DevDataTests.testDatasetFillsChatsAlarmsAndReminders` and the ordinary `CalendarAlarmTests.launch(pinned:)` setup. This is the canonical multi-screen dataset, not a generated per-run input. |
 | Same `today-dataset.json` | `PerformanceBaselineTests` and `tests/performance/launch_probe.py`: small feature-variety performance baseline (17 reminders, 13 events, 4 alarms, 3 lists, 7 chats), application clock pinned to 09:41. Not a large-history fixture. |
 | Same `today-dataset.json` | `ChatPanelTests.testPopulatedFirstOpenAndReopenEvidence`: three fresh processes, native first-open draft typing and exact unsent draft retention after Close/reopen; app time 09:41. Layout traces and XCTest input durations are separate evidence. |
 | [`calendar-empty-hours.json`](calendar-empty-hours.json) | `CalendarEmptyHoursTests`: sparse 2 Day schedule with timed events on opposite days, clock pinned to 09:00, to exercise an empty-hour gap expanding and collapsing. |
