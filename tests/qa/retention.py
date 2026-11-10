@@ -549,6 +549,60 @@ def erase(path, manifest, results):
         remove(parent_fd, path.name, '.', parent_unchanged)
 
 
+def unmanaged_paths(results, items):
+    """Report fixed namespace levels without walking unknown or active content."""
+    known = {Path(item['path']) for item in items}
+    unknown = set()
+
+    def children(path):
+        if path.is_symlink():
+            unknown.add(path)
+            return []
+        try:
+            return list(path.iterdir())
+        except (FileNotFoundError, NotADirectoryError):
+            return []
+
+    def covered(path):
+        return any(path == candidate or candidate in path.parents for candidate in known)
+
+    def report(path):
+        if not covered(path):
+            unknown.add(path)
+
+    for path in children(results):
+        if path.is_dir() and path.name not in ('devtools', 'runs', 'archives', 'retention'):
+            report(path)
+    for namespace in ('runs', 'retention'):
+        for path in children(results / namespace):
+            report(path)
+    for session in children(results / 'archives'):
+        revisions = children(session)
+        if not revisions:
+            report(session)
+        for revision in revisions:
+            report(revision)
+    for namespace in ('logs', 'runs', 'device-builds'):
+        for path in children(results / 'devtools' / namespace):
+            report(path)
+    for path in children(results / 'devtools'):
+        if path.name not in ('derived-data', 'logs', 'runs', 'device-builds', 'locks'):
+            report(path)
+    for cache in children(results / 'devtools/derived-data'):
+        if covered(cache):  # Existing/queued owner: never enumerate its build tree.
+            continue
+        if not any(cache in candidate.parents for candidate in known):
+            report(cache)
+            continue
+        for part in children(cache):
+            if part.name == 'Build' and not part.is_symlink():
+                for component in children(part):
+                    report(component)
+            else:
+                report(part)
+    return sorted(map(str, unknown))
+
+
 def run(root, apply=False, now=None):
     root = Path(root).resolve()
     config = policy(root)
@@ -568,10 +622,7 @@ def run(root, apply=False, now=None):
                        directories=sum(f['kind'] == 'directory' for f in item['files']))
         result['protected' if item['reason'] else 'eligible'].append(compact)
     measured = sum(f['allocated'] for item in items for f in item['files'])
-    known_roots = {'devtools', 'runs', 'archives', 'retention'}
-    managed_roots = {Path(x['path']).relative_to(canonical_root(root) / 'tests/results').parts[0] for x in items}
-    unmanaged = [str(x) for x in (canonical_root(root) / 'tests/results').iterdir()
-                 if x.is_dir() and x.name not in known_roots | managed_roots]
+    unmanaged = unmanaged_paths(canonical_root(root) / 'tests/results', items)
     result.update(budget_bytes=config['max_generated_bytes'], unmanaged_paths=unmanaged, measured_generated_bytes=measured,
                   over_budget_bytes=max(0, measured - config['max_generated_bytes']),
                   unmeasured_active_paths=[x['path'] for x in items if x.get('unmeasured_active')],

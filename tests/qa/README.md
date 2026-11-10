@@ -148,6 +148,10 @@ closed journal ownership also expire independently after their owner retires.
 Old ownerless records remain protected. Ad-hoc output without a closed summary/ownership record is
 reported as unmanaged rather than guessed disposable; new scripts should use the
 same run summary and journal protocol instead of inventing untracked output roots.
+Unknown children inside the fixed `runs`, `archives` and `devtools` namespaces
+(including unmatched derived-data identities) are also listed in `unmanaged_paths`.
+This report enumerates only directory names at fixed levels and never walks unknown
+content or changes its deletion eligibility.
 
 Default pins are empty and historical document/Issue links do not retain generated
 bytes indefinitely. Set `pins` deliberately for a particular future proof. Generic

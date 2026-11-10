@@ -544,6 +544,37 @@ class RetentionTests(unittest.TestCase):
         with sqlite3.connect(self.results / 'activity.sqlite') as db:
             self.assertEqual(db.execute("select count(*) from event where kind='qa.retention.partial'").fetchone()[0], 0)
 
+    def test_unknown_known_namespace_children_are_reported_without_walking_or_deleting(self):
+        import contextlib
+        import io
+        unknown = [self.results / 'runs/no-summary', self.results / 'archives/unindexed/revision',
+                   self.cache.parent / 'unmatched-id', self.cache / 'Build/UnknownProducts',
+                   self.results / 'devtools/logs/unknown-format', self.results / 'devtools/unknown-namespace',
+                   self.results / 'manual-proof']
+        for path in unknown:
+            (path / 'deep/private').mkdir(parents=True)
+            (path / 'deep/private/keep').write_text('unclassified output')
+        original = Path.iterdir
+        walk = os.walk
+
+        def shallow(path):
+            if any(path == item or item in path.parents for item in unknown):
+                self.fail('unknown content was enumerated: ' + str(path))
+            return original(path)
+
+        def known_walk(path, *args, **kwargs):
+            if any(path == item or item in Path(path).parents for item in unknown):
+                self.fail('unknown content was walked: ' + str(path))
+            return walk(path, *args, **kwargs)
+
+        with patch.object(Path, 'iterdir', shallow), patch.object(os, 'walk', known_walk):
+            result = retention.run(self.root)
+        self.assertEqual(set(result['unmanaged_paths']), set(map(str, unknown)))
+        with patch.object(retention, 'run', return_value=result), contextlib.redirect_stdout(io.StringIO()) as output:
+            retention.after_run(self.root)
+        self.assertEqual(set(json.loads(output.getvalue())['retention']['unmanaged_paths']), set(map(str, unknown)))
+        self.assertTrue(all((path / 'deep/private/keep').exists() for path in unknown))
+
 
 if __name__ == '__main__':
     unittest.main()
