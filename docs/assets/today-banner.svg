@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="280" viewBox="0 0 1200 280" role="img" aria-labelledby="title desc">
+<title id="title">Today — a clearer view of your day</title><desc id="desc">An abstract sunrise and a simple daily timeline.</desc>
+<rect width="1200" height="280" rx="20" fill="#13222e"/>
+<circle cx="1010" cy="120" r="155" fill="#1c3540"/><circle cx="1010" cy="120" r="98" fill="#28474b"/><circle cx="1010" cy="120" r="52" fill="#f3c07e"/>
+<path d="M842 159h358v121H842z" fill="#13222e"/><path d="M842 159h358" stroke="#8ca99a" stroke-width="2"/>
+<text x="70" y="76" fill="#9dc6b7" font-family="Arial,sans-serif" font-weight="700" font-size="16" letter-spacing="5">TODAY  /  OPEN SOURCE FOR IPHONE</text>
+<text x="66" y="150" fill="#f7f4ec" font-family="Arial,sans-serif" font-size="58" font-weight="700">A clearer view of your day.</text>
+<text x="70" y="205" fill="#c3d2ce" font-family="Arial,sans-serif" font-size="22">Calendar  ·  Reminders  ·  Alarms  ·  AI</text>
+</svg>
