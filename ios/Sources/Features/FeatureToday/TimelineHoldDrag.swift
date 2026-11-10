@@ -8,7 +8,7 @@
 
   /// One contact, three outcomes. Moving before the hold fails, so scrolling and swipes win. A held row
   /// lifts; moving then begins the drag, and staying still fails so the system row menu takes the contact.
-  /// Everything inside the List waits for this recognizer, which is what keeps the menu from opening early.
+  /// Only the List pan and long-press menus wait; taps and descendant row swipes stay independent.
   @MainActor
   final class TimelineHoldDragRecognizer: UIGestureRecognizer {
     private static let liftDelay: TimeInterval = 0.35
@@ -81,13 +81,21 @@
     override func reset() {
       cancelTimers()
       touch = nil
+      // UIKit can fail/cancel a possible recognizer without calling our fail() path (for
+      // example when another gesture wins). Never leave the preview raised after that contact.
+      if liftPoint != nil { unlifted() }
       liftPoint = nil
       super.reset()
     }
 
     override func shouldBeRequiredToFail(by other: UIGestureRecognizer) -> Bool {
       guard let view, let otherView = other.view else { return false }
-      return otherView.isDescendant(of: view)
+      guard otherView.isDescendant(of: view) else { return false }
+      // A blanket dependency also gates SwiftUI's descendant gesture machinery. Keep the
+      // arbitration local: scrolling yields until movement cancels the hold; menus wait for
+      // the lifted preview to return. Row swipes and controls need no failure relationship.
+      return other === (view as? UIScrollView)?.panGestureRecognizer
+        || other is UILongPressGestureRecognizer
     }
 
     @objc private func lift() {
@@ -139,6 +147,10 @@
       view.installSoon()
     }
 
+    static func dismantleUIView(_ view: Anchor, coordinator: Coordinator) {
+      coordinator.detach()
+    }
+
     final class Anchor: UIView {
       weak var coordinator: Coordinator?
       override func didMoveToWindow() {
@@ -163,6 +175,15 @@
       private var link: CADisplayLink?
 
       init(_ parent: TimelineHoldDragInstaller) { self.parent = parent }
+
+      func detach() {
+        link?.invalidate()
+        link = nil
+        if let recognizer { recognizer.view?.removeGestureRecognizer(recognizer) }
+        recognizer = nil
+        list = nil
+        parent.model.end()
+      }
 
       func install(near view: UIView) {
         guard recognizer?.view == nil || list?.window == nil else { return }

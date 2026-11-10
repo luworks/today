@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "about": "36 fictional rows for Device-panel scrolling and mutation regression; dates relative to load day.",
+  "lists": [
+    {"name": "Scroll QA", "color": 2}
+  ],
+  "reminders": [
+    {"title": "Morning 02 reminder", "list": "Scroll QA", "due": {"day": 0, "time": "07:20"}},
+    {"title": "Morning 05 reminder", "list": "Scroll QA", "due": {"day": 0, "time": "08:20"}},
+    {"title": "Morning 08 reminder", "list": "Scroll QA", "due": {"day": 0, "time": "09:20"}},
+    {"title": "Morning 11 reminder", "list": "Scroll QA", "due": {"day": 0, "time": "10:20"}},
+    {"title": "Afternoon 02 reminder", "list": "Scroll QA", "due": {"day": 0, "time": "13:20"}},
+    {"title": "Afternoon 05 reminder", "list": "Scroll QA", "due": {"day": 0, "time": "14:20"}},
+    {"title": "Afternoon 08 reminder", "list": "Scroll QA", "due": {"day": 0, "time": "15:20"}},
+    {"title": "Afternoon 11 reminder", "list": "Scroll QA", "due": {"day": 0, "time": "16:20"}},
+    {"title": "Evening 02 reminder", "list": "Scroll QA", "due": {"day": 0, "time": "18:20"}},
+    {"title": "Evening 05 reminder", "list": "Scroll QA", "due": {"day": 0, "time": "19:20"}},
+    {"title": "Evening 08 reminder", "list": "Scroll QA", "due": {"day": 0, "time": "20:20"}},
+    {"title": "Evening 11 reminder", "list": "Scroll QA", "due": {"day": 0, "time": "21:20"}}
+  ],
+  "events": [
+    {"title": "Morning 01 event", "start": {"day": 0, "time": "07:00"}, "minutes": 15},
+    {"title": "Morning 04 event", "start": {"day": 0, "time": "08:00"}, "minutes": 15},
+    {"title": "Morning 07 event", "start": {"day": 0, "time": "09:00"}, "minutes": 15},
+    {"title": "Morning 10 event", "start": {"day": 0, "time": "10:00"}, "minutes": 15},
+    {"title": "Afternoon 01 event", "start": {"day": 0, "time": "13:00"}, "minutes": 15},
+    {"title": "Afternoon 04 event", "start": {"day": 0, "time": "14:00"}, "minutes": 15},
+    {"title": "Afternoon 07 event", "start": {"day": 0, "time": "15:00"}, "minutes": 15},
+    {"title": "Afternoon 10 event", "start": {"day": 0, "time": "16:00"}, "minutes": 15},
+    {"title": "Evening 01 event", "start": {"day": 0, "time": "18:00"}, "minutes": 15},
+    {"title": "Evening 04 event", "start": {"day": 0, "time": "19:00"}, "minutes": 15},
+    {"title": "Evening 07 event", "start": {"day": 0, "time": "20:00"}, "minutes": 15},
+    {"title": "Evening 10 event", "start": {"day": 0, "time": "21:00"}, "minutes": 15}
+  ],
+  "alarms": [
+    {"label": "Morning 03 alarm", "time": "07:40", "weekdays": [1, 2, 3, 4, 5, 6, 7]},
+    {"label": "Morning 06 alarm", "time": "08:40", "weekdays": [1, 2, 3, 4, 5, 6, 7]},
+    {"label": "Morning 09 alarm", "time": "09:40", "weekdays": [1, 2, 3, 4, 5, 6, 7]},
+    {"label": "Morning 12 alarm", "time": "10:40", "weekdays": [1, 2, 3, 4, 5, 6, 7]},
+    {"label": "Afternoon 03 alarm", "time": "13:40", "weekdays": [1, 2, 3, 4, 5, 6, 7]},
+    {"label": "Afternoon 06 alarm", "time": "14:40", "weekdays": [1, 2, 3, 4, 5, 6, 7]},
+    {"label": "Afternoon 09 alarm", "time": "15:40", "weekdays": [1, 2, 3, 4, 5, 6, 7]},
+    {"label": "Afternoon 12 alarm", "time": "16:40", "weekdays": [1, 2, 3, 4, 5, 6, 7]},
+    {"label": "Evening 03 alarm", "time": "18:40", "weekdays": [1, 2, 3, 4, 5, 6, 7]},
+    {"label": "Evening 06 alarm", "time": "19:40", "weekdays": [1, 2, 3, 4, 5, 6, 7]},
+    {"label": "Evening 09 alarm", "time": "20:40", "weekdays": [1, 2, 3, 4, 5, 6, 7]},
+    {"label": "Evening 12 alarm", "time": "21:40", "weekdays": [1, 2, 3, 4, 5, 6, 7]}
+  ],
+  "chats": [
+  ]
+}

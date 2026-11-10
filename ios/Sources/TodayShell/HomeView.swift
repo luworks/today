@@ -108,6 +108,7 @@
     }
     @State private var remindersPath: [ReminderTarget] = []
     /// The day Today shows. Picking a day in Calendar opens it here.
+    @State private var todayNowRequest = 0
     @State private var todayDay: Date
     @State private var todayReferenceNow: Date
     /// The full-screen Chat page. A fresh one is built hidden ahead of time (after launch and after each Close), so a
@@ -474,7 +475,8 @@
           switch tab {
           case .today:
             DayAgenda(
-              day: $todayDay, showsWeekStrip: false, openTask: { editor = .task($0) },
+              day: $todayDay, showsWeekStrip: false, nowRequest: todayNowRequest,
+              openTask: { editor = .task($0) },
               openEvent: { editor = .local($0) }, openAlarm: { editor = .alarm($0) },
               openTimer: {
                 clockSection = .timer
@@ -890,6 +892,7 @@
         // Always today itself: from another tab, and from another day on the Today tab.
         Button {
           traceTabAction(to: .today)
+          todayNowRequest += 1
           todayDay = session.runtime.calendar.startOfDay(for: session.runtime.now())
           tab = .today
         } label: {

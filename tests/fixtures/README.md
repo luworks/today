@@ -235,3 +235,5 @@ in `experiments/quiet-inbox/Core/Sources/QuietInboxCore/Resources/synthetic-trai
 versioned as a Swift package resource. Small bilingual regression messages remain
 inline in `experiments/quiet-inbox/Core/Tests/QuietInboxCoreTests/FilterEngineTests.swift`.
 These inputs verify the prototype behavior and do not measure real-world accuracy.
+
+`today-dense-scroll.json`: 36 fictional timed rows (12 each in Morning, Afternoon and Evening, alternating event/reminder/repeating alarm). Device-panel regression for scrolling, Delete, Settle, completion and Undo; launch TodayMock with `-uiTesting -uiTestingNow 09:41 -dataset <absolute-path>`.
