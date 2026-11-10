@@ -32,16 +32,19 @@ For authorized multi-task Today iOS coordination, follow [Zhugeliang](docs/opera
 
 - Keep reusable UI datasets in corresponding files under `tests/fixtures/`. Package-bound resources and small inline inputs remain versioned with their tests; document their locations in the fixture catalog. Never leave a required test input solely in `/tmp`.
 - Record development/test actions through the Activity-style QA SQLite journal in `tests/qa/journal.py`. The E2E runner records commands, test outcomes and UI actions automatically; explicitly record additional development actions and Issue/PR links through the same entry point.
-- Store generated history and evidence in the primary checkout's `tests/results/`, including when working from a temporary worktree. This local database is separate from the app's user Activity database and must not be pruned or deleted during worktree cleanup.
-- Keep raw logs, screenshots, videos and complete `xcresult` bundles as files indexed by SQLite paths and hashes. Archive completed runs coherently; do not move or finalize a live bundle. Imported historical timestamps describe import time; original execution timing remains in the raw logs.
+- Store generated history and evidence in the primary checkout's `tests/results/`, including when working from a temporary worktree. This local database is separate from the app's user Activity database; keep its compact history and control records during generated-output cleanup.
+- Keep current raw logs, screenshots, videos and complete `xcresult` bundles indexed by SQLite paths and hashes until the bounded generated-storage policy expires them. Do not move or finalize a live bundle. Imported historical timestamps describe import time; original execution timing remains in the raw logs.
 - Version code, fixtures and compact evidence summaries in Git. Runtime SQLite files and large artifacts stay in the persistent results directory. Use `./dev`'s durable default output, and retain any explicitly selected temporary output before claiming completion.
 
 ### Authorized generated-storage retention
 
-The owner's 2026-10-20 storage-cleanup scope permits the bounded exceptions in
-[QA retention](tests/qa/README.md#generated-storage-retention): retired compiler
-cache components, and aged, closed raw copies only when a complete hash-verified
-journal archive remains. This is not permission to sweep `tests/results`, delete
-the journal, remove fixtures/source, prune devices/worktrees, or retire referenced,
-pinned, active or uncertain evidence. Use `./dev cleanup` to review and
-`./dev cleanup --apply` to apply the same fail-closed policy.
+The owner's 2026-11-09 decision makes unused test/build output disposable under
+[QA retention](tests/qa/README.md#generated-storage-retention): three-day expiry
+and a 20 GB soft budget for safely closed/retired generated output. Closed raw runs
+need no duplicate archive or permanent latest-lane exemption. Active writers,
+existing/registered workspaces (including queued owners), held locks, live PIDs,
+explicit pins, modified/shared dependency source and unknown
+ownership stay protected. Code, fixtures, app/user databases and unique source
+recovery material are never generated garbage. Use `./dev cleanup` to review and
+`./dev cleanup --apply` to apply the same fail-closed policy; normal producing
+commands perform best-effort pre/post maintenance without changing their exit.

@@ -19,4 +19,4 @@ if not readonly and not os.environ.get('TODAY_RUNTIME_ACTIVE'):
         env['TODAY_RUNTIME_ACTIVE'] = '1'
         os.execve(mise, [mise, 'exec', '--', 'python3', str(Path(__file__).resolve()), *sys.argv[1:]], env)
 from scripts.devtools.cli import main
-sys.exit(main())
+sys.exit(main(root=root, maintenance=True))
