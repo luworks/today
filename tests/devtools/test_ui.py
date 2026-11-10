@@ -86,6 +86,26 @@ class UITests(unittest.TestCase):
     def fake_run_bound(self):
         return lambda native, argv: self.fake_run(native, argv)
 
+    def test_prepare_installs_mock_without_launching_or_capturing(self):
+        runtime = 'com.apple.CoreSimulator.SimRuntime.iOS-27-2'
+        with patch('scripts.devtools.commands.build', return_value=0) as build, \
+                patch.object(ui, '_locks', no_locks), \
+                patch.object(ui, '_device', return_value=(UDID, False, self.root / 'lease.json')) as device, \
+                patch.object(ui.Native, 'run', self.fake_run_bound()):
+            result = ui.prepare(self.root, runtime)
+        build.assert_called_once_with(self.root, scheme='TodayMock')
+        device.assert_called_once()
+        self.assertEqual(device.call_args.kwargs['runtime'], runtime)
+        self.assertEqual(result['deviceId'], UDID)
+        verbs = [call[2] for call in self.calls]
+        self.assertEqual(verbs, ['boot', 'bootstatus', 'install'])
+        self.assertTrue(json.loads((self.root / 'lease.json').read_text())['warm'])
+
+    def test_prepare_rejects_runtime_before_build(self):
+        with patch('scripts.devtools.commands.build') as build, self.assertRaises(ValueError):
+            ui.prepare(self.root, 'invalid')
+        build.assert_not_called()
+
     def test_real_capture_argv_new_output_identity_and_shutdown(self):
         output = self.root / 'capture with spaces.png'
         identity = self.perform(output, appearance='dark', type_size='accessibility3', locale='zh_CN')

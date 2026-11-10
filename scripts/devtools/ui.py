@@ -132,11 +132,11 @@ def export_manifest(root, *, timeout=600, cancel=None):
         return _export(native)[0]
 
 
-def _device(native):
+def _device(native, runtime=RUNTIME):
     root = native.root
     # Inspect names across all runtimes before creating or booting anything.
     listing = json.loads(native.run(['xcrun', 'simctl', 'list', 'devices', '--json']))
-    matches = [dict(device, runtime=runtime) for runtime, devices in listing['devices'].items()
+    matches = [dict(device, runtime=found_runtime) for found_runtime, devices in listing['devices'].items()
                for device in devices if device.get('name') == simulator_name(root)]
     if len(matches) > 1:
         raise ValueError('Ambiguous owned simulator name')
@@ -147,21 +147,21 @@ def _device(native):
         udid = device['udid']
         uuid.UUID(udid)
         if (udid.upper().startswith(QUARANTINE_PREFIX) or device.get('deviceTypeIdentifier') != DEVICE
-                or device['runtime'] != RUNTIME or not device.get('isAvailable', False)):
+                or device['runtime'] != runtime or not device.get('isAvailable', False)):
             raise ValueError('Owned simulator has wrong model/runtime or is quarantined/unavailable')
         owned = lease == {'root': str(root), 'udid': udid, 'name': simulator_name(root),
-                          'model': DEVICE, 'runtime': RUNTIME, 'warm': True}
+                          'model': DEVICE, 'runtime': runtime, 'warm': True}
         if device.get('state') != 'Shutdown' and not (device.get('state') == 'Booted' and owned):
             raise ValueError('Booted simulator lacks an explicit matching warm lease')
     else:
-        udid = native.run(['xcrun', 'simctl', 'create', simulator_name(root), DEVICE, RUNTIME]).strip()
+        udid = native.run(['xcrun', 'simctl', 'create', simulator_name(root), DEVICE, runtime]).strip()
         uuid.UUID(udid)
         if udid.upper().startswith(QUARANTINE_PREFIX):
             raise ValueError('Quarantined simulator')
         device = {'state': 'Shutdown'}
     # The exact lease is persisted before boot, so interrupted boot never grants warm reuse.
     atomic_json(lease_path, {'root': str(root), 'udid': udid, 'name': simulator_name(root),
-                             'model': DEVICE, 'runtime': RUNTIME, 'warm': False})
+                             'model': DEVICE, 'runtime': runtime, 'warm': False})
     return udid, device['state'] == 'Booted', lease_path
 
 
@@ -332,3 +332,25 @@ def gallery(root, watch, port=0):
         for sig, handler in previous.items():
             signal.signal(sig, handler)
     return 0
+
+
+def prepare(root, runtime):
+    """Install Mock without launching; the Device panel owns all interaction."""
+    if not re.fullmatch(r'com\.apple\.CoreSimulator\.SimRuntime\.iOS-[0-9]+-[0-9]+', runtime):
+        raise ValueError('Expected an explicit iOS simulator runtime identifier')
+    from . import commands
+    code = commands.build(root, scheme='TodayMock')
+    if code:
+        raise RuntimeError('Mock build failed')
+    native = Native(root, 120, None)
+    with _locks(root):
+        udid, booted, lease_path = _device(native, runtime=runtime)
+        if not booted:
+            native.run(['xcrun', 'simctl', 'boot', udid])
+        native.run(['xcrun', 'simctl', 'bootstatus', udid, '-b'])
+        app = derived_data(root) / 'Build/Products/Debug-iphonesimulator/TodayMock.app'
+        native.run(['xcrun', 'simctl', 'install', udid, str(app)])
+        atomic_json(lease_path, {'root': str(Path(root).resolve()), 'udid': udid,
+                                 'name': simulator_name(root), 'model': DEVICE,
+                                 'runtime': runtime, 'warm': True})
+        return {'hostId': 'local', 'deviceId': udid, 'app': 'com.luworks.today'}

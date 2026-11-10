@@ -6,11 +6,20 @@ import Foundation
 public struct TimelineNowCentering: Equatable {
   public private(set) var isHolding = false
 
+  private var armedDay: Date?
+
   public init() {}
 
-  /// On opening the timeline or changing day. Any other day, or scroll-to-now off, ends the hold.
-  public mutating func arm(isToday: Bool, jumpsToNow: Bool) {
+  /// A new day or an explicit Today tap starts a new navigation request. Reappearing after an
+  /// item action must not revive a hold the reader already dismissed.
+  @discardableResult
+  public mutating func arm(
+    on day: Date, isToday: Bool, jumpsToNow: Bool, explicit: Bool = false
+  ) -> Bool {
+    guard explicit || armedDay != day else { return false }
+    armedDay = day
     isHolding = isToday && jumpsToNow
+    return isHolding
   }
 
   public mutating func touched() {

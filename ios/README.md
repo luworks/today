@@ -68,6 +68,8 @@ A run that needs Apple Calendar adds
 
 ## Native visual development
 
+For Device-panel journeys, `./dev ui prepare --runtime com.apple.CoreSimulator.SimRuntime.iOS-27-2` builds and installs TodayMock on this worktree's named simulator without launching it. Open that returned device with the device tools; launch arguments, gestures and screenshots then go through its bound `agent-device` command. Shut down only that owned simulator when finished.
+
 ```sh
 ./dev ui open --scene clock.stopwatch --scenario normal
 ./dev ui capture --scene clock.stopwatch --scenario normal --output /absolute/fresh/capture.png
@@ -78,7 +80,7 @@ The [scene registry](Sources/TodayScenes/SceneRegistry.swift) owns valid scene/s
 
 ## Today time adjustment
 
-On the viewed single-day Today timeline, hold a movable row for 0.35 s to lift it. Moving then drags it: the other rows spring aside, the time label becomes an accent pill with the time it would land at (`TimelineDropPlan`, pure and unit-tested), and it works across the day-part cards, which also show empty parts during the drag. Staying still for another 0.3 s drops the row back and opens the system long-press menu. One recognizer on the List's collection view decides (`TimelineHoldDrag.swift`): everything inside the List waits for it, so the menu cannot open early, and moving before the hold lets scrolling and swipes win. Releasing commits only that item through the usual path (attendee confirmation, paired Undo for a repeating reminder, Ledger, EventKit), then shows "Moved to …" with Undo; no other item's time is written. Slide 80 points sideways, or release in the original place, to change nothing. Tap the time label for the exact-time editor. Calendar's 2 Day grid remains unchanged.
+On the viewed single-day Today timeline, hold a movable row for 0.35 s to lift it. Moving then drags it: the other rows spring aside, the time label becomes an accent pill with the time it would land at (`TimelineDropPlan`, pure and unit-tested), and it works across the day-part cards, which also show empty parts during the drag. Staying still for another 0.3 s drops the row back and opens the system long-press menu. One recognizer on the List's collection view decides (`TimelineHoldDrag.swift`): the List pan and long-press menus wait for it, so the menu cannot open early; taps and descendant row swipes have no blanket failure dependency. Moving before the hold lets scrolling and swipes win. Releasing commits only that item through the usual path (attendee confirmation, paired Undo for a repeating reminder, Ledger, EventKit), then shows "Moved to …" with Undo; no other item's time is written. Slide 80 points sideways, or release in the original place, to change nothing. Tap the time label for the exact-time editor. Calendar's 2 Day grid remains unchanged.
 
 Timed reminders change only `due` (midnight remains the existing date-only sentinel). Events retain their full duration within the day. Local repeating events store occurrence exceptions without moving the series anchor; connected calendars use EventKit's this-event move and verified source receipt. Read-only calendars explain the restriction. Attendee events confirm the number of recipients before writing. Retained Calendar alert mirrors follow verified moves and Undo, including detached instance identifiers. One-off alarms preview only the valid next-ring window and reschedule the same AlarmKit identity with their settings intact; an active execution cannot move, and an expired original fire cannot be undone as tomorrow's alarm.
 

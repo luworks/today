@@ -96,6 +96,8 @@ def main(argv=None, root=ROOT, *, maintenance=False):
         action.add_argument('--locale', default='en_US')
         if verb == 'capture':
             action.add_argument('--output', type=Path, required=True)
+    prepare_parser = ui_sub.add_parser('prepare', help='build/install Mock on an owned simulator; no UI launch')
+    prepare_parser.add_argument('--runtime', required=True)
     gallery_parser = ui_sub.add_parser('gallery')
     gallery_parser.add_argument('--watch', action=argparse.BooleanOptionalAction, default=True)
     gallery_parser.add_argument('--port', type=int, default=0)
@@ -131,7 +133,9 @@ def main(argv=None, root=ROOT, *, maintenance=False):
             from . import commands
             if args.command == 'ui':
                 from . import ui
-                if args.ui_action == 'gallery':
+                if args.ui_action == 'prepare':
+                    print(json.dumps(ui.prepare(root, args.runtime)))
+                elif args.ui_action == 'gallery':
                     ui.gallery(root, watch=args.watch, port=args.port)
                 else:
                     options = dict(appearance=args.appearance, type_size=args.type_size, locale=args.locale)

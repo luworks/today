@@ -154,4 +154,24 @@ final class DayPartTests: XCTestCase {
     )[1].id
     XCTAssertEqual(id, moved)
   }
+
+  func testRemovingLastItemKeepsSurvivingRowsAndCardIdentity() {
+    let original = [
+      Row(id: "morning", start: at(9)), Row(id: "evening-first", start: at(19)),
+      Row(id: "evening-last", start: at(20)),
+    ]
+    func rows(_ items: [Row]) -> [DayPartRow<Row>] {
+      DayPart.rows(items, day: at(0), calendar: cal, start: \.start, isPlanned: \.planned)
+    }
+    let before = rows(original)
+    let after = rows(Array(original.dropLast()))
+    XCTAssertEqual(
+      after.map(\.id), before.filter { $0.id != AnyHashable("evening-last") }.map(\.id))
+    guard case .item(let survivor, .some(.evening), true) = after[4] else {
+      return XCTFail("Surviving evening row must close the same card")
+    }
+    XCTAssertEqual(survivor.id, "evening-first")
+    XCTAssertEqual(rows(original).map(\.id), before.map(\.id), "Undo restores the same identities")
+  }
+
 }

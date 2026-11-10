@@ -28,6 +28,7 @@
     @Environment(PlannerPresentation.self) private var presentation
     @Binding var day: Date
     var showsWeekStrip: Bool
+    private var nowRequest: Int
     /// Opens the Timer tab (a tap on a running timer's row).
     let openTimer: @MainActor () -> Void
     let openTask: @MainActor (OneTask) -> Void
@@ -37,7 +38,8 @@
     let openTidy: (@MainActor ([OneTask]) -> Void)?
 
     package init(
-      day: Binding<Date>, showsWeekStrip: Bool, openTask: @escaping @MainActor (OneTask) -> Void,
+      day: Binding<Date>, showsWeekStrip: Bool, nowRequest: Int = 0,
+      openTask: @escaping @MainActor (OneTask) -> Void,
       openEvent: @escaping @MainActor (OneEvent) -> Void,
       openAlarm: @escaping @MainActor (OneAlarm) -> Void,
       openTimer: @escaping @MainActor () -> Void, actions: PlannerActions,
@@ -78,6 +80,7 @@
         store: presentation.defaults)
       _day = day
       self.showsWeekStrip = showsWeekStrip
+      self.nowRequest = nowRequest
       self.openTask = openTask
       self.openEvent = openEvent
       self.openAlarm = openAlarm
@@ -145,6 +148,7 @@
           refreshClock()
           startCenteringNow(proxy)
         }
+        .onChange(of: nowRequest) { _, _ in startCenteringNow(proxy, explicit: true) }
         .onChange(of: day) { _, _ in
           showsAllOverdue = false
           timeRequest = nil
@@ -242,9 +246,13 @@
     }
 
     /// Open on what is happening now: the day's schedule scrolls to the "now" line.
-    private func startCenteringNow(_ proxy: ScrollViewProxy) {
-      nowCentering.arm(isToday: cal.isDate(day, inSameDayAs: now), jumpsToNow: jumpsToNow)
-      if nowCentering.isHolding { centerNow(proxy) }
+    private func startCenteringNow(_ proxy: ScrollViewProxy, explicit: Bool = false) {
+      if nowCentering.arm(
+        on: cal.startOfDay(for: day), isToday: cal.isDate(day, inSameDayAs: now),
+        jumpsToNow: jumpsToNow, explicit: explicit)
+      {
+        centerNow(proxy)
+      }
     }
 
     /// Without animation: the list may ask again a moment later, and animated scrolls would fight each other.
@@ -410,6 +418,12 @@
       .environment(\.defaultMinListRowHeight, showsWeekStrip ? 24 : 0)
       .listSectionSpacing(showsWeekStrip ? 6 : 0)
       .scrollContentBackground(.hidden)
+      .onScrollPhaseChange { _, phase in
+        // UIKit scrolling is authoritative even if a row/menu recognizer consumes the contact.
+        if phase == .tracking || phase == .interacting || phase == .decelerating {
+          nowCentering.touched()
+        }
+      }
       .onScrollGeometryChange(for: [CGFloat].self) {
         [$0.contentSize.height, $0.containerSize.height]
       } action: { old, new in
@@ -1437,11 +1451,11 @@
 
     var id: AnyHashable {
       switch self {
-      case .event(let e, let d): return [AnyHashable(ObjectIdentifier(e)), AnyHashable(d)]
+      case .event(let e, let d): return [AnyHashable(e.persistentModelID), AnyHashable(d)]
       case .external(let e): return e.id
-      case .due(let t): return ["due", AnyHashable(ObjectIdentifier(t))]
-      case .alarm(let a, let d, _): return [AnyHashable(ObjectIdentifier(a)), AnyHashable(d)]
-      case .done(let t, _): return ["done", AnyHashable(ObjectIdentifier(t))]
+      case .due(let t): return ["due", AnyHashable(t.persistentModelID)]
+      case .alarm(let a, let d, _): return [AnyHashable(a.persistentModelID), AnyHashable(d)]
+      case .done(let t, _): return ["done", AnyHashable(t.persistentModelID)]
       case .completed(let c): return ["completed", c.id]
       case .stoppedAlarm(let s): return ["stopped", s.id]
       case .deletedEvent(let e): return ["deletedEvent", e.id]
