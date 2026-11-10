@@ -1,19 +1,10 @@
 {
-  "schema": 1,
+  "schema": 2,
   "automatic": true,
-  "passed_days": 7,
-  "failed_days": 30,
-  "cache_days": 1,
-  "pins": [
-    "storage-retention-*",
-    "archives/**",
-    "*phone*",
-    "*freeze*",
-    "*release*",
-    "*9043647*",
-    "*32df07b*",
-    "runs/performance-*",
-    "runs/posterboard-*",
-    "devtools/derived-data/*/Build/Products/**"
-  ]
+  "passed_days": 3,
+  "failed_days": 3,
+  "cache_days": 3,
+  "max_generated_bytes": 20000000000,
+  "retain_references": false,
+  "pins": []
 }

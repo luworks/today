@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import signal
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -31,7 +32,9 @@ class FoundationTests(unittest.TestCase):
         (self.root / 'ios/Package.resolved').write_text('lock 1')
         (self.root / 'package-lock.json').write_text('root lock')
         (self.root / 'tests').mkdir()
-        (self.root / 'tests/qa').symlink_to(ROOT / 'tests/qa', target_is_directory=True)
+        (self.root / 'tests/qa').mkdir()
+        for name in ('journal.py', 'activity-v1.sql'):
+            shutil.copyfile(ROOT / 'tests/qa' / name, self.root / 'tests/qa' / name)
 
     def tearDown(self):
         self.temp.cleanup()

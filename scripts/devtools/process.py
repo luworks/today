@@ -13,7 +13,7 @@ import time
 import traceback
 import uuid
 
-from .core import canonical_root
+from .core import canonical_root, worktree_id
 
 SECRET_KEY = re.compile(r'(secret|token|password|passwd|api[_-]?key|authorization|credential)', re.I)
 
@@ -51,6 +51,8 @@ class Evidence:
     """Use the repository's QA journal, never the app Activity database."""
     def __init__(self, root, session, redactor):
         self.session, self.redact = session, redactor
+        self.owner = str(Path(root).resolve())
+        self.owner_identity = worktree_id(root)
         spec = importlib.util.spec_from_file_location('devtools_qa_journal', Path(root) / 'tests/qa/journal.py')
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
@@ -60,7 +62,9 @@ class Evidence:
         self.path.parent.mkdir(parents=True, exist_ok=True)
 
     def record(self, text, status):
-        self.journal.record(self.session, 'qa.command.devtools', self.redact(text), status=status)
+        self.journal.record(self.session, 'qa.command.devtools', self.redact(text), status=status,
+                            props={'owner': self.owner, 'worktree_id': self.owner_identity,
+                                   'pid': os.getpid()})
 
     def close(self):
         self.journal.close()

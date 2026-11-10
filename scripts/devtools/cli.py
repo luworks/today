@@ -23,7 +23,17 @@ def inventory(root):
                 if (root / path).is_file()}}
 
 
-def main(argv=None, root=ROOT):
+def maintain(root):
+    """Maintenance failure cannot replace the requested authority's result."""
+    try:
+        sys.path.insert(0, str(Path(root) / 'tests/qa'))
+        from retention import after_run
+        after_run(root)
+    except Exception as error:
+        print('QA retention skipped: ' + Redactor()(str(error)), file=sys.stderr)
+
+
+def main(argv=None, root=ROOT, *, maintenance=False):
     parser = argparse.ArgumentParser(prog='./dev', description=__doc__)
     sub = parser.add_subparsers(dest='command', required=True)
     sub.add_parser('help', help='show supported commands')
@@ -95,6 +105,8 @@ def main(argv=None, root=ROOT):
         return 0
     try:
         root = Path(root).resolve()
+        if maintenance and args.command in ('build', 'generate', 'resolve', 'test', 'check', 'benchmark', 'ui', 'release'):
+            maintain(root)
         if args.command == 'cleanup':
             sys.path.insert(0, str(root / 'tests/qa'))
             from retention import run
@@ -163,10 +175,6 @@ def main(argv=None, root=ROOT):
                 if args.timeout is not None and args.timeout <= 0:
                     raise ValueError('--timeout must be positive')
                 code = commands.test(root, args.group, only=args.only, full=args.full, **options)
-                if args.group == 'release':
-                    sys.path.insert(0, str(root / 'tests/qa'))
-                    from retention import after_run
-                    after_run(root)
                 return code
             if args.command == 'format':
                 return commands.format_sources(root, check=args.check)
@@ -194,3 +202,8 @@ def main(argv=None, root=ROOT):
     except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as error:
         print('dev: ' + Redactor()(str(error)), file=sys.stderr)
         return 1
+    finally:
+        if maintenance and args.command in ('build', 'generate', 'resolve', 'test', 'check', 'benchmark', 'ui', 'release'):
+            # Authorities release their own resource locks before returning (also
+            # on failure). Best-effort maintenance must never replace their exit.
+            maintain(root)

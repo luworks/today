@@ -46,7 +46,7 @@ Debug/Release controls optimization. Mock/Live selects a separate dependency gra
 - Unknown selector, no tests or missing snapshot baseline: check current source discovery and the selected group in the shared test contract. Preserve the failure and fix selection or record/review the actual baseline; a successful build cannot replace execution.
 - Native capture failure: use a registered scene/scenario and a new `.png` path with no existing adjacent `.json` receipt. Retain the failed command evidence; do not relabel stale output as a current capture.
 
-`./dev report <retained-report-path>` reads existing evidence. Generated logs, screenshots and complete finished xcresults belong in the primary checkout's `tests/results/`, indexed through `tests/qa/journal.py`. This is the existing QA history, separate from app Activity. Preserve raw artifacts and distinguish build, logic, simulator and device results in handoff.
+`./dev report <retained-report-path>` reads existing evidence. Generated logs, screenshots and complete finished xcresults belong in the primary checkout's `tests/results/`, indexed through `tests/qa/journal.py`. This is QA history, separate from app Activity. Raw generated files follow the [three-day/20 GB soft retention policy](../tests/qa/README.md#generated-storage-retention); active writers and source/user data remain protected. Distinguish build, logic, simulator and device results in handoff.
 
 ## Test environment
 

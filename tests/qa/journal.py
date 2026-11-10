@@ -151,8 +151,17 @@ class Journal:
                 finally:
                     temporary.unlink(missing_ok=True)
             self.artifact(session, target, path)
+        props = {'manifest_sha256': revision, 'files': len(manifest)}
+        summary = retained / 'summary-retained.json'
+        if summary.is_file() and not summary.is_symlink():
+            try:
+                data = json.loads(summary.read_text())
+                if data.get('status') in ('passed', 'failed', 'interrupted'):
+                    props.update(derived_data=data.get('derived_data'), simulator_name=data.get('simulator_name'))
+            except (OSError, ValueError, AttributeError):
+                pass  # Unknown archive ownership remains protected by retention.
         self.record(session, 'qa.archive', str(retained), uid=f'archive:{session}:{revision}',
-                    props={'manifest_sha256': revision, 'files': len(manifest)}, snapshot=manifest)
+                    props=props, snapshot=manifest)
         return retained
 
     def import_run(self, source, session, *, status='running', archive=False):

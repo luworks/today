@@ -2,6 +2,7 @@
 import hashlib
 import json
 from pathlib import Path
+import shutil
 import sys
 import tempfile
 import threading
@@ -105,11 +106,20 @@ class CheckReportTests(unittest.TestCase):
         self.assertEqual(result['records'][0]['data']['missing'], ['actual/test'])
         self.assertEqual(result['exit'], 1)
 
-    def test_real_owned_process_spaces_timeout_cancel_and_primary_evidence(self):
-        # Deliberately retain logs in primary results, even though child cwd is temporary.
+    def test_real_owned_process_spaces_timeout_cancel_and_isolated_primary_evidence(self):
+        # Exercise linked-worktree routing with a synthetic primary, never live results.
+        primary = self.root / 'synthetic primary'
+        gitdir = primary / '.git/worktrees/owner'
+        gitdir.mkdir(parents=True)
+        (gitdir / 'commondir').write_text('../..')
+        owner = self.root / 'synthetic owner'
+        (owner / 'tests/qa').mkdir(parents=True)
+        (owner / '.git').write_text('gitdir: ' + str(gitdir))
+        for name in ('journal.py', 'activity-v1.sql'):
+            shutil.copyfile(ROOT / 'tests/qa' / name, owner / 'tests/qa' / name)
         for mode in ('exited', 'timeout', 'cancelled'):
             with self.subTest(mode=mode):
-                evidence = Evidence(ROOT, 'dev-check-report-host-tests', Redactor())
+                evidence = Evidence(owner, 'dev-check-report-host-tests', Redactor())
                 try:
                     cancel = threading.Event()
                     if mode == 'cancelled':
@@ -120,7 +130,8 @@ class CheckReportTests(unittest.TestCase):
                     self.assertEqual(result.reason, mode)
                     self.assertEqual(result.returncode, {'exited': 0, 'timeout': 124, 'cancelled': 130}[mode])
                     self.assertTrue(result.log.is_file())
-                    self.assertIn('/tests/results/devtools/logs/', str(result.log))
+                    self.assertEqual(result.log.parent, primary.resolve() / 'tests/results/devtools/logs')
+                    self.assertFalse((owner / 'tests/results').exists())
                 finally:
                     evidence.close()
 

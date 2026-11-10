@@ -96,50 +96,92 @@ python3 -m unittest discover -s ios/Eval -p test_e2e_runner.py
 
 ## Generated-storage retention
 
-The owner's 2026-10-20 cleanup request authorizes this narrow exception to the raw
-preservation rule. `./dev cleanup` is read-only and dry-run by default (including
-no journal/evidence writes). `./dev cleanup --apply` rechecks eligibility under
-host/cache/name locks, then stores per-file path, size, SHA-256 and inode metadata
-in the primary results directory's `retention/` before deletion. Committed
-`qa.retention.planned` and `qa.retention.deleted`/`partial` events are additive
-journal tombstones; existing journal rows and archives remain intact. A partial
-operation is reported as a failure, never as a completed cleanup.
+The owner's 2026-11-09 cleanup decision makes retired closed QA output and build
+caches disposable. This replaces the older archive-before-delete/latest-lane
+policy. Code, reusable fixtures, app/user databases, source recovery bundles and
+active work are outside this scope.
 
-Policy is the small versioned [`retention.json`](retention.json):
+`./dev cleanup` is a read-only dry-run. `./dev cleanup --apply` rechecks the plan
+under nonblocking host/cache/name locks, records per-file hashes and committed
+journal tombstones, then unlinks only the inventoried paths through no-follow
+file descriptors. Open files, changed manifests, live/reused PIDs, held locks,
+unknown ownership, control aliases and uncertain source revisions fail closed.
+No device, simulator, service, source worktree or app container is stopped or reset.
 
-- Passed raw copies: minimum **7 days**; failed/interrupted: **30 days**, using
-  newest file mtime conservatively. Retain the latest run per exact selected-method
-  lane. Require a final retained summary, matching latest journal lifecycle result,
-  no journal/shutdown errors, and a coherent byte-identical `qa.archive` revision.
-  No archive is created during cleanup. Missing metadata or archives retain the run.
-- Retired compiler caches: minimum **1 day**, only the explicit compiler/index
-  component allowlist. Require an original owner lock with matching worktree ID,
-  absent owner directory, no Git worktree registration, absent PID, and free kernel
-  locks. PID reuse can retain extra bytes; it never authorizes deletion. Preserve
-  all caches of existing worktrees, even idle ones. Products, Logs, TestResults,
-  SourcePackages, XCBuildData/build.db and release maps are outside this allowlist.
-- Pins protect a whole candidate if any descendant matches. Archives, phone/freeze/
-  release proof, known rollback identities, performance baselines and audit records
-  are pinned or outside the allowlist. Local tracked Markdown/JSON and current open
-  GitHub Issue/PR bodies, comments and reviews protect cited paths. A citation to a
-  derived-data root protects every component; a Products-only citation preserves
-  that sibling product tree. Failed reference retrieval stops cleanup.
-- Symlinks, aliased control files, databases, unknown entries, open files, live
-  writers and changed manifests fail closed. No device, app container or working
-  worktree is modified. A dry-run plan is descriptive; it is never trusted by apply.
+[`retention.json`](retention.json) sets:
 
-Automatic maintenance runs **once after each completed `./dev test release`
-command**, after the QA authority returns and releases
-its resource locks. It uses the same apply policy and cannot replace the QA exit
-code. A busy host or missing metadata/reference access skips maintenance with its
-own message. There is no daemon, timer or new T3 schedule, and no cleanup during
-an active run. Set `automatic` to false to disable; edit the positive integer day
-limits or pins deliberately. Automation starts when this revision of `./dev` is
-used; an older primary checkout does not acquire the hook merely because a PR merged.
+- **3 days** for passed, failed/interrupted closed runs and retired derived-data
+  components. New content and recent owner-lock activity count toward age.
+  Existing owner directories, repository aliases and registered worktrees remain
+  protected, including queued/nonterminal work without a PID or held lock. Automatic
+  maintenance requires a missing, unregistered owner and an absent recorded PID;
+  PID/lock inactivity alone cannot prove a surviving task finished. A separate
+  authorized one-time cleanup may use actual platform task-state evidence.
+- **20 GB** of inventoried retired closed generated files, measured by directory
+  allocated bytes. If this soft budget is exceeded, remove the oldest safely
+  retired copies first, including younger disposable copies. It is not a
+  physical disk quota: APFS shared blocks can make actual reclamation smaller;
+  active/existing-owner/unknown roots are reported without walking their build trees; explicit
+  pins and source-revision uncertainty are never overridden by budget pressure.
+- **30 days** for cleanup manifests; young audit records cannot be budget-evicted.
+  Compact QA journal history and control locks remain. This QA database is separate
+  from the application's user Activity database and is never pruned here.
 
-`./dev test qa` runs the bounded host QA collection with temporary synthetic trees,
-including dry-run/apply, pins/references, live owners/locks, symlink/traversal/control
-paths, changed files, immutable journal integrity, archived raw copies and the
-post-QA trigger. No native build or Simulator is needed. The small synthetic file
-contents are inline in `test_retention.py`; reusable UI datasets remain under
-`tests/fixtures/`.
+Managed derived-data components include Intermediates, Products, Logs,
+TestResults, SourcePackages, release maps, compiler/module/index/SDK caches.
+SourcePackages must be unchanged dependency code at exact revisions from the
+controlled `ios/Dependencies/Package.resolved`. Remote proof uses only its trusted
+HTTPS URLs (no credentials, query or fragment), is delayed until a SourcePackages
+candidate is actually selected, and is reused per URL for one cleanup pass.
+Dirty checkouts, external worktrees/shared common Git directories, unrecognized
+revisions/refs or unavailable proof preserve that
+component and report why; they do not preserve its unrelated compiler siblings.
+Git probes set `GIT_OPTIONAL_LOCKS=0` so a dry-run does not refresh vendor indexes.
+Historical `one-app` owner paths retain their original lexical identity after the
+repository alias became `today`.
+
+Closed raw runs under `runs/` (or an explicitly journaled top-level generated run)
+need a final summary, matching latest journal closure and retired owner. They do not need a second
+large archive, and the latest selector lane is not exempt from expiry. Completed
+journal archives, individual old devtools logs and invocation/device receipts with
+closed journal ownership also expire independently after their owner retires.
+Old ownerless records remain protected. Ad-hoc output without a closed summary/ownership record is
+reported as unmanaged rather than guessed disposable; new scripts should use the
+same run summary and journal protocol instead of inventing untracked output roots.
+Unknown children inside the fixed `runs`, `archives` and `devtools` namespaces
+(including unmatched derived-data identities) are also listed in `unmanaged_paths`.
+This report enumerates only directory names at fixed levels and never walks unknown
+content or changes its deletion eligibility.
+
+Default pins are empty and historical document/Issue links do not retain generated
+bytes indefinitely. Set `pins` deliberately for a particular future proof. Generic
+name pins apply to candidate/ancestor names; they do not match SDK/header descendants
+such as `Debug-iphonesimulator`, `CMHeadphone*` or `NSAutoreleasePool.h`. An anchored
+path pin can still retain a particular descendant. `retain_references: true` opts
+back into current document/open-Issue protection when a task explicitly needs it;
+failed retrieval then stops cleanup. Protected/unmanaged paths, oldest candidate,
+budget excess and reclaimed byte counters remain visible in cleanup results.
+
+Automatic best-effort maintenance runs **before and after** normal `./dev build`,
+`generate`, `resolve`, `test`, `check`, `benchmark`, `ui` and `release` commands. The
+pre-hook can collect retired output from a previous invocation before this invocation
+acquires its build locks; the post-hook runs after the authority releases locks.
+A busy host, invalid policy, import failure or maintenance failure produces a skip
+message and cannot replace the requested command's exit code. There is no daemon,
+timer, extra T3 schedule or cleanup inside a running authority. `automatic: false`
+disables these hooks; dry-run/apply remain explicit entry points.
+The executable explicitly enables maintenance. Imported `cli.main()` defaults to
+maintenance disabled, including when tests use its default source root; synthetic
+hook tests must opt in with an isolated temporary root.
+
+The policy starts working only when the invoking checkout contains this revision
+of `./dev` and the retention module. Merging alone does not update another active
+checkout. Adopt at a safe clean boundary; do not reset another owner's work.
+
+`uv run --no-project python -m unittest discover -s tests/qa -p 'test_*.py'`
+exercises the host QA collection using temporary synthetic trees
+(no Swift build, simulator or user data). Retention regressions cover live locks,
+PID reuse, source edits, source authority/URL validation, exact hardlink/symlink
+boundaries, changed files, budget pressure, raw closure, alias identities, bounded
+scan/remote-query counts, queued owners, complete empty app-directory removal,
+default-root import isolation and both command hooks' failure propagation.
