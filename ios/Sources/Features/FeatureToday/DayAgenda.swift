@@ -15,7 +15,7 @@
   /// held in faint neutral Morning / Afternoon / Evening cards (`DayPartRows`).
   /// On today a red "N overdue" line sits above the timeline (tap to show the rows, Tidy to reschedule them all).
   /// A past day also shows what was done on it, rebuilt from Activity (`DayHistory`): reminders completed that day at
-  /// their completion time, alarms that were stopped, and events deleted after they happened.
+  /// their completion time, recorded alarm stops, reopens and Undo. Other actions remain under Changes.
   /// Settle exists only on the device's current day (`SettleGate`): a collapsed Settled disclosure follows its timeline.
   /// The Calendar tab adds the week strip to pick a day.
   package struct DayAgenda: View {
@@ -445,24 +445,13 @@
     private func timelineContent(_ items: DayItems) -> some View {
       if isPastDay {
         if historyDay == cal.startOfDay(for: day) {
-          let untimed = history.facts.filter { $0.isPrimary && $0.isUntimedPlan }
-          let allDay = untimed.filter { $0.event.subjectKind == "event" }
-          if !allDay.isEmpty {
-            AgendaHeader(title: "All day", isInline: !showsWeekStrip)
-            ForEach(allDay) { fact in HistoricalFactRow(fact: fact, todayStyle: !showsWeekStrip) }
-          }
           DayPartRows(
             rows: DayPart.rows(
-              history.facts.filter { $0.isPrimary && !$0.isUntimedPlan }, day: day, calendar: cal,
+              history.facts.filter(\.isPrimary), day: day, calendar: cal,
               boundaries: dayBoundaries, start: \.at, isPlanned: { _ in true }), swipes: swipes,
             drag: drag
           ) { fact in
             HistoricalFactRow(fact: fact, todayStyle: !showsWeekStrip)
-          }
-          let anytime = untimed.filter { $0.event.subjectKind != "event" }
-          if !anytime.isEmpty {
-            AnytimeLabel(title: "Anytime")
-            ForEach(anytime) { fact in HistoricalFactRow(fact: fact, todayStyle: !showsWeekStrip) }
           }
           let changes = history.facts.filter { !$0.isPrimary }
           if !changes.isEmpty {
@@ -472,7 +461,7 @@
             }
           }
           if history.facts.isEmpty {
-            Text("No recorded history").foregroundStyle(.secondary)
+            Text("No recorded actions").foregroundStyle(.secondary)
           }
         }
       }
@@ -889,7 +878,7 @@
 
     private func items(on day: Date, now: Date) -> DayItems {
       if isPastDay {
-        // Past rows are reconstructed from retained observations, never from mutable source models.
+        // Past rows contain only recorded actions, never mutable source models or bare plans.
         return DayItems(allDay: [], externalAllDay: [], timeline: [], anytime: [])
       }
 
@@ -936,12 +925,9 @@
         showsAlarms
         ? CalendarAlarms.occurrences(of: alarms.map(\.spec), on: day, now: now, calendar: cal)
         : []
-      // A past day: what Activity says was done on it. Today and later days are unchanged.
-      let past = pastItems(rings: rings)
-      timeline += rings.indices.map { i in
-        TimelineItem.alarm(alarms[rings[i].index], rings[i].date, past.stoppedAt[i])
+      timeline += rings.map { ring in
+        TimelineItem.alarm(alarms[ring.index], ring.date, nil)
       }
-      timeline += past.items
       if cal.isDate(day, inSameDayAs: now), !timeline.isEmpty {
         timeline.append(.nowMarker(now))
       }
@@ -957,45 +943,6 @@
           ($0.start, $0.isNow ? 0 : 1) < ($1.start, $1.isNow ? 0 : 1)
         },
         anytime: anytime.filter { !isHidden(target($0), on: day) })
-    }
-
-    /// On a past day: reminders completed that day (the live row when Today still has the reminder done, else the Activity
-    /// row), which rings were stopped, stops of alarms no longer scheduled, and events deleted after they had started.
-    private func pastItems(rings: [AlarmOccurrence]) -> (
-      items: [TimelineItem], stoppedAt: [Int: Date]
-    ) {
-      guard isPastDay else { return ([], [:]) }
-      var items: [TimelineItem] = []
-      var shownLive = Set<String>()
-      var reopened = Set<String>()
-      let refs = Set(history.completions.compactMap(\.ref))
-      for task in tasks {
-        let doneToday = task.isDone && task.doneAt.map { cal.isDate($0, inSameDayAs: day) } == true
-        if doneToday, let doneAt = task.doneAt { items.append(.done(task, doneAt)) }
-        guard !refs.isEmpty, doneToday || (!task.isDone && task.repeats == nil),
-          let key = Ledger.ref(task.persistentModelID).map(Ledger.comparisonKey), refs.contains(key)
-        else { continue }
-        if doneToday { shownLive.insert(key) } else { reopened.insert(key) }
-      }
-      // `history` may still hold the previous day for a moment after the day changes.
-      guard historyDay == cal.startOfDay(for: day) else { return (items, [:]) }
-      for c in history.completions {
-        guard let ref = c.ref else {
-          items.append(.completed(c))
-          continue
-        }
-        if !shownLive.contains(ref), !reopened.contains(ref) { items.append(.completed(c)) }
-      }
-      var stoppedAt: [Int: Date] = [:]
-      if showsAlarms {
-        let match = DayHistory.matchStops(
-          rings: rings.map { (alarms[$0.index].alarmKitID?.uuidString, $0.date) },
-          stops: history.alarmStops)
-        stoppedAt = match.stopped
-        items += match.unmatched.map(TimelineItem.stoppedAlarm)
-      }
-      items += history.deletedEvents.map(TimelineItem.deletedEvent)
-      return (items, stoppedAt)
     }
 
     /// Deleting a reminder never asks: the Undo toast is the safety net.
