@@ -1,28 +1,20 @@
 import Foundation
 import TodayCore
 
-/// What a past day really held, rebuilt from the Activity store: reminders completed that day, alarms stopped that day,
-/// and calendar events of that day deleted after they had started. Read-only: nothing here writes to Today or to Apple.
+/// Actual actions on a past day, rebuilt from retained Activity records. Plans are detail context,
+/// never evidence of attendance, completion or ringing. Read-only: nothing here writes to Today or Apple.
 /// Pure (no SQLite, no SwiftData), so the rules run under `./dev test unit`; `DayHistory.load` pages the store.
 public struct DayHistory: Equatable, Sendable {
-  /// One immutable observation. Identity is the Activity uid, never the current series id.
+  /// One immutable action. Identity is the Activity uid, never the current series id.
   public struct Fact: Equatable, Sendable, Identifiable {
     public var event: ActivityEvent
     public var undone: Bool
     public var outcomeUnknown = false
-    public var scheduled = false
     public var related: [ActivityEvent] = []
-    public var id: String { (scheduled ? "scheduled:" : "") + event.uid }
-    public var at: Date {
-      scheduled ? event.beforeTs.map(ActivityClock.date(ms:)) ?? event.date : event.date
-    }
+    public var id: String { event.uid }
+    public var at: Date { event.date }
     public var title: String { event.title ?? "Untitled item" }
     public var action: String {
-      if scheduled {
-        return event.kind == "change.observed"
-          ? (event.ts > (event.beforeTs ?? event.ts) ? "Scheduled · Observed later" : "Scheduled")
-          : "Scheduled · Source deleted later"
-      }
       if event.kind == ActivityKind.sysAlarmStopped { return "Alarm stopped" }
       switch event.kind {
       case "change.completed":
@@ -33,14 +25,9 @@ public struct DayHistory: Equatable, Sendable {
       default: return event.kind.replacingOccurrences(of: "change.", with: "").capitalized
       }
     }
-    public var isUntimedPlan: Bool {
-      guard scheduled else { return false }
-      return ActivityProps.dictionary(event.props)["all_day"] as? Bool == true
-    }
     public var isPrimary: Bool {
-      scheduled
-        || ["change.completed", "change.reopened", "change.undone", ActivityKind.sysAlarmStopped]
-          .contains(event.kind)
+      ["change.completed", "change.reopened", "change.undone", ActivityKind.sysAlarmStopped]
+        .contains(event.kind)
     }
   }
   public var facts: [Fact] = []
@@ -70,6 +57,7 @@ public struct DayHistory: Equatable, Sendable {
     public var deletedAt: Date
   }
 
+  /// Legacy context summaries. Only `facts` supplies action-history rows and emptiness.
   public var completions: [Completion] = []
   public var alarmStops: [AlarmStop] = []
   public var deletedEvents: [DeletedEvent] = []
@@ -84,7 +72,7 @@ public struct DayHistory: Equatable, Sendable {
   }
 
   public var isEmpty: Bool {
-    facts.isEmpty && completions.isEmpty && alarmStops.isEmpty && deletedEvents.isEmpty
+    facts.isEmpty
   }
 
   public static let observationKind = "change.observed"
@@ -104,7 +92,8 @@ public struct DayHistory: Equatable, Sendable {
   /// - `shownLive`: reminders whose live copy is done on this day; the live row shows them, so the ledger row is dropped.
   /// - `reopened`: one-off reminders whose live copy is open again; a completion of theirs was taken back on a later day.
   ///   (A repeating reminder is open again after every completion, so it is never in this set.)
-  /// - A deleted event shows only when it was deleted at or after its start: it happened. Deleted before it began, it did not.
+  /// - Legacy deletion intervals remain available as context; elapsed scheduled time never proves attendance.
+  /// - `facts` is the action-facing projection. Every action keeps its uid and execution timestamp.
   public static func reconstruct(
     dayEvents: [ActivityEvent], deletions: [ActivityEvent], undone: Set<String>,
     observations: [ActivityEvent] = [], related: [ActivityEvent] = [],
@@ -152,14 +141,15 @@ public struct DayHistory: Equatable, Sendable {
 
     var history = DayHistory(completions: kept, alarmStops: stops, deletedEvents: events)
     history.facts = ordered.filter {
-      ["task", "alarm", "event"].contains($0.subjectKind ?? "task")
+      dayKinds.contains($0.kind) && ["task", "alarm", "event"].contains($0.subjectKind ?? "task")
     }
     .map { event in
       let reopenedLater =
         event.kind == "change.completed" && event.beforeTs != nil
         && ordered.contains {
           $0.kind == "change.reopened" && $0.ts >= event.ts
-            && $0.subjectRef.map(key) == event.subjectRef.map(key) && $0.beforeTs == event.beforeTs
+            && event.subjectRef != nil && $0.subjectRef.map(key) == event.subjectRef.map(key)
+            && $0.beforeTs == event.beforeTs
         }
       let uncertainReopen =
         event.kind == "change.completed" && event.beforeTs == nil
@@ -171,65 +161,54 @@ public struct DayHistory: Equatable, Sendable {
         event: event, undone: undone.contains(event.uid) || reopenedLater,
         outcomeUnknown: uncertainReopen)
     }
-    // A retained deletion carries the original scheduled interval, not evidence of attendance.
-    history.facts += deletions.filter { e in
-      e.subjectKind == "event" && e.beforeTs.map { e.ts >= $0 } == true
-    }.map { Fact(event: $0, undone: undone.contains($0.uid), scheduled: true) }
-    // Earliest observation freezes what was known, even if a later refresh renames or moves the source.
+    // Enrich each action without replacing it with a plan or collapsing other actions in its occurrence.
     var seen = Set<String>()
-    for observation in observations.sorted(by: { ($0.ts, $0.uid) < ($1.ts, $1.uid) }) {
-      guard let ref = observation.subjectRef, let anchor = observation.beforeTs else { continue }
-      let identity = key(ref) + "@" + String(anchor)
-      guard seen.insert(identity).inserted else { continue }
-      var anchors: Set<Int64> = [anchor]
-      let candidates = (dayEvents + related).filter { $0.subjectRef.map(key) == key(ref) }
-      // Only explicit date edits connect anchors. Never join adjacent occurrences by title or series alone.
+    let evidence = (dayEvents + related + observations + deletions).filter {
+      seen.insert($0.uid).inserted
+    }
+    let byReference = Dictionary(grouping: evidence) { $0.subjectRef.map(key) ?? "" }
+    for index in history.facts.indices {
+      let action = history.facts[index].event
+      guard let ref = action.subjectRef else { continue }
+      let candidates = byReference[key(ref)] ?? []
+      var anchors = Set([action.beforeTs, action.afterTs].compactMap { $0 })
+      // Explicit move edges alone connect occurrences. Titles and adjacent series dates never do.
       for _ in 0..<min(candidates.count, 200) {
         let before = anchors
         for edit in candidates where ["change.moved", "change.redated"].contains(edit.kind) {
-          if let from = edit.beforeTs, let to = edit.afterTs, anchors.contains(from) {
-            anchors.insert(to)
+          if let from = edit.beforeTs, let to = edit.afterTs,
+            anchors.contains(from) || anchors.contains(to)
+          {
+            anchors.formUnion([from, to])
           }
         }
         if anchors == before { break }
       }
-      seen.formUnion(anchors.map { key(ref) + "@" + String($0) })
-      var chain = candidates.filter {
-        $0.subjectRef.map(key) == key(ref)
-          && ($0.beforeTs.map(anchors.contains) == true || $0.afterTs.map(anchors.contains) == true)
-          && $0.kind != observationKind
-      }.reduce(into: [ActivityEvent]()) { result, event in
-        if !result.contains(where: { $0.uid == event.uid }) { result.append(event) }
-      }.sorted { ($0.ts, $0.uid) < ($1.ts, $1.uid) }
-      chain += observations.filter {
-        $0.uid != observation.uid && $0.subjectRef.map(key) == key(ref)
-          && $0.beforeTs.map(anchors.contains) == true
+      var chain = candidates.filter { event in
+        event.uid != action.uid
+          && (event.beforeTs.map(anchors.contains) == true
+            || event.afterTs.map(anchors.contains) == true
+            || event.undoOf == action.uid
+            || (action.subjectKind == "alarm" && event.kind == deletedKind && event.ts >= action.ts))
       }
-      let linkedIDs = Set(chain.map(\.uid))
-      for event in related
-      where event.undoOf.map(linkedIDs.contains) == true
-        || (observation.subjectKind == "alarm" && event.subjectRef.map(key) == key(ref)
-          && event.kind == deletedKind && event.ts >= anchor)
-      {
-        if !chain.contains(where: { $0.uid == event.uid }) { chain.append(event) }
+      let linkedIDs = Set(chain.map(\.uid) + [action.uid])
+      chain += evidence.filter { event in
+        event.uid != action.uid && event.undoOf.map(linkedIDs.contains) == true
+          && !chain.contains(where: { $0.uid == event.uid })
       }
-      chain.sort { ($0.ts, $0.uid) < ($1.ts, $1.uid) }
-      let actions = chain.filter { event in
-        dayEvents.contains(where: { $0.uid == event.uid })
-          && ["change.completed", ActivityKind.sysAlarmStopped].contains(event.kind)
-      }
-      // Keep one main row per precisely linked occurrence; its immutable chain remains in details.
-      history.facts.removeAll { fact in chain.contains(where: { $0.uid == fact.event.uid }) }
-      if let action = actions.last {
-        let reversed =
-          undone.contains(action.uid)
+      history.facts[index].related = chain.sorted { ($0.ts, $0.uid) < ($1.ts, $1.uid) }
+      if action.kind == "change.completed" {
+        history.facts[index].undone =
+          history.facts[index].undone
           || chain.contains {
             $0.ts >= action.ts && ($0.kind == "change.reopened" || $0.undoOf == action.uid)
           }
-        history.facts.append(Fact(event: action, undone: reversed, related: [observation] + chain))
-      } else {
-        history.facts.append(
-          Fact(event: observation, undone: false, scheduled: true, related: chain))
+        history.facts[index].outcomeUnknown =
+          history.facts[index].outcomeUnknown
+          || (action.beforeTs == nil
+            && candidates.contains {
+              $0.kind == "change.reopened" && $0.ts >= action.ts
+            })
       }
     }
     history.facts.sort { ($0.at, $0.id) < ($1.at, $1.id) }
@@ -294,7 +273,7 @@ extension DayHistory {
         endMs: ActivityClock.ms(end), after: $0)
     }
     var related: [ActivityEvent] = []
-    for ref in Set(observations.compactMap(\.subjectRef)).prefix(200) {
+    for ref in Set((dayEvents + observations).compactMap(\.subjectRef)).sorted().prefix(200) {
       related += try store.page(ActivityQuery(subjectRef: ref), limit: 200)
     }
     let undone = try store.undone(among: (dayEvents + deletions + related).map(\.uid))

@@ -5,7 +5,7 @@ import XCTest
 
 /// A past day rebuilt from Activity: what counts as done, and the indexed day queries behind it.
 final class DayHistoryTests: XCTestCase {
-  func testRescheduledPlanKeepsOneMainRowAndBothObservedTimesInDetails() {
+  func testRescheduleIsAChangeAtExecutionTimeWithPlanContext() {
     var original = event("change.observed", "Family", at(9), ref: "family", subject: "event")
     original.beforeTs = ActivityClock.ms(at(18))
     var moved = event("change.moved", "Family", at(10), ref: "family", subject: "event")
@@ -17,11 +17,13 @@ final class DayHistoryTests: XCTestCase {
       dayEvents: [moved], deletions: [], undone: [],
       observations: [original, revised], related: [moved])
     XCTAssertEqual(history.facts.count, 1)
-    XCTAssertEqual(history.facts.first?.event.uid, original.uid)
-    XCTAssertEqual(Set(history.facts.first?.related.map(\.uid) ?? []), [moved.uid, revised.uid])
+    XCTAssertEqual(history.facts.first?.event.uid, moved.uid)
+    XCTAssertEqual(history.facts.first?.at, at(10))
+    XCTAssertEqual(history.facts.first?.isPrimary, false)
+    XCTAssertEqual(Set(history.facts.first?.related.map(\.uid) ?? []), [original.uid, revised.uid])
   }
 
-  func testObservedPlanSurvivesRenameAndLaterDeletionWithoutCompletion() {
+  func testObservationWithoutAnActionStaysOutOfHistoryAfterRenameAndDeletion() {
     var first = event("change.observed", "Family", at(9), ref: "family", subject: "event")
     first.beforeTs = ActivityClock.ms(at(18))
     first.afterTs = ActivityClock.ms(at(18, 30))
@@ -35,14 +37,12 @@ final class DayHistoryTests: XCTestCase {
     let history = DayHistory.reconstruct(
       dayEvents: [], deletions: [], undone: [],
       observations: [renamed, first], related: [deleted])
-    XCTAssertEqual(history.facts.count, 1)
-    XCTAssertEqual(history.facts[0].title, "Family")
-    XCTAssertTrue(history.facts[0].scheduled)
-    XCTAssertEqual(history.facts[0].related.map(\.uid), [renamed.uid, deleted.uid])
+    XCTAssertTrue(history.facts.isEmpty)
+    XCTAssertTrue(history.isEmpty)
     XCTAssertTrue(history.completions.isEmpty)
   }
 
-  func testPlanCompletionMergesOnlyExactOccurrenceAndReopenRemovesDoneStyle() {
+  func testPlanContextKeepsEveryExactOccurrenceActionAndReopenOutcome() {
     var plan = event("change.observed", "Walk", at(7), ref: "series")
     plan.beforeTs = ActivityClock.ms(at(8))
     var done = event("change.completed", "Walk", at(9), ref: "series")
@@ -54,13 +54,14 @@ final class DayHistoryTests: XCTestCase {
     let history = DayHistory.reconstruct(
       dayEvents: [done, reopened, other], deletions: [], undone: [],
       observations: [plan])
-    XCTAssertEqual(history.facts.count, 2)
+    XCTAssertEqual(history.facts.count, 3)
+    XCTAssertEqual(history.facts.map(\.event.uid), [done.uid, reopened.uid, other.uid])
     let merged = history.facts.first { $0.event.uid == done.uid }!
     XCTAssertTrue(merged.undone)
     XCTAssertFalse(merged.related.contains { $0.uid == other.uid })
   }
 
-  func testObservationStoreLoadUsesPlanDateRatherThanObservationDate() throws {
+  func testObservationAloneIsNotAnActionEvenWhenObservedLater() throws {
     let store = try ActivityStore(location: .memory)
     var plan = event(
       "change.observed", "Family", at(9, plusDays: 1), ref: "family", subject: "event")
@@ -69,14 +70,118 @@ final class DayHistoryTests: XCTestCase {
     let history = try DayHistory.load(
       from: store, day: day, calendar: cal,
       shownLive: [], reopened: [], key: { $0 })
-    XCTAssertEqual(history.facts.map(\.title), ["Family"])
-    XCTAssertEqual(history.facts.first?.action, "Scheduled · Observed later")
+    XCTAssertTrue(history.facts.isEmpty)
+    XCTAssertTrue(history.isEmpty)
+    XCTAssertEqual(try store.page(ActivityQuery()).map(\.uid), [plan.uid])
     try store.clear()
     XCTAssertTrue(
       try DayHistory.load(
         from: store, day: day, calendar: cal,
         shownLive: [], reopened: [], key: { $0 }
       ).isEmpty)
+  }
+
+  func testPlannedOnlyYesterdayWithFuturePostponementHasNoGhostActions() throws {
+    let store = try ActivityStore(location: .memory)
+    for subject in ["task", "alarm", "event"] {
+      var plan = event("change.observed", "Same title", at(7), ref: subject, subject: subject)
+      plan.beforeTs = ActivityClock.ms(at(8))
+      plan.props = ActivityProps.json(["all_day": true])
+      var move = event(
+        "change.moved", "Same title", at(9, plusDays: 1), ref: subject, subject: subject)
+      move.beforeTs = plan.beforeTs
+      move.afterTs = ActivityClock.ms(at(8, plusDays: 2))
+      try store.insert([plan, move])
+    }
+    let past = try DayHistory.load(
+      from: store, day: day, calendar: cal, shownLive: [], reopened: [], key: { $0 })
+    XCTAssertTrue(past.facts.isEmpty)
+    XCTAssertTrue(past.isEmpty)
+    let movedDay = try DayHistory.load(
+      from: store, day: at(0, plusDays: 1), calendar: cal,
+      shownLive: [], reopened: [], key: { $0 })
+    XCTAssertEqual(movedDay.facts.count, 3)
+    XCTAssertTrue(movedDay.facts.allSatisfy { !$0.isPrimary && $0.at == at(9, plusDays: 1) })
+    XCTAssertEqual(try store.page(ActivityQuery()).count, 6, "Projection must preserve raw records")
+  }
+
+  func testCompletionSurvivesLaterMoveDeletionReopenAndUndoWithoutObservation() throws {
+    let store = try ActivityStore(location: .memory)
+    var done = event("change.completed", "Original", at(10), ref: "series")
+    done.beforeTs = ActivityClock.ms(at(8))
+    done.actor = "agent:Requested assistant"
+    done.channel = "chat"
+    var next = event("change.completed", "Original", at(11), ref: "series")
+    next.beforeTs = ActivityClock.ms(at(8, plusDays: 1))
+    var move = event("change.moved", "Renamed", at(9, plusDays: 1), ref: "series")
+    move.beforeTs = done.beforeTs
+    move.afterTs = ActivityClock.ms(at(8, plusDays: 2))
+    var reopen = event("change.reopened", "Renamed", at(10, plusDays: 1), ref: "series")
+    reopen.beforeTs = move.afterTs
+    var deletion = event("change.deleted", "Renamed", at(11, plusDays: 1), ref: "series")
+    deletion.beforeTs = move.afterTs
+    var undo = event("change.undone", "Renamed", at(12, plusDays: 1), ref: "series")
+    undo.undoOf = done.uid
+    try store.insert([done, next, move, reopen, deletion, undo])
+    let past = try DayHistory.load(
+      from: store, day: day, calendar: cal, shownLive: ["series"], reopened: ["series"], key: { $0 }
+    )
+    XCTAssertEqual(past.facts.map(\.event.uid), [done.uid, next.uid])
+    XCTAssertEqual(past.facts.map(\.at), [at(10), at(11)])
+    XCTAssertEqual(past.facts.map(\.title), ["Original", "Original"])
+    XCTAssertTrue(past.facts.allSatisfy(\.isPrimary))
+    XCTAssertTrue(past.facts[0].undone)
+    XCTAssertEqual(past.facts[0].event.actor, done.actor)
+    XCTAssertEqual(past.facts[0].event.channel, "chat")
+    XCTAssertFalse(past.facts[1].undone)
+    XCTAssertEqual(
+      Set(past.facts[0].related.map(\.uid)), [move.uid, reopen.uid, deletion.uid, undo.uid])
+    XCTAssertTrue(past.facts[1].related.isEmpty, "Do not join repeats by series or title")
+    let later = try DayHistory.load(
+      from: store, day: at(0, plusDays: 1), calendar: cal,
+      shownLive: [], reopened: [], key: { $0 })
+    XCTAssertEqual(
+      Set(later.facts.map(\.event.uid)), [move.uid, reopen.uid, deletion.uid, undo.uid])
+    XCTAssertTrue(later.facts.allSatisfy { fact in !fact.related.contains { $0.uid == fact.id } })
+    XCTAssertTrue(later.facts.allSatisfy { cal.isDate($0.at, inSameDayAs: at(0, plusDays: 1)) })
+  }
+
+  func testDeletionAfterCalendarStartDoesNotProveAttendance() throws {
+    let store = try ActivityStore(location: .memory)
+    var deletion = deletedEvent(
+      "Meeting", start: at(8), minutes: 60, deletedAt: at(10, plusDays: 1))
+    deletion.subjectRef = "meeting"
+    try store.insert([deletion])
+    let past = try DayHistory.load(
+      from: store, day: day, calendar: cal, shownLive: [], reopened: [], key: { $0 })
+    XCTAssertTrue(past.facts.isEmpty)
+    XCTAssertTrue(past.isEmpty)
+    let later = try DayHistory.load(
+      from: store, day: deletion.date, calendar: cal, shownLive: [], reopened: [], key: { $0 })
+    XCTAssertEqual(later.facts.map(\.event.uid), [deletion.uid])
+    XCTAssertEqual(later.facts.first?.at, deletion.date)
+    XCTAssertEqual(later.facts.first?.isPrimary, false)
+  }
+
+  func testStopWithoutOccurrenceAnchorSurvivesDeletedAlarmButBareScheduleDoesNot() throws {
+    let store = try ActivityStore(location: .memory)
+    let stop = event("sys.alarm.stopped", "Wake", at(7, 4), ref: "alarm", subject: "alarm")
+    var plan = event("change.observed", "Wake", at(6), ref: "alarm", subject: "alarm")
+    plan.beforeTs = ActivityClock.ms(at(7))
+    let deletion = event(
+      "change.deleted", "Wake", at(9, plusDays: 1), ref: "alarm", subject: "alarm")
+    try store.insert([stop, plan, deletion])
+    let past = try DayHistory.load(
+      from: store, day: day, calendar: cal, shownLive: [], reopened: [], key: { $0 })
+    XCTAssertEqual(past.facts.map(\.event.uid), [stop.uid])
+    XCTAssertEqual(past.facts.first?.at, at(7, 4))
+    XCTAssertEqual(past.facts.first?.action, "Alarm stopped")
+    XCTAssertEqual(past.facts.first?.related.map(\.uid), [deletion.uid])
+    XCTAssertTrue(past.completions.isEmpty)
+  }
+
+  func testEmptyDayHasNoRecordedActions() {
+    XCTAssertTrue(DayHistory.reconstruct(dayEvents: [], deletions: [], undone: []).isEmpty)
   }
 
   @MainActor
@@ -118,13 +223,16 @@ final class DayHistoryTests: XCTestCase {
     plan.beforeTs = ActivityClock.ms(at(7))
     let deletion = event(
       "change.deleted", "Morning alarm", at(9, plusDays: 1), ref: "alarm", subject: "alarm")
+    var stop = event("sys.alarm.stopped", "Morning alarm", at(7, 4), ref: "alarm", subject: "alarm")
+    stop.beforeTs = plan.beforeTs
     let history = DayHistory.reconstruct(
-      dayEvents: [], deletions: [], undone: [],
+      dayEvents: [stop], deletions: [], undone: [],
       observations: [plan], related: [deletion])
     XCTAssertEqual(history.facts.count, 1)
-    XCTAssertEqual(history.facts[0].at, at(7))
-    XCTAssertEqual(history.facts[0].related.first?.date, at(9, plusDays: 1))
-    XCTAssertEqual(history.facts[0].related.first?.kind, "change.deleted")
+    XCTAssertEqual(history.facts[0].at, at(7, 4))
+    XCTAssertEqual(history.facts[0].action, "Alarm stopped")
+    XCTAssertTrue(history.facts[0].isPrimary)
+    XCTAssertEqual(history.facts[0].related.map(\.uid), [plan.uid, deletion.uid])
   }
 
   func testLegacyReopenDoesNotClaimFinalCompletionOrGuessOccurrence() {

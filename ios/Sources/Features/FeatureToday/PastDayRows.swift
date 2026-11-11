@@ -5,8 +5,7 @@
   import TodayPlannerUI
   import SwiftUI
 
-  /// A row a past day rebuilt from Activity (`DayHistory`): a reminder completed then, an alarm stopped then, or an event
-  /// deleted after it happened. Read-only: no tap, swipe or menu, because its source may be gone.
+  /// A read-only historical action row. Its source may have changed or been deleted since the action.
   struct PastDayRow: View {
     enum Mark {
       /// A completed reminder: the done style of a reminder row (green check, struck through, dimmed).
@@ -102,7 +101,7 @@
           : (fact.event.kind == ActivityKind.sysAlarmStopped
             ? .stopped
             : (fact.event.subjectKind == "event" ? .deletedEvent : .open)),
-        todayStyle: todayStyle, untimed: fact.isUntimedPlan
+        todayStyle: todayStyle
       )
       .contentShape(Rectangle())
       .onTapGesture { showsDetails = true }
@@ -119,8 +118,7 @@
                 value: fact.event.actor == "system"
                   ? "System" : LedgerActor(raw: fact.event.actor).name)
               LabeledContent("Channel", value: fact.event.channel ?? "Unknown")
-              LabeledContent(
-                fact.scheduled ? "Scheduled time" : "Action time", value: fact.at.formatted())
+              LabeledContent("Action time", value: fact.at.formatted())
               LabeledContent("Record timestamp", value: fact.event.date.formatted())
               LabeledContent("UTC offset (minutes)", value: String(fact.event.tz))
               if let observed = ActivityProps.dictionary(fact.event.props)["observed_ms"]
@@ -150,7 +148,7 @@
                   VStack(alignment: .leading, spacing: 4) {
                     Text(
                       event.kind == "change.deleted"
-                        ? "Source deleted later"
+                        ? "Source deleted"
                         : (event.kind == DayHistory.observationKind
                           ? "Scheduled observation"
                           : event.kind.replacingOccurrences(of: "change.", with: "").capitalized))
@@ -162,16 +160,12 @@
                 }
               }
             } else {
-              Text(
-                fact.scheduled
-                  ? "No related actions recorded."
-                  : "Occurrence association unavailable for this record."
-              )
-              .font(.footnote).foregroundStyle(.secondary)
+              Text("Occurrence association unavailable for this record.")
+                .font(.footnote).foregroundStyle(.secondary)
             }
             Section {
               Text(
-                "Read-only Activity record. Scheduled does not mean attended; stopped does not mean completed. History includes only observations retained by your Activity settings."
+                "Read-only Activity record. Scheduled does not mean attended; stopped does not mean completed. History includes only records retained by your Activity settings."
               )
               .font(.footnote).foregroundStyle(.secondary)
             }
