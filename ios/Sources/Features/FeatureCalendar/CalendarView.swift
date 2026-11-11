@@ -26,6 +26,7 @@
     private let ledger: Ledger
     private let alarms: any AlarmService
     @Binding var day: Date
+    let visibleDay: Date
     /// 2 Day / Month / Year. Kept by `HomeView`, so switching tabs and back keeps the view.
     @Binding var mode: Mode
     let calendar: any CalendarService
@@ -56,7 +57,8 @@
 
     @MainActor
     package init(
-      day: Binding<Date>, mode: Binding<Mode>, calendar: any CalendarService,
+      day: Binding<Date>, visibleDay: Date? = nil, mode: Binding<Mode>,
+      calendar: any CalendarService,
       actions: PlannerActions, ledger: Ledger, alarms: any AlarmService,
       onOpenTask: @escaping @MainActor (OneTask) -> Void,
       onOpenAlarm: @escaping @MainActor (OneAlarm) -> Void,
@@ -64,6 +66,7 @@
       onVisibleDays: @escaping @MainActor (ClosedRange<Date>) -> Void = { _ in }
     ) {
       _day = day
+      self.visibleDay = visibleDay ?? day.wrappedValue
       _mode = mode
       self.calendar = calendar
       self.actions = actions
@@ -89,7 +92,10 @@
               calendar: calendar, day: $day, onVisibleDays: onVisibleDays, open: open, edit: edit,
               openDay: openDay)
           case .year:
-            YearView(day: $day, calendar: calendar, marks: yearMarks, openDay: showMonth) { month in
+            YearView(
+              day: $day, visibleDay: visibleDay, calendar: calendar, marks: yearMarks,
+              onVisibleDays: onVisibleDays, openDay: showMonth
+            ) { month in
               day = CalendarMath.landingDay(
                 inMonthOf: month, today: presentation.now, calendar: cal)
               mode = .month
@@ -318,7 +324,7 @@
           withAnimation(.snappy) { pos = target }
         }
       }
-      .onChange(of: current, initial: true) { _, new in onVisibleDays(month(new)...month(new)) }
+      .onChange(of: month(current)) { _, new in onVisibleDays(new...new) }
       .onReceive(Timer.publish(every: 30, on: .main, in: .common).autoconnect()) { _ in
         clockRevision += 1
       }
@@ -326,6 +332,7 @@
         let target = CalendarMath.monthOffset(of: day, from: base, calendar: cal)
         settled = target
         pos = target
+        onVisibleDays(month(target)...month(target))
       }
     }
 
@@ -826,8 +833,10 @@
   private struct YearView: View {
     @Environment(PlannerPresentation.self) private var presentation
     @Binding var day: Date
+    let visibleDay: Date
     let calendar: any CalendarService
     let marks: YearMarksCache
+    var onVisibleDays: @MainActor (ClosedRange<Date>) -> Void
     var openDay: (Date) -> Void
     var pickMonth: (Date) -> Void
     @Query(sort: \OneEvent.start) private var events: [OneEvent]
@@ -836,32 +845,37 @@
       .rawValue
     @AppStorage(YearMarkSettings.holidaysKey) private var holidaySetting = YearMarkSettings.auto
     @State private var showsKey = false
+    @State private var visibleYear: Int?
 
     var body: some View {
       let cal = Preferences.firstWeekdayChoice(presentation.defaults).calendar(
         base: presentation.calendar)
       let baseYear = cal.dateInterval(of: .year, for: presentation.now)?.start ?? presentation.now
+      let currentYear = cal.component(.year, from: baseYear)
       let signature = dataSignature(cal)
-      let offset = { (date: Date) in
-        cal.component(.year, from: date) - cal.component(.year, from: baseYear)
-      }
-      ScrollViewReader { proxy in
-        ScrollView {
-          LazyVStack(spacing: 0) {
-            ForEach(-20...20, id: \.self) { y in
-              let start = cal.date(byAdding: .year, value: y, to: baseYear) ?? baseYear
-              yearSection(start, calendar: cal)
-                .task(id: signature) { await load(start, signature: signature, calendar: cal) }
-                .id(y)
-            }
+      let shownYear =
+        cal.date(
+          byAdding: .year,
+          value: (visibleYear ?? cal.component(.year, from: visibleDay)) - currentYear,
+          to: baseYear) ?? baseYear
+      ScrollView {
+        LazyVStack(spacing: 0) {
+          ForEach(-20...20, id: \.self) { y in
+            let start = cal.date(byAdding: .year, value: y, to: baseYear) ?? baseYear
+            yearSection(start, calendar: cal)
+              .task(id: signature) { await load(start, signature: signature, calendar: cal) }
+              .id(currentYear + y)
           }
-          .padding(.bottom, 24)
         }
-        .onAppear { proxy.scrollTo(offset(day), anchor: .top) }
-        .onChange(of: day) { _, new in
-          withAnimation(.snappy) { proxy.scrollTo(offset(new), anchor: .top) }
-        }
+        .scrollTargetLayout()
+        .padding(.bottom, 24)
       }
+      .scrollPosition(id: $visibleYear, anchor: .top)
+      .onAppear { visibleYear = cal.component(.year, from: visibleDay) }
+      .onChange(of: day) { _, new in
+        withAnimation(.snappy) { visibleYear = cal.component(.year, from: new) }
+      }
+      .onChange(of: shownYear, initial: true) { _, new in onVisibleDays(new...new) }
       .accessibilityIdentifier("calendar.year.scroll")
       .sheet(isPresented: $showsKey) { YearKeySheet() }
     }
@@ -1292,10 +1306,12 @@
         guard let new, offset(of: day) != new else { return }
         day = date(new)
       }
-      .onChange(of: visibleDays, initial: true) { _, new in onVisibleDays(new) }
+      .onChange(of: visibleDays) { _, new in onVisibleDays(new) }
       .onAppear {
-        pos = offset(of: day)
-        scroll.columns = CGFloat(offset(of: day))
+        let target = offset(of: day)
+        pos = target
+        scroll.columns = CGFloat(target)
+        onVisibleDays(date(target)...date(target + Self.columns - 1))
       }
     }
 

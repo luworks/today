@@ -486,7 +486,7 @@
               presentation: presentation, openTidy: { tidying = TidyRoute(overdue: $0) })
           case .calendar:
             CalendarView(
-              day: $calendarDay,
+              day: $calendarDay, visibleDay: calendarShown.lowerBound,
               mode: PerformanceTrace.enabled ? tracedCalendarMode : $calendarMode,
               calendar: session.calendar, actions: session.actions, ledger: session.ledger,
               alarms: session.alarms, onOpenTask: { editor = .task($0) },
@@ -754,7 +754,7 @@
         ) {
           drawer.set(open: true)
         }
-        // Reserve the current month before adapting the pills. Keep their hit areas intact.
+        // Reserve the displayed period before adapting the pills. Keep their hit areas intact.
         HStack(spacing: 8) {
           ViewThatFits(in: .horizontal) {
             pills
@@ -780,11 +780,17 @@
 
     @State private var headerTimeRevision = 0
 
-    /// All tabs name the device's current month, independently of the browsed day.
+    private var headerPeriod: MonthLabel.Period {
+      MonthLabel.period(
+        now: presentation.now, visibleDays: tab == .calendar ? calendarShown : nil,
+        showsYear: calendarMode == .year)
+    }
+
+    /// Calendar follows its visible page; the other tabs keep the device's current month.
     private var monthLabel: some View {
       Text(
         MonthLabel.text(
-          now: presentation.now, calendar: presentation.calendar,
+          period: headerPeriod, calendar: presentation.calendar,
           locale: presentation.locale)
       )
       .font(.footnote.weight(.semibold))
@@ -793,7 +799,7 @@
       .fixedSize()
       .accessibilityLabel(
         MonthLabel.text(
-          now: presentation.now, length: .full,
+          period: headerPeriod, length: .full,
           calendar: presentation.calendar, locale: presentation.locale)
       )
       .accessibilityIdentifier("topBar.month")
@@ -894,6 +900,8 @@
           traceTabAction(to: .today)
           todayNowRequest += 1
           todayDay = session.runtime.calendar.startOfDay(for: session.runtime.now())
+          calendarDay = todayDay
+          calendarShown = todayDay...todayDay
           tab = .today
         } label: {
           todayLabel(selected: tab == .today && !askVisible)
