@@ -93,7 +93,8 @@
               openDay: openDay)
           case .year:
             YearView(
-              day: $day, visibleDay: visibleDay, calendar: calendar, marks: yearMarks,
+              day: $day, calendar: calendar, marks: yearMarks,
+              initialYear: cal.component(.year, from: visibleDay),
               onVisibleDays: onVisibleDays, openDay: showMonth
             ) { month in
               day = CalendarMath.landingDay(
@@ -290,6 +291,7 @@
     /// Months from the current one, the id of each page in the pager.
     @State private var pos: Int? = 0
     @State private var settled = 0
+    @State private var isUserPaging = false
     @State private var clockRevision = 0
     @State private var marks = MonthMarksCache()
     @ScaledMetric(relativeTo: .body) private var rowHeight: CGFloat = 51
@@ -491,6 +493,7 @@
     private var pager: some View {
       let signature = signature
       let selectedDay = $day
+      let pageHeight = CGFloat(CalendarPaging.monthPageHeight(rowHeight: Double(rowHeight)))
       return ScrollView(.vertical, showsIndicators: false) {
         LazyVStack(spacing: 0) {
           ForEach(range, id: \.self) { offset in
@@ -508,26 +511,37 @@
               }
             }
             .frame(maxWidth: .infinity, alignment: .top)
-            .containerRelativeFrame(.vertical, alignment: .top)
+            .frame(
+              height: CGFloat(CalendarMath.monthWeeks(of: month(offset), calendar: cal).count)
+                * rowHeight, alignment: .top
+            )
+            .frame(height: pageHeight, alignment: .top)
+            .clipped()
             .id(offset)
             .task(id: signature) { await load(month(offset), signature: signature) }
           }
         }
         .scrollTargetLayout()
       }
-      .scrollTargetBehavior(OneMonthPaging())
-      .scrollPosition(id: $pos)
+      .scrollTargetBehavior(OneMonthPaging(limitsToAdjacent: isUserPaging))
+      .scrollPosition(id: $pos, anchor: .top)
       .onScrollPhaseChange { _, phase in
+        isUserPaging = phase == .tracking || phase == .interacting || phase == .decelerating
         guard phase == .idle, let page = pos, page != settled else { return }
         settled = page
         day = CalendarMath.landingDay(
           inMonthOf: month(page), today: presentation.now, calendar: cal)
       }
       .scrollBounceBehavior(.basedOnSize)
+      // Never resize the scroll coordinate space when the committed month changes.
+      // Crop only its presentation so the agenda still follows the month's last week.
+      .frame(height: pageHeight)
       .frame(
         height: CGFloat(CalendarMath.monthWeeks(of: month(current), calendar: cal).count)
-          * rowHeight
+          * rowHeight, alignment: .top
       )
+      .clipped()
+      .contentShape(Rectangle())
       .animation(.snappy, value: CalendarMath.monthWeeks(of: month(current), calendar: cal).count)
       .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
       .accessibilityIdentifier("calendar.monthPager")
@@ -643,18 +657,27 @@
 
   /// Restrict even a high-velocity flick to the adjacent page.
   private struct OneMonthPaging: ScrollTargetBehavior {
+    let limitsToAdjacent: Bool
     func updateTarget(_ target: inout ScrollTarget, context: TargetContext) {
-      let height = context.containerSize.height
-      guard height > 0 else { return }
-      let original = context.originalTarget.rect.minY
-      let proposed = target.rect.minY
-      let delta = proposed - original
-      let direction: CGFloat =
-        abs(delta) > height * 0.15
-        ? (delta > 0 ? 1 : -1)
-        : (abs(context.velocity.dy) > 100 ? (context.velocity.dy > 0 ? 1 : -1) : 0)
-      target.rect.origin.y = max(
-        0, min(context.contentSize.height - height, original + direction * height))
+      target.rect.origin.y = CGFloat(
+        CalendarPaging.targetOffset(
+          original: Double(context.originalTarget.rect.minY), proposed: Double(target.rect.minY),
+          velocity: Double(context.velocity.dy), pageLength: Double(context.containerSize.height),
+          contentLength: Double(context.contentSize.height), limitsToAdjacent: limitsToAdjacent))
+    }
+  }
+
+  /// A two-column viewport still moves only one day per gesture.
+  private struct OneDayPaging: ScrollTargetBehavior {
+    let limitsToAdjacent: Bool
+    func updateTarget(_ target: inout ScrollTarget, context: TargetContext) {
+      target.rect.origin.x = CGFloat(
+        CalendarPaging.targetOffset(
+          original: Double(context.originalTarget.rect.minX), proposed: Double(target.rect.minX),
+          velocity: Double(context.velocity.dx),
+          pageLength: Double(context.containerSize.width) / 2,
+          contentLength: Double(context.contentSize.width), visiblePages: 2,
+          limitsToAdjacent: limitsToAdjacent))
     }
   }
 
@@ -833,7 +856,6 @@
   private struct YearView: View {
     @Environment(PlannerPresentation.self) private var presentation
     @Binding var day: Date
-    let visibleDay: Date
     let calendar: any CalendarService
     let marks: YearMarksCache
     var onVisibleDays: @MainActor (ClosedRange<Date>) -> Void
@@ -847,35 +869,51 @@
     @State private var showsKey = false
     @State private var visibleYear: Int?
 
+    init(
+      day: Binding<Date>, calendar: any CalendarService, marks: YearMarksCache,
+      initialYear: Int, onVisibleDays: @escaping @MainActor (ClosedRange<Date>) -> Void,
+      openDay: @escaping (Date) -> Void, pickMonth: @escaping (Date) -> Void
+    ) {
+      _day = day
+      self.calendar = calendar
+      self.marks = marks
+      self.onVisibleDays = onVisibleDays
+      self.openDay = openDay
+      self.pickMonth = pickMonth
+      // Supply a target before the lazy layout can publish its first (twenty-years-ago) page.
+      _visibleYear = State(initialValue: initialYear)
+    }
+
     var body: some View {
       let cal = Preferences.firstWeekdayChoice(presentation.defaults).calendar(
         base: presentation.calendar)
       let baseYear = cal.dateInterval(of: .year, for: presentation.now)?.start ?? presentation.now
       let currentYear = cal.component(.year, from: baseYear)
       let signature = dataSignature(cal)
-      let shownYear =
-        cal.date(
-          byAdding: .year,
-          value: (visibleYear ?? cal.component(.year, from: visibleDay)) - currentYear,
-          to: baseYear) ?? baseYear
       ScrollView {
         LazyVStack(spacing: 0) {
-          ForEach(-20...20, id: \.self) { y in
-            let start = cal.date(byAdding: .year, value: y, to: baseYear) ?? baseYear
+          ForEach((currentYear - 20)...(currentYear + 20), id: \.self) { year in
+            let start =
+              cal.date(byAdding: .year, value: year - currentYear, to: baseYear) ?? baseYear
             yearSection(start, calendar: cal)
               .task(id: signature) { await load(start, signature: signature, calendar: cal) }
-              .id(currentYear + y)
+              .id(year)
           }
         }
         .scrollTargetLayout()
         .padding(.bottom, 24)
       }
       .scrollPosition(id: $visibleYear, anchor: .top)
-      .onAppear { visibleYear = cal.component(.year, from: visibleDay) }
+      .onScrollTargetVisibilityChange(idType: Int.self, threshold: 0.001) { years in
+        guard let first = years.min(),
+          let start = cal.date(byAdding: .year, value: first - currentYear, to: baseYear)
+        else { return }
+        // The scroll binding can name the next anchor while the previous year's tail is visible.
+        onVisibleDays(start...start)
+      }
       .onChange(of: day) { _, new in
         withAnimation(.snappy) { visibleYear = cal.component(.year, from: new) }
       }
-      .onChange(of: shownYear, initial: true) { _, new in onVisibleDays(new...new) }
       .accessibilityIdentifier("calendar.year.scroll")
       .sheet(isPresented: $showsKey) { YearKeySheet() }
     }
@@ -1233,6 +1271,7 @@
     /// Days from today of the first column.
     @State private var pos: Int? = 0
     @State private var scroll = DayScroll()
+    @State private var isUserPaging = false
     /// Points per hour; pinch the grid to change it. Saved when the pinch ends, so it survives a restart.
     @AppStorage(CalendarLayout.savedHourHeightKey) private var savedHourHeight =
       CalendarLayout.defaultHourHeight
@@ -1412,7 +1451,10 @@
             }
             .scrollTargetLayout()
           }
-          .scrollTargetBehavior(.viewAligned(limitBehavior: .alwaysByOne))
+          .scrollTargetBehavior(OneDayPaging(limitsToAdjacent: isUserPaging))
+          .onScrollPhaseChange { _, phase in
+            isUserPaging = phase == .tracking || phase == .interacting || phase == .decelerating
+          }
           .scrollPosition(id: $pos, anchor: .leading)
           .onScrollGeometryChange(for: CGFloat.self) { geo in
             let column = geo.containerSize.width / CGFloat(Self.columns)

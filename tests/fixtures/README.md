@@ -52,6 +52,10 @@ values were added to replace these defaults.
 
 ## Other permanent test data
 
+- [`CalendarPagingTests.swift`](../../ios/Eval/Tests/OneLogicTests/CalendarPagingTests.swift)
+  keeps small date/gesture inputs inline: November 2026 through February 2029,
+  both week starts, standard/larger row heights, four/five/six-week months,
+  leap February, cross-year paging, interrupted origins, edge rubber bands and single-day cross-month flicks in a two-column viewport.
 - [`capture-cases.json`](../../ios/Eval/Tests/OneLogicTests/capture-cases.json)
   stays inside the Swift package at `ios/Eval/Tests/OneLogicTests/`. It is already
   versioned, declared as a copied resource in `ios/Package.swift`, and read through
