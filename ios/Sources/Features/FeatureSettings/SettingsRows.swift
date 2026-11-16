@@ -31,6 +31,8 @@
     @AppStorage(Preferences.showFreeTimeKey) private var showsFreeTime = Preferences.showFreeTime
 
     package var body: some View {
+      NavigationLink("Second Time Zone") { CalendarTimeZoneSettings() }
+        .accessibilityIdentifier("settings.todaySecondTimeZone")
       ExplainedToggle(
         title: "Show Settle", isOn: $showsSettle,
         caption:
@@ -167,6 +169,8 @@
 
     package var body: some View {
       Section {
+        NavigationLink("Second Time Zone") { CalendarTimeZoneSettings() }
+          .accessibilityIdentifier("settings.secondTimeZone")
         ExplainedToggle(
           title: "Compress empty hours", isOn: $compressesEmptyHours,
           caption: "Use less space for empty hours in 2 Day.")

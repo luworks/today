@@ -36,6 +36,7 @@
     /// The first and last day on screen (one month's start in Month), for the top bar's month label.
     let onVisibleDays: @MainActor (ClosedRange<Date>) -> Void
 
+    @State private var showsTimeZone = false
     @State private var opened: EventPresentation?
     /// Outlives Year itself, so Month ↔ Year reuses the computed marks.
     @State private var yearMarks = YearMarksCache()
@@ -173,6 +174,23 @@
         .accessibilityElement(children: .contain)
         .accessibilityLabel("View")
         Spacer(minLength: 0)
+        Button {
+          showsTimeZone = true
+        } label: {
+          Image(systemName: "globe")
+        }
+        .accessibilityLabel("Second Time Zone")
+        .accessibilityIdentifier("calendar.secondZone.settings")
+      }
+      .sheet(isPresented: $showsTimeZone) {
+        NavigationStack {
+          CalendarTimeZoneSettings()
+            .toolbar {
+              ToolbarItem(placement: .confirmationAction) {
+                Button("Done") { showsTimeZone = false }
+              }
+            }
+        }
       }
       .padding(.horizontal, 20)
       .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
@@ -1283,7 +1301,12 @@
     /// The hour height when the current pinch started.
     @State private var pinchStart: CGFloat?
     @State private var pendingDelete: CalEntry?
-    private let gutter: CGFloat = 52
+    @AppStorage(CalendarTimeZone.enabledKey) private var secondZoneEnabled = false
+    @AppStorage(CalendarTimeZone.cityKey) private var secondZoneCity = ""
+    private var secondCity: CityRecord? {
+      secondZoneEnabled ? CalendarTimeZone.city(stored: secondZoneCity) : nil
+    }
+    private var gutter: CGFloat { secondCity == nil ? 52 : 100 }
     private let range = -800...800
     private var cal: Calendar {
       Preferences.firstWeekdayChoice(presentation.defaults).calendar(base: presentation.calendar)
@@ -1361,13 +1384,22 @@
     /// Settings > Calendar > "Show week numbers": "W43", the week of the first column, over the hour labels.
     private var weekNumber: some View {
       let number = CalendarMath.weekNumber(of: date(first), calendar: cal)
-      return Text(showsWeekNumbers ? "W\(number)" : "")
-        .font(.system(size: 10, weight: .medium).monospacedDigit())
-        .foregroundStyle(.secondary)
-        .frame(width: gutter)
-        .accessibilityLabel("Week \(number)")
-        .accessibilityHidden(!showsWeekNumbers)
-        .accessibilityIdentifier("calendar.weekNumber")
+      return VStack(spacing: 3) {
+        if let city = secondCity {
+          HStack(spacing: 2) {
+            Text(city.name).frame(width: 48).lineLimit(1).minimumScaleFactor(0.7)
+            Text("Local").frame(width: 48)
+          }
+          .accessibilityIdentifier("calendar.secondZone.heading")
+        }
+        Text(showsWeekNumbers ? "W\(number)" : "")
+      }
+      .font(.system(size: 10, weight: .medium).monospacedDigit())
+      .foregroundStyle(.secondary)
+      .frame(width: gutter)
+      .accessibilityLabel(secondCity.map { "\($0.name) and local time" } ?? "Week \(number)")
+      .accessibilityHidden(!showsWeekNumbers && secondCity == nil)
+      .accessibilityIdentifier("calendar.weekNumber")
     }
 
     /// Weekday letter over the date; today in a red circle, days that are over dimmed. Tap opens the day in Today.
@@ -1527,12 +1559,28 @@
           if !axis.gaps.contains(where: {
             !expandedGaps.contains($0) && Double(h * 60) >= $0.start && Double(h * 60) < $0.end
           }) {
-            Text(hourLabel(h))
-              .font(.system(size: 10).monospacedDigit())
-              .foregroundStyle(.secondary)
-              .frame(width: gutter - 4, alignment: .trailing)
-              .offset(y: CGFloat(axis.y(forMinute: Double(h * 60))) - 6)
-              .accessibilityIdentifier("calendar.hour.\(h)")
+            HStack(spacing: 0) {
+              if let city = secondCity, let zone = city.timeZone {
+                let left = CalendarTimeZone.hourLabel(h, day: date(first), zone: zone, local: cal)
+                let right = CalendarTimeZone.hourLabel(
+                  h, day: date(first + 1), zone: zone, local: cal)
+                VStack(spacing: 0) {
+                  Text(left == right ? left : "L " + left)
+                  if left != right { Text("R " + right) }
+                }
+                .font(.system(size: 9).monospacedDigit())
+                .lineLimit(1).minimumScaleFactor(0.6)
+                .frame(width: 48)
+                .accessibilityLabel("\(city.name), left day \(left), right day \(right)")
+                .accessibilityIdentifier("calendar.secondZone.hour.\(h)")
+              }
+              Text(hourLabel(h)).frame(width: 48, alignment: .trailing)
+            }
+            .font(.system(size: 10).monospacedDigit())
+            .foregroundStyle(.secondary)
+            .frame(width: gutter - 4, alignment: .trailing)
+            .offset(y: CGFloat(axis.y(forMinute: Double(h * 60))) - 6)
+            .accessibilityIdentifier("calendar.hour.\(h)")
           }
         }
         ForEach(axis.gaps, id: \.self) { gap in
@@ -1605,7 +1653,7 @@
     }
 
     private func hourLabel(_ h: Int) -> String {
-      h == 0
+      h == 0 && secondCity == nil
         ? ""
         : (cal.date(bySettingHour: h, minute: 0, second: 0, of: presentation.now)
           ?? presentation.now)

@@ -71,6 +71,7 @@
     package static let preferenceKeys = [
       "today.appearance", "today.setting.showAlarmsInToday", "today.setting.jumpToNow",
       "today.setting.autoArchiveChats", "today.setting.travelTime", "today.setting.healthSummary",
+      "today.setting.calendarSecondZoneEnabled", "today.setting.calendarSecondZoneCity",
       "today.setting.compressEmptyHours", "today.setting.dimPastDays", "today.setting.firstWeekday",
       "today.setting.weekNumbers", "today.setting.calendarStart", "today.setting.showSettle",
       "today.setting.showFreeTime", "today.setting.newReminderList",
@@ -326,6 +327,7 @@
     }
     package static func validatePreferences(_ preferences: [String: Any]) throws {
       let strings: Set<String> = [
+        "today.setting.calendarSecondZoneCity",
         "today.appearance", "today.setting.newReminderList", "today.setting.newEventCalendar",
         "today.setting.newAlarmSound", "today.setting.calendarStart", "today.setting.firstWeekday",
         "activity.setting.retention", "reminders.smartOrder", "reminders.smartHidden",
