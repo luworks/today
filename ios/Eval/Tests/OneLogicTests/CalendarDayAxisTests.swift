@@ -3,6 +3,18 @@ import XCTest
 @testable import TodayCore
 
 final class CalendarDayAxisTests: XCTestCase {
+  func testHourInstantsRespectMissingAndRepeatedLocalHours() {
+    let spring = date("2026-03-08T12:00:00Z")
+    XCTAssertTrue(CalendarDayAxis.instants(atHour: 2, on: spring, calendar: calendar).isEmpty)
+    let autumn = date("2026-11-01T12:00:00Z")
+    XCTAssertEqual(
+      CalendarDayAxis.instants(atHour: 1, on: autumn, calendar: calendar),
+      [date("2026-11-01T08:00:00Z"), date("2026-11-01T09:00:00Z")])
+    XCTAssertEqual(
+      CalendarDayAxis.instants(atHour: 9, on: autumn, calendar: calendar),
+      [date("2026-11-01T17:00:00Z")])
+  }
+
   func testNowBelongsOnlyToLocalTodayAndUsesFoldedAxis() throws {
     var cal = Calendar(identifier: .gregorian)
     cal.timeZone = try XCTUnwrap(TimeZone(identifier: "America/Los_Angeles"))

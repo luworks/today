@@ -74,6 +74,11 @@
     @Environment(PlannerPresentation.self) private var presentation
     @Environment(\.agendaTimeEdit) private var edit
     @Environment(\.agendaDragTime) private var dragTime
+    @AppStorage(CalendarTimeZone.enabledKey) private var secondZoneEnabled = false
+    @AppStorage(CalendarTimeZone.cityKey) private var secondZoneCity = ""
+    private var secondCity: CityRecord? {
+      compact && secondZoneEnabled ? CalendarTimeZone.city(stored: secondZoneCity) : nil
+    }
     private func label(_ value: Date) -> Text {
       Text(
         value.formatted(
@@ -84,11 +89,32 @@
 
     package var body: some View {
       // An overlay, so the 44pt target leaves the row's height alone.
-      column.overlay(alignment: .leading) {
+      HStack(alignment: .firstTextBaseline, spacing: 6) {
+        if let city = secondCity, let zone = city.timeZone {
+          Text(
+            CalendarTimeZone.label(at: dragTime ?? date, zone: zone, local: presentation.calendar)
+          )
+          .font(AgendaRowStyle.detail.monospacedDigit())
+          .foregroundStyle(.secondary)
+          .lineLimit(1).minimumScaleFactor(0.75)
+          .frame(width: 48, alignment: .leading)
+          .accessibilityLabel(
+            city.name + " "
+              + CalendarTimeZone.label(
+                at: dragTime ?? date, zone: zone, local: presentation.calendar)
+          )
+          .accessibilityIdentifier("today.secondZone.time")
+        }
+        column
+      }
+      .overlay(alignment: .leading) {
         if compact, let edit {
           Button(action: edit) {
             Color.clear
-              .frame(width: AgendaRowStyle.timeWidth, height: ButtonConfiguration.minimumHitSize)
+              .frame(
+                width: AgendaRowStyle.timeWidth + (secondCity == nil ? 0 : 54),
+                height: ButtonConfiguration.minimumHitSize
+              )
               .contentShape(Rectangle())
           }
           .buttonStyle(.plain)
@@ -187,8 +213,17 @@
     package init(date: Date) { self.date = date }
     package let date: Date
     @Environment(PlannerPresentation.self) private var presentation
+    @AppStorage(CalendarTimeZone.enabledKey) private var secondZoneEnabled = false
+    @AppStorage(CalendarTimeZone.cityKey) private var secondZoneCity = ""
     package var body: some View {
       HStack(spacing: 8) {
+        if secondZoneEnabled, let city = CalendarTimeZone.city(stored: secondZoneCity),
+          let zone = city.timeZone
+        {
+          Text(CalendarTimeZone.label(at: date, zone: zone, local: presentation.calendar))
+            .font(AgendaRowStyle.detail.monospacedDigit()).foregroundStyle(.red)
+            .frame(width: 48, alignment: .leading)
+        }
         NowDot()
         Text(
           "Now "

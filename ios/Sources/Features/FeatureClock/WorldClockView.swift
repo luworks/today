@@ -60,9 +60,25 @@
       city.key == home.key || keys.contains(city.key)
     }
 
+    public func reload() {
+      let latest = database.migrate(defaults.stringArray(forKey: Self.defaultsKey))
+      if latest != keys { keys = latest }
+    }
+
+    public var calendarCity: CityRecord? { CalendarTimeZone.selected(defaults) }
+    public var calendarZoneEnabled: Bool { defaults.bool(forKey: CalendarTimeZone.enabledKey) }
+    public func showInCalendar(_ city: CityRecord) {
+      CalendarTimeZone.choose(city, defaults: defaults)
+      reload()
+    }
+    public func hideCalendarZone() { defaults.set(false, forKey: CalendarTimeZone.enabledKey) }
+
     public func add(_ city: CityRecord) { set(WorldClock.adding(city.key, to: keys)) }
 
-    public func remove(_ city: CityRecord) { set(keys.filter { $0 != city.key }) }
+    public func remove(_ city: CityRecord) {
+      if calendarCity?.key == city.key { hideCalendarZone() }
+      set(keys.filter { $0 != city.key })
+    }
 
     public func insert(_ city: CityRecord, at index: Int) {
       guard !keys.contains(city.key) else { return }
@@ -98,6 +114,8 @@
     @State private var scrub = ScrubDriver()
     @State private var texts = WorldClock.CardTexts()
     @State private var showsDatePicker = false
+    @AppStorage(CalendarTimeZone.enabledKey) private var calendarZoneEnabled = false
+    @AppStorage(CalendarTimeZone.cityKey) private var calendarZoneCity = ""
 
     /// The app supplies its existing Undo toast; Workbench can capture and exercise the same undo action.
     public init(
@@ -131,8 +149,11 @@
             CityCard(
               city: home, home: home, date: date, isHome: true, flat: graph, moving: scrub.isFast,
               db: db,
-              texts: texts
+              texts: texts,
+              shownInCalendar: calendarZoneEnabled
+                && CalendarTimeZone.city(stored: calendarZoneCity)?.key == home.key
             )
+            .contextMenu { calendarMenu(home) }
             .moveDisabled(true)
             .deleteDisabled(true)
             // A sideways drag scrubs time, so there is no swipe-to-delete here: Delete and the order are in the
@@ -141,7 +162,9 @@
               CityCard(
                 city: city, home: home, date: date, isHome: false, flat: graph,
                 moving: scrub.isFast,
-                db: db, texts: texts
+                db: db, texts: texts,
+                shownInCalendar: calendarZoneEnabled
+                  && CalendarTimeZone.city(stored: calendarZoneCity)?.key == city.key
               )
               .contextMenu { cityMenu(city) }
               .deleteDisabled(true)
@@ -162,6 +185,8 @@
           }
         }
         .animation(.snappy, value: graph)
+        .onAppear { store.reload() }
+        .onChange(of: calendarZoneCity) { _, _ in store.reload() }
         .onDisappear { scrub.touchDown() }
       }
     }
@@ -304,6 +329,8 @@
     /// A city's long-press menu: move it up or down among your cities (home stays first), or delete it.
     @ViewBuilder
     private func cityMenu(_ city: CityRecord) -> some View {
+      calendarMenu(city)
+      Divider()
       let others = store.others
       let i = others.firstIndex(of: city) ?? 0
       Button {
@@ -322,11 +349,24 @@
       RowAction.delete { remove(city) }
     }
 
+    @ViewBuilder
+    private func calendarMenu(_ city: CityRecord) -> some View {
+      if calendarZoneEnabled && CalendarTimeZone.city(stored: calendarZoneCity)?.key == city.key {
+        Button("Hide from Calendar", systemImage: "calendar.badge.minus") {
+          store.hideCalendarZone()
+        }
+      } else {
+        Button("Show in Calendar", systemImage: "calendar") { store.showInCalendar(city) }
+      }
+    }
+
     private func remove(_ city: CityRecord) {
       guard let index = store.others.firstIndex(of: city) else { return }
+      let wasShown = store.calendarZoneEnabled && store.calendarCity?.key == city.key
       withAnimation(.snappy) { store.remove(city) }
       showUndo("Removed \(db.displayName(city, locale: locale))") {
         withAnimation(.snappy) { store.insert(city, at: index) }
+        if wasShown { store.showInCalendar(city) }
       }
     }
   }
@@ -522,6 +562,7 @@
     let moving: Bool
     let db: CityDatabase
     let texts: WorldClock.CardTexts
+    var shownInCalendar = false
 
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.locale) private var locale
@@ -551,6 +592,11 @@
               .font(.system(size: 19, weight: .bold))
               .lineLimit(1)
               .minimumScaleFactor(0.7)
+            if shownInCalendar {
+              Label("Shown in Calendar", systemImage: "calendar")
+                .font(.system(size: 10, weight: .medium))
+                .accessibilityIdentifier("worldClock.shownInCalendar")
+            }
             if isHome {
               Image(systemName: "star.fill").font(.system(size: 12))
             } else {

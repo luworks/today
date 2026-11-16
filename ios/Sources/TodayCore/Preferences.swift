@@ -38,6 +38,7 @@ public enum Preferences {
   public static let upNextAlarmsKey = "today.setting.upNextAlarms"
 
   static let allKeys = [
+    CalendarTimeZone.enabledKey, CalendarTimeZone.cityKey,
     compressEmptyHoursKey, dimPastDaysKey, firstWeekdayKey, weekNumbersKey, calendarStartKey,
     showFreeTimeKey, newReminderListKey, newEventCalendarKey, newEventAlertKey,
     newAlarmSnoozeKey, newAlarmSoundKey, showSettleKey, weatherSummaryKey,

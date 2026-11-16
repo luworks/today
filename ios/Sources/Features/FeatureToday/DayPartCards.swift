@@ -50,6 +50,8 @@
   /// Heads a card.
   private struct DayPartLabel: View {
     let part: DayPart
+    @AppStorage(CalendarTimeZone.enabledKey) private var secondZoneEnabled = false
+    @AppStorage(CalendarTimeZone.cityKey) private var secondZoneCity = ""
 
     private var title: Text {
       switch part {
@@ -60,14 +62,25 @@
     }
 
     var body: some View {
-      title
-        .font(AgendaRowStyle.detail.weight(.semibold))
-        .foregroundStyle(.secondary)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .accessibilityAddTraits(.isHeader)
-        .listRowSeparator(.hidden)
-        .listRowInsets(EdgeInsets(top: 10, leading: 20, bottom: 4, trailing: 20))
-        .listRowBackground(DayPartShape(edge: .top))
+      VStack(alignment: .leading, spacing: 4) {
+        title
+        if secondZoneEnabled, let city = CalendarTimeZone.city(stored: secondZoneCity) {
+          HStack(spacing: 6) {
+            Text(city.name).frame(width: 48, alignment: .leading).lineLimit(1).minimumScaleFactor(
+              0.7)
+            Text("Local")
+          }
+          .font(.caption2)
+          .accessibilityIdentifier("today.secondZone.heading")
+        }
+      }
+      .font(AgendaRowStyle.detail.weight(.semibold))
+      .foregroundStyle(.secondary)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .accessibilityAddTraits(.isHeader)
+      .listRowSeparator(.hidden)
+      .listRowInsets(EdgeInsets(top: 10, leading: 20, bottom: 4, trailing: 20))
+      .listRowBackground(DayPartShape(edge: .top))
     }
   }
 

@@ -266,6 +266,7 @@
       .environment(toast)
       .environment(session.actions)
       .environment(presentation)
+      .environment(\.calendarCityDatabase, composition.world.database)
       .environment(\.askAbout, { openAsk(nil, subject: $0) })
       .defaultAppStorage(session.defaults)
       .environment(\.calendar, session.runtime.calendar)
