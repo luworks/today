@@ -61,7 +61,8 @@
     }
 
     public func reload() {
-      let latest = database.migrate(defaults.stringArray(forKey: Self.defaultsKey))
+      guard let stored = defaults.stringArray(forKey: Self.defaultsKey) else { return }
+      let latest = database.migrate(stored)
       if latest != keys { keys = latest }
     }
 

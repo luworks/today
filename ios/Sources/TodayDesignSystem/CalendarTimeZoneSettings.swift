@@ -55,7 +55,11 @@
             isOn: Binding(
               get: { enabled },
               set: { value in
-                if value && city == nil { choosing = true } else { enabled = value }
+                if value {
+                  if let city { choose(city) } else { choosing = true }
+                } else {
+                  enabled = false
+                }
               })
           )
           .accessibilityIdentifier("calendar.secondZone.enabled")
