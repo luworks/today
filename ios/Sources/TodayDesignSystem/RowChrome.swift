@@ -222,6 +222,7 @@
         {
           Text(CalendarTimeZone.label(at: date, zone: zone, local: presentation.calendar))
             .font(AgendaRowStyle.detail.monospacedDigit()).foregroundStyle(.red)
+            .lineLimit(1).minimumScaleFactor(0.75)
             .frame(width: 48, alignment: .leading)
         }
         NowDot()
