@@ -1500,23 +1500,40 @@
     }
   }
 
-  /// Free time between items: one quiet line, aligned with the titles.
+  /// Free time between items, with paired start times when the selected city is at work.
   struct FreeRow: View {
     @Environment(PlannerPresentation.self) private var presentation
+    private var secondaryTime = AgendaSecondaryTime()
     let free: DateInterval
+
     package var body: some View {
-      Text(DaySchedule.freeLabel(free.duration))
-        .font(AgendaRowStyle.detail)
-        .foregroundStyle(Color(.secondaryLabel))
-        .padding(.leading, 68)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .fixedSize(horizontal: false, vertical: true)
-        .listRowSeparator(.hidden)
-        .listRowInsets(EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 20))
-        .accessibilityLabel(
-          DaySchedule.freeLabel(free.duration) + " from "
-            + free.start.plannerFormatted(
-              date: .omitted, time: .shortened, runtime: presentation.runtime))
+      let title = DaySchedule.freeLabel(free.duration)
+      let start = free.start.plannerFormatted(
+        date: .omitted, time: .shortened, runtime: presentation.runtime)
+      let remote = secondaryTime.label(at: free.start)
+      HStack(alignment: .firstTextBaseline, spacing: 18) {
+        if let remote {
+          VStack(alignment: .leading, spacing: 2) {
+            Text(start)
+              .font(AgendaRowStyle.detail.monospacedDigit())
+              .lineLimit(1)
+              .minimumScaleFactor(0.75)
+            AgendaSecondaryTime.line(remote)
+          }
+          .frame(width: AgendaRowStyle.timeWidth, alignment: .leading)
+        }
+        Text(title)
+          .padding(.leading, remote == nil ? 68 : 0)
+      }
+      .font(AgendaRowStyle.detail)
+      .foregroundStyle(Color(.secondaryLabel))
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .fixedSize(horizontal: false, vertical: true)
+      .listRowSeparator(.hidden)
+      .listRowInsets(EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 20))
+      .accessibilityElement(children: .combine)
+      .accessibilityLabel(
+        Text(verbatim: title + " from " + start + (remote.map { ", " + $0.spoken } ?? "")))
     }
   }
 

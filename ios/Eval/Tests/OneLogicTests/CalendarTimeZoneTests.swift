@@ -55,6 +55,27 @@ final class CalendarTimeZoneTests: XCTestCase {
       "19:00 −1")
   }
 
+  func testWorkingTimeUsesRemoteBoundariesAndNextDate() throws {
+    let beijing = try XCTUnwrap(TimeZone(identifier: "Asia/Shanghai"))
+    func visible(at utc: String) -> String? {
+      CalendarTimeZone.workingTimeLabel(at: date(utc), zone: beijing, local: local)
+    }
+    XCTAssertNil(visible(at: "2026-11-18T23:59:59Z"))
+    XCTAssertEqual(visible(at: "2026-11-19T00:00:00Z"), "08:00 +1")
+    XCTAssertEqual(visible(at: "2026-11-19T11:59:59Z"), "19:59")
+    XCTAssertNil(visible(at: "2026-11-19T12:00:00Z"))
+  }
+
+  func testWorkingHourIsEvaluatedForEachDayAcrossDST() throws {
+    let beijing = try XCTUnwrap(TimeZone(identifier: "Asia/Shanghai"))
+    XCTAssertEqual(
+      CalendarTimeZone.workingHourLabel(
+        4, day: date("2026-03-07T12:00:00Z"), zone: beijing, local: local), nil)
+    XCTAssertEqual(
+      CalendarTimeZone.workingHourLabel(
+        4, day: date("2026-03-08T12:00:00Z"), zone: beijing, local: local), "19:00")
+  }
+
   func testEachVisibleDayUsesItsOwnDSTOffset() {
     let london = TimeZone(identifier: "Europe/London")!
     XCTAssertEqual(

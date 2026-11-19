@@ -64,6 +64,40 @@
     @Entry package var agendaDragTime: Date?
   }
 
+  /// A subordinate line in the existing agenda time column, shared by events, Now and free time.
+  package struct AgendaSecondaryTime: DynamicProperty {
+    @Environment(PlannerPresentation.self) private var presentation
+    @AppStorage(CalendarTimeZone.enabledKey) private var enabled = false
+    @AppStorage(CalendarTimeZone.cityKey) private var storedCity = ""
+
+    package init() {}
+
+    package struct Label {
+      let visible: String
+      package let spoken: String
+    }
+
+    @MainActor package func label(at date: Date) -> Label? {
+      guard enabled, let city = CalendarTimeZone.city(stored: storedCity), let zone = city.timeZone,
+        let time = CalendarTimeZone.workingTimeLabel(
+          at: date, zone: zone, local: presentation.calendar)
+      else { return nil }
+      let prefix = city.name == "Beijing" ? "BJ" : String(city.name.prefix(2)).uppercased()
+      return Label(visible: "\(prefix) \(time)", spoken: "\(city.name) \(time)")
+    }
+
+    @MainActor package static func line(_ label: Label) -> some View {
+      Text(verbatim: label.visible)
+        .font(.system(size: 10).monospacedDigit())
+        .foregroundStyle(Color(.secondaryLabel))
+        .lineLimit(1)
+        .minimumScaleFactor(0.65)
+        .frame(width: AgendaRowStyle.timeWidth, alignment: .leading)
+        .accessibilityLabel(Text(verbatim: label.spoken))
+        .accessibilityIdentifier("today.secondZone.time")
+    }
+  }
+
   package struct TimeColumn: View {
     package init(date: Date, compact: Bool = false) {
       self.date = date
@@ -74,11 +108,7 @@
     @Environment(PlannerPresentation.self) private var presentation
     @Environment(\.agendaTimeEdit) private var edit
     @Environment(\.agendaDragTime) private var dragTime
-    @AppStorage(CalendarTimeZone.enabledKey) private var secondZoneEnabled = false
-    @AppStorage(CalendarTimeZone.cityKey) private var secondZoneCity = ""
-    private var secondCity: CityRecord? {
-      compact && secondZoneEnabled ? CalendarTimeZone.city(stored: secondZoneCity) : nil
-    }
+    private var secondaryTime = AgendaSecondaryTime()
     private func label(_ value: Date) -> Text {
       Text(
         value.formatted(
@@ -89,30 +119,18 @@
 
     package var body: some View {
       // An overlay, so the 44pt target leaves the row's height alone.
-      HStack(alignment: .firstTextBaseline, spacing: 6) {
-        if let city = secondCity, let zone = city.timeZone {
-          Text(
-            CalendarTimeZone.label(at: dragTime ?? date, zone: zone, local: presentation.calendar)
-          )
-          .font(AgendaRowStyle.detail.monospacedDigit())
-          .foregroundStyle(.secondary)
-          .lineLimit(1).minimumScaleFactor(0.75)
-          .frame(width: 48, alignment: .leading)
-          .accessibilityLabel(
-            city.name + " "
-              + CalendarTimeZone.label(
-                at: dragTime ?? date, zone: zone, local: presentation.calendar)
-          )
-          .accessibilityIdentifier("today.secondZone.time")
-        }
+      VStack(alignment: .leading, spacing: 2) {
         column
+        if compact, let remote = secondaryTime.label(at: dragTime ?? date) {
+          AgendaSecondaryTime.line(remote)
+        }
       }
       .overlay(alignment: .leading) {
         if compact, let edit {
           Button(action: edit) {
             Color.clear
               .frame(
-                width: AgendaRowStyle.timeWidth + (secondCity == nil ? 0 : 54),
+                width: AgendaRowStyle.timeWidth,
                 height: ButtonConfiguration.minimumHitSize
               )
               .contentShape(Rectangle())
@@ -213,31 +231,41 @@
     package init(date: Date) { self.date = date }
     package let date: Date
     @Environment(PlannerPresentation.self) private var presentation
-    @AppStorage(CalendarTimeZone.enabledKey) private var secondZoneEnabled = false
-    @AppStorage(CalendarTimeZone.cityKey) private var secondZoneCity = ""
+    private var secondaryTime = AgendaSecondaryTime()
+
+    private var localTime: Text {
+      Text(
+        date.formatted(
+          Date.FormatStyle(
+            date: .omitted, time: .shortened, locale: presentation.locale,
+            calendar: presentation.calendar, timeZone: presentation.calendar.timeZone)))
+    }
+
     package var body: some View {
-      HStack(spacing: 8) {
-        if secondZoneEnabled, let city = CalendarTimeZone.city(stored: secondZoneCity),
-          let zone = city.timeZone
-        {
-          Text(CalendarTimeZone.label(at: date, zone: zone, local: presentation.calendar))
-            .font(AgendaRowStyle.detail.monospacedDigit()).foregroundStyle(.red)
-            .lineLimit(1).minimumScaleFactor(0.75)
-            .frame(width: 48, alignment: .leading)
+      Group {
+        if let remote = secondaryTime.label(at: date) {
+          HStack(alignment: .firstTextBaseline, spacing: 8) {
+            VStack(alignment: .leading, spacing: 2) {
+              localTime
+              AgendaSecondaryTime.line(remote)
+            }
+            NowDot().alignmentGuide(.firstTextBaseline) { $0[VerticalAlignment.center] + 4 }
+            Text("Now")
+            Rectangle().fill(Color.red).frame(height: 1).alignmentGuide(.firstTextBaseline) {
+              $0[VerticalAlignment.center] + 4
+            }
+          }
+        } else {
+          HStack(spacing: 8) {
+            NowDot()
+            Text("Now \(localTime)")
+              .fixedSize(horizontal: true, vertical: false)
+            Rectangle().fill(Color.red).frame(height: 1)
+          }
         }
-        NowDot()
-        Text(
-          "Now "
-            + date.formatted(
-              Date.FormatStyle(
-                date: .omitted, time: .shortened, locale: presentation.locale,
-                calendar: presentation.calendar, timeZone: presentation.calendar.timeZone))
-        )
-        .font(AgendaRowStyle.detail.weight(.semibold).monospacedDigit())
-        .foregroundStyle(.red)
-        .fixedSize(horizontal: true, vertical: false)
-        Rectangle().fill(Color.red).frame(height: 1)
       }
+      .font(AgendaRowStyle.detail.weight(.semibold).monospacedDigit())
+      .foregroundStyle(.red)
       .listRowSeparator(.hidden)
       .listRowInsets(EdgeInsets(top: 4, leading: 20, bottom: 4, trailing: 20))
     }

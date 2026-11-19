@@ -73,7 +73,7 @@
           .accessibilityIdentifier("calendar.secondZone.city")
         } footer: {
           Text(
-            "Show a second time column beside your iPhone's local time in Today and Calendar 2 Day. +1 and −1 mean the next and previous date. Cities you choose are also added to World Clock. L and R identify the left and right day when their times differ. Turning this off keeps the city in World Clock."
+            "Show the selected city's time underneath local time in Today and Calendar 2 Day, during that city's daily working hours (08:00–20:00). +1 and −1 mean the next and previous date. Cities you choose are also added to World Clock. L and R identify the left and right day when their times differ. Turning this off keeps the city in World Clock."
           )
         }
         if let city {

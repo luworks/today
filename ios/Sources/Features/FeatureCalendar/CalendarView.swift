@@ -1306,7 +1306,7 @@
     private var secondCity: CityRecord? {
       secondZoneEnabled ? CalendarTimeZone.city(stored: secondZoneCity) : nil
     }
-    private var gutter: CGFloat { secondCity == nil ? 52 : 100 }
+    private let gutter: CGFloat = 52
     private let range = -800...800
     private var cal: Calendar {
       Preferences.firstWeekdayChoice(presentation.defaults).calendar(base: presentation.calendar)
@@ -1386,11 +1386,10 @@
       let number = CalendarMath.weekNumber(of: date(first), calendar: cal)
       return VStack(spacing: 3) {
         if let city = secondCity {
-          HStack(spacing: 2) {
-            Text(city.name).frame(width: 48).lineLimit(1).minimumScaleFactor(0.7)
-            Text("Local").frame(width: 48)
-          }
-          .accessibilityIdentifier("calendar.secondZone.heading")
+          Text(city.name)
+            .lineLimit(1)
+            .minimumScaleFactor(0.7)
+            .accessibilityIdentifier("calendar.secondZone.heading")
         }
         Text(showsWeekNumbers ? "W\(number)" : "")
       }
@@ -1559,24 +1558,27 @@
           if !axis.gaps.contains(where: {
             !expandedGaps.contains($0) && Double(h * 60) >= $0.start && Double(h * 60) < $0.end
           }) {
-            HStack(spacing: 0) {
+            VStack(alignment: .trailing, spacing: 0) {
+              Text(hourLabel(h))
+                .font(.system(size: 10).monospacedDigit())
+                .frame(height: 12)
               if let city = secondCity, let zone = city.timeZone {
-                let left = CalendarTimeZone.hourLabel(h, day: date(first), zone: zone, local: cal)
-                let right = CalendarTimeZone.hourLabel(
+                let left = CalendarTimeZone.workingHourLabel(
+                  h, day: date(first), zone: zone, local: cal)
+                let right = CalendarTimeZone.workingHourLabel(
                   h, day: date(first + 1), zone: zone, local: cal)
-                VStack(spacing: 0) {
-                  Text(left == right ? left : "L " + left)
-                  if left != right { Text("R " + right) }
+                if let left, left == right {
+                  secondaryHour(left, spoken: "\(city.name) \(left)")
+                } else {
+                  if let left {
+                    secondaryHour("L " + left, spoken: "\(city.name), left day \(left)")
+                  }
+                  if let right {
+                    secondaryHour("R " + right, spoken: "\(city.name), right day \(right)")
+                  }
                 }
-                .font(.system(size: 9).monospacedDigit())
-                .lineLimit(1).minimumScaleFactor(0.6)
-                .frame(width: 48)
-                .accessibilityLabel("\(city.name), left day \(left), right day \(right)")
-                .accessibilityIdentifier("calendar.secondZone.hour.\(h)")
               }
-              Text(hourLabel(h)).frame(width: 48, alignment: .trailing)
             }
-            .font(.system(size: 10).monospacedDigit())
             .foregroundStyle(.secondary)
             .frame(width: gutter - 4, alignment: .trailing)
             .offset(y: CGFloat(axis.y(forMinute: Double(h * 60))) - 6)
@@ -1604,6 +1606,15 @@
         }
       }
       .frame(width: gutter, height: CGFloat(axis.height), alignment: .topLeading)
+    }
+
+    private func secondaryHour(_ text: String, spoken: String) -> some View {
+      Text(verbatim: text)
+        .font(.system(size: 8).monospacedDigit())
+        .lineLimit(1)
+        .minimumScaleFactor(0.65)
+        .frame(height: 8)
+        .accessibilityLabel(Text(verbatim: spoken))
     }
 
     private func nowLine(_ axis: CalendarGapLayout) -> some View {
