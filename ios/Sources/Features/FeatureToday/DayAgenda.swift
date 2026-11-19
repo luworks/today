@@ -136,7 +136,7 @@
     package var body: some View {
       ScrollViewReader { proxy in
         VStack(spacing: 0) {
-          // Any day is one tap away: tomorrow, later this week, or another week with the arrows.
+          // Tap a day or swipe the strip to an adjacent week.
           if !showsWeekStrip {
             WeekStrip(selected: $day, calendar: cal)
               .padding(.horizontal, 8)

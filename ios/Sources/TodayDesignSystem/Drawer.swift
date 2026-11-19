@@ -133,7 +133,7 @@
     private func accepts(_ start: CGPoint) -> Bool {
       switch kind {
       case .edgeStrip: enabled && !model.isOpen
-      case .edgeOnly: enabled && !model.isOpen && start.x <= 44
+      case .edgeOnly: enabled && !model.isOpen && start.x <= DrawerLayout.edgeSwipeWidth
       case .close: model.isOpen
       }
     }
@@ -143,6 +143,7 @@
   /// and Claude), rounded and dimmed; tapping it closes the sidebar.
   package enum DrawerLayout {
     package static let widthFraction: CGFloat = 0.78
+    package static let edgeSwipeWidth: CGFloat = 44
   }
 
   /// The page: slides right by the sidebar's width, with rounded corners and a dim layer that fade in as it moves.
