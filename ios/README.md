@@ -127,6 +127,10 @@ Four tabs: **Today · Calendar · Reminders · Clock** as pills on top (swipe si
 
 Planner list rows in Today, Calendar, Reminders and Search use at most two text lines: a title and detail share one line when they fit, otherwise each gets one truncated line. A title without detail can use two lines. Event travel information shares the detail line; the full item remains available on opening it and through VoiceOver. Text follows Dynamic Type.
 
+## Second time zone
+
+Enable Second Time Zone in Today or Calendar settings and choose a city, or show a saved city in Calendar from World Clock. Today and Calendar 2 Day put the selected city's time underneath local time when the corresponding instant falls within 08:00–20:00 in that city (start included, end excluded, every day). This uses the remote hours alone. On Today, a free-time row checks its start instant. In 2 Day, L and R identify the visible days if their remote labels differ. +1 and −1 indicate the next and previous date.
+
 ## Physical-device delivery
 
 For an explicitly authorized Live Debug installation, use `./dev build Debug --device <UDID> --install` (it finds the green `main` push run for the SHA; `--main-run` picks one explicitly). Add `--allow-provisioning-updates` only when explicitly authorized. The build, receipt, exact-current-main CI preflight and install share the host and derived-data locks. The receipt and logs are retained under the primary checkout's `tests/results/`. A failed preflight prevents installation. This command does not launch the app or establish usability.

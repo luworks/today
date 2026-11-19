@@ -48,6 +48,24 @@ public enum CalendarTimeZone {
     return time + (delta == 0 ? "" : (delta > 0 ? " +\(delta)" : " −\(-delta)"))
   }
 
+  /// The secondary label is visible only during the selected city's local working hours.
+  public static func workingTimeLabel(at instant: Date, zone: TimeZone, local: Calendar) -> String?
+  {
+    var remote = local
+    remote.timeZone = zone
+    guard (8..<20).contains(remote.component(.hour, from: instant)) else { return nil }
+    return label(at: instant, zone: zone, local: local)
+  }
+
+  public static func workingHourLabel(
+    _ hour: Int, day: Date, zone: TimeZone, local: Calendar
+  ) -> String? {
+    let labels = CalendarDayAxis.instants(atHour: hour, on: day, calendar: local).compactMap {
+      workingTimeLabel(at: $0, zone: zone, local: local)
+    }
+    return labels.isEmpty ? nil : labels.joined(separator: "/")
+  }
+
   public static func hourLabel(_ hour: Int, day: Date, zone: TimeZone, local: Calendar) -> String {
     let labels = CalendarDayAxis.instants(atHour: hour, on: day, calendar: local).map {
       label(at: $0, zone: zone, local: local)
