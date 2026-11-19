@@ -130,7 +130,7 @@
         ScrollView(.horizontal, showsIndicators: false) { row(fixedWidth: false) }
       }
       .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
-      .sensoryFeedback(.selection, trigger: selection)
+      .sensoryFeedback(InteractionFeedback.selection, trigger: selection)
     }
 
     private func row(fixedWidth: Bool) -> some View {
