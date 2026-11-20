@@ -9,12 +9,23 @@
     let rows: [DayPartRow<Item>]
     let swipes: DayPartSwipes
     let drag: TimelineDragModel
+    /// Toggles a part open or closed; nil leaves every label inert (a past day's history).
+    var onToggle: ((DayPart) -> Void)? = nil
+    /// The "time title" a collapsed part still shows for its first planned item.
+    var previewText: ((Item) -> String?)? = nil
     @ViewBuilder let row: (Item) -> Row
 
     var body: some View {
       ForEach(rows) { entry in
         switch entry {
-        case .label(let part): DayPartLabel(part: part).modifier(drag.frameReader(entry.id))
+        case .label(let part):
+          DayPartLabel(part: part, onToggle: onToggle).modifier(drag.frameReader(entry.id))
+        case .collapsed(let part, let preview, let extraCount):
+          DayPartCollapsedLabel(
+            part: part, preview: preview.flatMap { previewText?($0) }, extraCount: extraCount,
+            onToggle: onToggle
+          )
+          .modifier(drag.frameReader(entry.id))
         case .cardEnd: DayPartGap()
         case .emptyPart:
           Color.clear
@@ -47,27 +58,109 @@
     static let swipeClose = Duration.seconds(1)
   }
 
-  /// Heads a card.
-  private struct DayPartLabel: View {
-    let part: DayPart
-
-    private var title: Text {
-      switch part {
-      case .morning: Text("Morning")
-      case .afternoon: Text("Afternoon")
-      case .evening: Text("Evening")
+  extension DayPart {
+    var agendaTitle: String {
+      switch self {
+      case .morning: "Morning"
+      case .afternoon: "Afternoon"
+      case .evening: "Evening"
       }
     }
 
+    var disclosureIdentifier: String {
+      switch self {
+      case .morning: "dayPart.morning"
+      case .afternoon: "dayPart.afternoon"
+      case .evening: "dayPart.evening"
+      }
+    }
+  }
+
+  /// Heads an open card. With a toggle it is the Settled-style disclosure row: title, hairline, chevron.
+  private struct DayPartLabel: View {
+    let part: DayPart
+    var onToggle: ((DayPart) -> Void)? = nil
+
     var body: some View {
-      title
-        .font(AgendaRowStyle.detail.weight(.semibold))
+      Group {
+        if let onToggle {
+          Button {
+            onToggle(part)
+          } label: {
+            HStack {
+              Text(part.agendaTitle).font(AgendaRowStyle.detail.weight(.semibold))
+              Rectangle().fill(.quaternary).frame(height: 1)
+              Image(systemName: "chevron.down").font(.caption.weight(.semibold))
+            }
+            .foregroundStyle(.secondary)
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+          }
+          .buttonStyle(.plain)
+          .accessibilityIdentifier(part.disclosureIdentifier)
+          .accessibilityLabel(part.agendaTitle)
+          .accessibilityValue("Expanded")
+        } else {
+          Text(part.agendaTitle)
+            .font(AgendaRowStyle.detail.weight(.semibold))
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityAddTraits(.isHeader)
+        }
+      }
+      .listRowSeparator(.hidden)
+      .listRowInsets(
+        EdgeInsets(top: onToggle == nil ? 10 : 0, leading: 20, bottom: 4, trailing: 20)
+      )
+      .listRowBackground(DayPartShape(edge: .top))
+    }
+  }
+
+  /// A closed part on one line, like Settled: title, hairline, its first timed item ("18:30 Gym +2"), chevron.
+  private struct DayPartCollapsedLabel: View {
+    let part: DayPart
+    let preview: String?
+    let extraCount: Int
+    var onToggle: ((DayPart) -> Void)? = nil
+
+    private var previewText: String? {
+      guard let preview else { return nil }
+      return extraCount > 0 ? "\(preview) +\(extraCount)" : preview
+    }
+
+    private var accessibilityText: String {
+      guard let preview else { return part.agendaTitle }
+      return extraCount > 0
+        ? "\(part.agendaTitle), \(preview), \(extraCount) more" : "\(part.agendaTitle), \(preview)"
+    }
+
+    var body: some View {
+      Button {
+        onToggle?(part)
+      } label: {
+        HStack {
+          Text(part.agendaTitle).font(AgendaRowStyle.detail.weight(.semibold))
+          Rectangle().fill(.quaternary).frame(height: 1)
+          if let previewText {
+            Text(previewText)
+              .font(AgendaRowStyle.detail)
+              .lineLimit(1)
+              .truncationMode(.tail)
+          }
+          Image(systemName: "chevron.right").font(.caption.weight(.semibold))
+        }
         .foregroundStyle(.secondary)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .accessibilityAddTraits(.isHeader)
-        .listRowSeparator(.hidden)
-        .listRowInsets(EdgeInsets(top: 10, leading: 20, bottom: 4, trailing: 20))
-        .listRowBackground(DayPartShape(edge: .top))
+        .frame(minHeight: 44)
+        .contentShape(Rectangle())
+      }
+      .buttonStyle(.plain)
+      .disabled(onToggle == nil)
+      .listRowSeparator(.hidden)
+      .listRowInsets(EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 20))
+      .listRowBackground(Color.clear)
+      .accessibilityIdentifier(part.disclosureIdentifier)
+      .accessibilityLabel(accessibilityText)
+      .accessibilityValue("Collapsed")
     }
   }
 

@@ -34,6 +34,8 @@ final class DayPartTests: XCTestCase {
       case .item(let row, let card, let closesCard):
         (card == nil ? "~" : "") + row.id + (closesCard ? "." : "")
       case .emptyPart(let part): "empty:\(part.rawValue)"
+      case .collapsed(let part, let preview, let extraCount):
+        "[\(part):\(preview?.id ?? "none")+\(extraCount)]"
       case .cardEnd(let part): "[/\(part)]"
       }
     }
@@ -172,6 +174,116 @@ final class DayPartTests: XCTestCase {
     }
     XCTAssertEqual(survivor.id, "evening-first")
     XCTAssertEqual(rows(original).map(\.id), before.map(\.id), "Undo restores the same identities")
+  }
+
+  // MARK: Progressive disclosure
+
+  private func disclosureLayout(_ rows: [Row], collapsed: Set<DayPart>) -> [String] {
+    DayPart.rows(
+      rows, day: at(0), calendar: cal, start: \.start, isPlanned: \.planned, collapsed: collapsed
+    ).map {
+      switch $0 {
+      case .label(let part): "[\(part)]"
+      case .item(let row, let card, let closesCard):
+        (card == nil ? "~" : "") + row.id + (closesCard ? "." : "")
+      case .emptyPart(let part): "empty:\(part.rawValue)"
+      case .collapsed(let part, let preview, let extraCount):
+        "[\(part):\(preview?.id ?? "none")+\(extraCount)]"
+      case .cardEnd(let part): "[/\(part)]"
+      }
+    }
+  }
+
+  func testTodayOpensOnlyTheCurrentPartByDefault() {
+    // 10:00 is in the morning: morning opens, afternoon and evening stay collapsed.
+    let collapsed = DayPartDisclosure.collapsedParts(
+      viewingToday: true, anchorNow: at(10), day: at(0), calendar: cal, overrides: [:])
+    XCTAssertEqual(collapsed, [.afternoon, .evening])
+    XCTAssertTrue(
+      DayPartDisclosure.isExpanded(
+        .morning, viewingToday: true, anchorNow: at(10), day: at(0), calendar: cal, override: nil))
+    // Boundaries follow the same DayPart rules the cards use, pre-dawn included in the morning.
+    XCTAssertEqual(
+      DayPartDisclosure.currentPart(anchorNow: at(2), day: at(0), calendar: cal), .morning)
+    XCTAssertEqual(
+      DayPartDisclosure.currentPart(anchorNow: at(12), day: at(0), calendar: cal), .afternoon)
+    XCTAssertEqual(
+      DayPartDisclosure.currentPart(anchorNow: at(18), day: at(0), calendar: cal), .evening)
+  }
+
+  func testADayOtherThanTodayOpensEveryPartByDefault() {
+    for viewingToday in [false] {
+      let collapsed = DayPartDisclosure.collapsedParts(
+        viewingToday: viewingToday, anchorNow: at(10), day: at(0), calendar: cal, overrides: [:])
+      XCTAssertEqual(collapsed, [], "A past or future day must not hide its content behind folds")
+    }
+  }
+
+  func testCollapsedPartPreviewsItsFirstTimedItemAndCountsTheRest() {
+    let rows = [
+      Row(id: "standup", start: at(9)),
+      Row(id: "gym", start: at(18, 30)), Row(id: "dinner", start: at(19, 30)),
+      Row(id: "read", start: at(21)),
+    ]
+    XCTAssertEqual(
+      disclosureLayout(rows, collapsed: [.evening]),
+      ["[morning]", "standup.", "[/morning]", "[evening:gym+2]", "[/evening]"])
+    // Expanding shows every planned row again: the preview plus its +2 is the whole part.
+    XCTAssertEqual(
+      disclosureLayout(rows, collapsed: []),
+      ["[morning]", "standup.", "[/morning]", "[evening]", "gym", "dinner", "read.", "[/evening]"])
+    let preview = DayPartDisclosure.preview(
+      Array(rows.dropFirst()), isPlanned: \.planned)
+    XCTAssertEqual(preview.first?.id, "gym")
+    XCTAssertEqual(preview.extraCount, 2)
+    XCTAssertEqual(1 + preview.extraCount, preview.plannedCount)
+  }
+
+  func testFreeTimeAndNowNeverCountTowardTheCollapsedExtra() {
+    let rows = [
+      Row(id: "free", start: at(18), planned: false), Row(id: "gym", start: at(18, 30)),
+      Row(id: "now", start: at(19), planned: false), Row(id: "dinner", start: at(19, 30)),
+    ]
+    XCTAssertEqual(
+      disclosureLayout(rows, collapsed: [.evening]), ["[evening:gym+1]", "[/evening]"])
+    // A part holding only free time or the Now line earns no fold and stays loose.
+    XCTAssertEqual(
+      disclosureLayout([Row(id: "now", start: at(19), planned: false)], collapsed: [.evening]),
+      ["~now"])
+  }
+
+  func testAManualChoiceWinsForItsDayAndPartOnly() {
+    let morningKey = DayPartDisclosure.overrideKey(day: at(0), part: .morning, calendar: cal)
+    let eveningKey = DayPartDisclosure.overrideKey(day: at(0), part: .evening, calendar: cal)
+    // The user closed the current (morning) part and opened the evening at 10:00.
+    let overrides = [morningKey: false, eveningKey: true]
+    XCTAssertEqual(
+      DayPartDisclosure.collapsedParts(
+        viewingToday: true, anchorNow: at(10), day: at(0), calendar: cal, overrides: overrides),
+      [.morning, .afternoon],
+      "A manually closed current part must not spring back open")
+    // The same choices do not leak into another day.
+    XCTAssertEqual(
+      DayPartDisclosure.collapsedParts(
+        viewingToday: true, anchorNow: at(10, day: 17), day: at(0, day: 17), calendar: cal,
+        overrides: overrides),
+      [.afternoon, .evening])
+    // A frozen anchor keeps the default steady after time crosses into the next part.
+    XCTAssertTrue(
+      DayPartDisclosure.isExpanded(
+        .morning, viewingToday: true, anchorNow: at(10), day: at(0), calendar: cal, override: nil),
+      "The caller freezes anchorNow when the day is shown, so 12:00 passing changes nothing")
+  }
+
+  func testChosenBoundariesMoveTheCurrentPart() {
+    let early = DayPart.Boundaries(afternoon: 11, evening: 17)
+    XCTAssertEqual(
+      DayPartDisclosure.currentPart(
+        anchorNow: at(11, 30), day: at(0), calendar: cal, boundaries: early), .afternoon)
+    XCTAssertEqual(
+      DayPartDisclosure.collapsedParts(
+        viewingToday: true, anchorNow: at(17, 30), day: at(0), calendar: cal, boundaries: early,
+        overrides: [:]), [.morning, .afternoon])
   }
 
 }
