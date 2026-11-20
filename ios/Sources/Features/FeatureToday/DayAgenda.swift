@@ -11,13 +11,6 @@
   import SwiftData
   import UIKit
 
-  /// One day's view: active events, tasks and alarms stay directly visible in a single timeline,
-  /// held in faint neutral Morning / Afternoon / Evening cards (`DayPartRows`).
-  /// On today a red "N overdue" line sits above the timeline (tap to show the rows, Tidy to reschedule them all).
-  /// A past day also shows what was done on it, rebuilt from Activity (`DayHistory`): reminders completed that day at
-  /// their completion time, recorded alarm stops, reopens and Undo. Other actions remain under Changes.
-  /// Settle exists only on the device's current day (`SettleGate`): a collapsed Settled disclosure follows its timeline.
-  /// The Calendar tab adds the week strip to pick a day.
   package struct DayAgenda: View {
     private let actions: PlannerActions
     private let calendar: any CalendarService
@@ -69,12 +62,6 @@
       _showsFreeTime = AppStorage(
         wrappedValue: Preferences.showFreeTime, Preferences.showFreeTimeKey,
         store: presentation.defaults)
-      _afternoonStart = AppStorage(
-        wrappedValue: Preferences.afternoonStart, Preferences.afternoonStartKey,
-        store: presentation.defaults)
-      _eveningStart = AppStorage(
-        wrappedValue: Preferences.eveningStart, Preferences.eveningStartKey,
-        store: presentation.defaults)
       _freeRowMinutes = AppStorage(
         wrappedValue: Preferences.freeRowMinutes, Preferences.freeRowMinutesKey,
         store: presentation.defaults)
@@ -97,14 +84,8 @@
     @AppStorage(Preferences.weatherSummaryKey) private var showsWeather = Preferences.weatherSummary
     @AppStorage(Preferences.showSettleKey) private var showsSettle = Preferences.showSettle
     @AppStorage(Preferences.showFreeTimeKey) private var showsFreeTime = Preferences.showFreeTime
-    @AppStorage(Preferences.afternoonStartKey) private var afternoonStart = Preferences
-      .afternoonStart
-    @AppStorage(Preferences.eveningStartKey) private var eveningStart = Preferences.eveningStart
     @AppStorage(Preferences.freeRowMinutesKey) private var freeRowMinutes = Preferences
       .freeRowMinutes
-    private var dayBoundaries: DayPart.Boundaries {
-      DayPart.Boundaries(afternoon: afternoonStart, evening: eveningStart)
-    }
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(HealthLineModel.self) private var health
@@ -124,42 +105,55 @@
     @State private var drag = TimelineDragModel()
     @State private var nowCentering = TimelineNowCentering()
     @State private var frozenDayItems: DayItems?
-    @State private var swipes = DayPartSwipes()
     @State private var retryTime: Date?
     /// What Activity says happened on `day` (past days only), and the day it was read for.
     @State private var history = DayHistory()
     @State private var historyDay: Date?
-    @State private var settledExpanded = false
     @State private var freeChoice: FreeTimeChoice?
-    /// Manual day-part choices for this agenda's lifetime, keyed by day plus part, like `settledExpanded`:
-    /// keeping them in `@State` (not `@AppStorage`) means a part closed today never stays closed tomorrow.
-    @State private var dayPartOverrides: [String: Bool] = [:]
-    /// The moment the viewed day was shown. Freezing it keeps the default open part steady when time
-    /// crosses a part boundary, so nothing opens or closes under a scrolling user.
-    @State private var disclosureAnchorDay: Date?
-    @State private var disclosureAnchorNow: Date?
+    @State private var showsSettled = false
+    @State private var windowStart: Date?
+    @State private var doneAnchor: Set<PersistentIdentifier> = []
+    @State private var listTop: CGFloat?
+    @State private var markerY: CGFloat?
+    @State private var scrollBox: ScrollBox?
+    @State private var scrollIdle = true
+    @State private var available: CGFloat?
+    @State private var sampled: [RowKind: CGFloat] = [:]
+    @ScaledMetric(relativeTo: .callout) private var rowFloor: CGFloat = 44
+    @ScaledMetric(relativeTo: .footnote) private var nowFloor: CGFloat = 24
+    @ScaledMetric(relativeTo: .footnote) private var freeFloor: CGFloat = 24
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.modelContext) private var context
     @Environment(UndoToast.self) private var toast: UndoToast?
 
     package var body: some View {
       ScrollViewReader { proxy in
+        let dayItems = frozenDayItems ?? items(on: day, now: now)
+        let plan = makePlan(dayItems)
         VStack(spacing: 0) {
-          // Tap a day or swipe the strip to an adjacent week.
           if !showsWeekStrip {
             WeekStrip(selected: $day, calendar: cal)
               .padding(.horizontal, 8)
               .padding(.bottom, 2)
           }
-          list(proxy)
+          if let layout = plan.layout, !plan.window.isEmpty {
+            ribbon(plan, layout: layout)
+          }
+          list(proxy, items: dayItems, plan: plan)
+          if let layout = plan.layout { footer(plan, layout: layout, proxy: proxy) }
         }
         .onAppear {
           refreshClock()
-          freezeDisclosureAnchor()
+          freezeWindow()
           startCenteringNow(proxy)
         }
-        .onChange(of: nowRequest) { _, _ in startCenteringNow(proxy, explicit: true) }
+        .onChange(of: nowRequest) { _, _ in
+          freezeWindow()
+          startCenteringNow(proxy, explicit: true)
+        }
+        .onChange(of: dynamicTypeSize) { _, _ in sampled = [:] }
         .onChange(of: day) { _, _ in
-          freezeDisclosureAnchor()
+          freezeWindow()
           showsAllOverdue = false
           timeRequest = nil
           pendingTime = nil
@@ -179,7 +173,10 @@
       }
       .overlay { TimelineDragOverlay(model: drag).allowsHitTesting(false) }
       .onChange(of: scenePhase) { _, phase in
-        if phase == .active { refreshClock() }
+        if phase == .active {
+          refreshClock()
+          freezeWindow()
+        }
       }
       .onReceive(NotificationCenter.default.publisher(for: ledger.activity.didChange)) { _ in
         loadHistory()
@@ -246,28 +243,11 @@
       }
     }
 
-    private func freezeDisclosureAnchor() {
-      disclosureAnchorDay = cal.startOfDay(for: day)
-      disclosureAnchorNow = presentation.now
+    private func freezeWindow() {
+      windowStart = nil
+      doneAnchor = Set(tasks.filter(\.isDone).map(\.persistentModelID))
     }
 
-    private var disclosureAnchor: Date {
-      if disclosureAnchorDay == cal.startOfDay(for: day), let anchor = disclosureAnchorNow {
-        return anchor
-      }
-      return now
-    }
-
-    private func toggleDayPart(_ part: DayPart) {
-      let anchor = disclosureAnchor
-      let key = DayPartDisclosure.overrideKey(day: day, part: part, calendar: cal)
-      let expanded = DayPartDisclosure.isExpanded(
-        part, viewingToday: cal.isDate(day, inSameDayAs: anchor), anchorNow: anchor, day: day,
-        calendar: cal, boundaries: dayBoundaries, override: dayPartOverrides[key])
-      withAnimation(reduceMotion ? nil : .snappy) { dayPartOverrides[key] = !expanded }
-    }
-
-    /// Reuse the existing clock refresh and foreground boundary; keep explicitly browsed days.
     private func refreshClock() {
       let next = presentation.now
       if !showsWeekStrip {
@@ -359,10 +339,8 @@
     /// The Today tab on today (not the Calendar tab, not another day).
     private var isTodayTab: Bool { !showsWeekStrip && cal.isDate(day, inSameDayAs: now) }
 
-    private func list(_ proxy: ScrollViewProxy) -> some View {
-      let items = frozenDayItems ?? items(on: day, now: now)
-      return List {
-        // Running timers: a live countdown at the top of today.
+    private func list(_ proxy: ScrollViewProxy, items: DayItems, plan: DayPlan) -> some View {
+      List {
         if isTodayTab { TodayTimerRows(controller: timers, open: openTimer) }
         if isTodayTab, showsHealth, let line = health.line {
           TodayHealthLine(line: line)
@@ -400,7 +378,6 @@
         if settlesHere, let error = actions.focus.errorMessage {
           Text(error).font(.footnote).foregroundStyle(.secondary)
         }
-        // Overdue first: never moved silently, and one tap from a new date.
         if isTodayTab, !overdue.isEmpty { overdueSection }
         if isTodayTab, showsFreeTime, let conclusion = deadlineConclusion(items) {
           conclusionLine(conclusion, anytime: items.anytime)
@@ -408,7 +385,6 @@
         if !items.allDay.isEmpty || !items.externalAllDay.isEmpty {
           Section {
             if !showsWeekStrip {
-              // An inline caption avoids the plain List section header's reserved vertical space.
               AgendaHeader(title: "All day", isInline: true)
                 .accessibilityAddTraits(.isHeader)
                 .listRowSeparator(.hidden)
@@ -432,31 +408,41 @@
             if showsWeekStrip { AgendaHeader(title: "All day") }
           }
         }
-        // The Today tab's week strip names its day; the timeline needs no label of its own.
+        if !items.anytime.isEmpty {
+          AnytimeLabel(title: cal.isDate(day, inSameDayAs: now) ? "Anytime today" : "Anytime")
+          ForEach(items.anytime) { task in
+            TaskRow(
+              task: task, compact: true, agendaDay: day, onDelete: { requestDelete(task) },
+              open: openTask, attention: attention(target(task), canDelete: canDelete(task))
+            )
+          }
+        }
         if showsWeekStrip {
           Section {
-            timelineContent(items)
+            timelineContent(items, plan: plan)
           } header: {
             AgendaHeader(
               title: day.plannerFormatted(
                 .dateTime.month().day().weekday(.wide), runtime: presentation.runtime))
           }
         } else {
-          Section { timelineContent(items) }
+          Section {
+            windowMarker
+            timelineContent(items, plan: plan)
+          }
         }
-        if settlesHere, showsSettle { settledSection }
       }
       .listStyle(.plain)
       .animation(reduceMotion ? nil : .snappy, value: items.timeline.map(\.start))
-      // Interactive rows own their 44pt targets. Today captions and gaps use their natural text height.
       .environment(\.defaultMinListRowHeight, showsWeekStrip ? 24 : 0)
       .listSectionSpacing(showsWeekStrip ? 6 : 0)
       .scrollContentBackground(.hidden)
       .onScrollPhaseChange { _, phase in
-        // UIKit scrolling is authoritative even if a row/menu recognizer consumes the contact.
         if phase == .tracking || phase == .interacting || phase == .decelerating {
           nowCentering.touched()
         }
+        scrollIdle = phase == .idle
+        updateAvailable()
       }
       .onScrollGeometryChange(for: [CGFloat].self) {
         [$0.contentSize.height, $0.containerSize.height]
@@ -465,9 +451,21 @@
           centerNow(proxy)
         }
       }
-      // Pulling past the top opens AI chat instead of refreshing (docs/design/pull-to-ask.md).
+      .onScrollGeometryChange(for: ScrollBox.self) {
+        ScrollBox(
+          container: $0.containerSize.height, offset: $0.contentOffset.y,
+          top: $0.contentInsets.top, bottom: $0.contentInsets.bottom)
+      } action: { _, box in
+        scrollBox = box
+        updateAvailable()
+      }
+      .onGeometryChange(for: CGFloat.self) {
+        $0.frame(in: .global).minY
+      } action: { top in
+        listTop = top
+        updateAvailable()
+      }
       .pullToAsk()
-      .background(alignment: .topLeading) { DayPartSwipeLayer(swipes: swipes) }
       .background {
         TimelineHoldDragInstaller(
           model: drag, canLift: { liftCandidate(at: $0) != nil },
@@ -476,18 +474,42 @@
       }
       .entryDeleteDialog($pendingDelete)
       .sheet(item: $freeChoice) { freeSheet($0) }
+      .sheet(isPresented: $showsSettled) { settledSheet }
+    }
+
+    private var windowMarker: some View {
+      Color.clear
+        .frame(height: 0)
+        .listRowInsets(EdgeInsets())
+        .listRowSeparator(.hidden)
+        .listRowBackground(Color.clear)
+        .accessibilityHidden(true)
+        .onGeometryChange(for: CGFloat.self) {
+          $0.frame(in: .global).minY
+        } action: { y in
+          markerY = y
+          updateAvailable()
+        }
+    }
+
+    private func updateAvailable() {
+      guard scrollIdle, drag.session == nil, let listTop, let markerY, let box = scrollBox else {
+        return
+      }
+      let above = markerY - listTop + box.offset
+      let value = max(0, box.container - box.top - box.bottom - above - 4)
+      if abs((available ?? -100) - value) > 1 { available = value }
+    }
+
+    private func sample(_ kind: RowKind, _ height: CGFloat) {
+      if height > (sampled[kind] ?? 0) + 0.5 { sampled[kind] = height }
     }
 
     @ViewBuilder
-    private func timelineContent(_ items: DayItems) -> some View {
+    private func timelineContent(_ items: DayItems, plan: DayPlan) -> some View {
       if isPastDay {
         if historyDay == cal.startOfDay(for: day) {
-          DayPartRows(
-            rows: DayPart.rows(
-              history.facts.filter(\.isPrimary), day: day, calendar: cal,
-              boundaries: dayBoundaries, start: \.at, isPlanned: { _ in true }), swipes: swipes,
-            drag: drag
-          ) { fact in
+          ForEach(history.facts.filter(\.isPrimary)) { fact in
             HistoricalFactRow(fact: fact, todayStyle: !showsWeekStrip)
           }
           let changes = history.facts.filter { !$0.isPrimary }
@@ -501,61 +523,190 @@
             Text("No recorded actions").foregroundStyle(.secondary)
           }
         }
-      }
-      if !isPastDay, items.timeline.isEmpty, items.anytime.isEmpty {
-        Text("Nothing planned").foregroundStyle(.secondary)
-          .listRowSeparator(.hidden)
-      }
-      DayPartRows(
-        rows: timelineRows(items), swipes: swipes, drag: drag,
-        onToggle: isPastDay ? nil : { toggleDayPart($0) },
-        previewText: { item in
-          guard let title = item.previewTitle else { return nil }
-          let time = item.start.plannerFormatted(
-            date: .omitted, time: .shortened, runtime: presentation.runtime)
-          return "\(time) \(title)"
+      } else {
+        if items.timeline.isEmpty, items.anytime.isEmpty {
+          Text("Nothing planned").foregroundStyle(.secondary)
+            .listRowSeparator(.hidden)
         }
-      ) { item in
-        dayItemRow(item, items: items)
-      }
-      if !items.anytime.isEmpty {
-        AnytimeLabel(title: cal.isDate(day, inSameDayAs: now) ? "Anytime today" : "Anytime")
-        ForEach(items.anytime) { task in
-          TaskRow(
-            task: task, compact: true, agendaDay: day, onDelete: { requestDelete(task) },
-            open: openTask, attention: attention(target(task), canDelete: canDelete(task))
-          )
+        ForEach(timelineRows(plan), id: \.id) { item in
+          dayItemRow(item)
+            .onGeometryChange(for: CGFloat.self) {
+              $0.size.height
+            } action: {
+              sample(RowKind(item), $0)
+            }
         }
       }
     }
 
-    /// The day's rows; during a drag the dragged row sits at the place it would land, and Free rows step aside.
-    private func timelineRows(_ items: DayItems) -> [DayPartRow<TimelineItem>] {
-      guard let session = drag.session else {
-        // All-day events and Anytime reminders sit outside these cards, so they never count toward a fold.
-        let anchor = disclosureAnchor
-        let collapsed =
-          isPastDay
-          ? Set<DayPart>()
-          : DayPartDisclosure.collapsedParts(
-            viewingToday: cal.isDate(day, inSameDayAs: anchor), anchorNow: anchor, day: day,
-            calendar: cal, boundaries: dayBoundaries, overrides: dayPartOverrides)
-        return DayPart.rows(
-          items.timeline, day: day, calendar: cal, boundaries: dayBoundaries, start: \.start,
-          isPlanned: \.isPlanned, collapsed: collapsed)
-      }
-      let stop = session.stops[drag.stopIndex]
+    private func timelineRows(_ plan: DayPlan) -> [TimelineItem] {
+      guard let session = drag.session else { return shownRows(plan) }
       var rows = session.anchors
-      rows.insert(session.item, at: stop.index)
-      return DayPart.rows(
-        rows, day: day, calendar: cal, boundaries: dayBoundaries,
-        start: { $0.id == session.id ? stop.target : $0.start },
-        isPlanned: { _ in true }, showsEmptyParts: true)
+      rows.insert(session.item, at: session.stops[drag.stopIndex].index)
+      return rows
     }
 
-    /// A timeline row: where it can move, its time label opens the exact editor and a hold can drag it.
+    private func shownRows(_ plan: DayPlan) -> [TimelineItem] {
+      plan.rows.map { row in
+        switch row {
+        case .item(let index): plan.planned[index]
+        case .free(let index): .gap(plan.free[index])
+        case .now: .nowMarker(now)
+        }
+      }
+    }
+
+    private var isToday: Bool { cal.isDate(day, inSameDayAs: now) }
+
+    private var windowed: Bool { !showsWeekStrip && !isPastDay }
+
+    private var rowHeights: TodayWindow.Heights {
+      TodayWindow.Heights(
+        row: max(rowFloor, sampled[.item] ?? 0), now: max(nowFloor, sampled[.now] ?? 0),
+        free: max(freeFloor, sampled[.free] ?? 0))
+    }
+
+    private func makePlan(_ items: DayItems) -> DayPlan {
+      let planned = items.timeline.filter { if case .gap = $0 { false } else { true } }
+      let free = items.timeline.compactMap { item -> DateInterval? in
+        if case .gap(let gap) = item { return gap }
+        return nil
+      }
+      let window = planned.map(windowItem)
+      let dayStart = cal.startOfDay(for: day)
+      let dayEnd = cal.date(byAdding: .day, value: 1, to: dayStart) ?? dayStart
+      let current = isToday ? now : nil
+      let range = TodayWindow.ribbonRange(items: window, day: day, calendar: cal)
+      let heights = rowHeights
+      guard windowed else {
+        let layout = TodayWindow.layout(
+          items: window, free: free, now: current, start: dayStart, heights: heights,
+          available: .greatestFiniteMagnitude, dayEnd: dayEnd)
+        return DayPlan(
+          planned: planned, free: free, window: window, rows: layout.rows, layout: nil,
+          start: dayStart, range: range, targets: [])
+      }
+      let start =
+        windowStart ?? current
+        ?? window.filter { $0.stop >= dayStart }.map(\.start).min() ?? dayStart
+      let layout = TodayWindow.layout(
+        items: window, free: free, now: current, start: start, heights: heights,
+        available: available ?? heights.row * 6 + heights.now, dayEnd: dayEnd)
+      return DayPlan(
+        planned: planned, free: free, window: window, rows: layout.rows, layout: layout,
+        start: start, range: range, targets: TodayWindow.snapTargets(items: window, now: current))
+    }
+
+    private func windowItem(_ item: TimelineItem) -> TodayWindow.Item {
+      switch item {
+      case .event(let event, let start):
+        TodayWindow.Item(start: start, end: start.addingTimeInterval(event.duration), kind: .event)
+      case .external(let event):
+        TodayWindow.Item(start: event.start, end: max(event.start, event.end), kind: .event)
+      case .due(let task):
+        TodayWindow.Item(
+          start: item.start, kind: .reminder,
+          isDone: task.isDone && doneAnchor.contains(task.persistentModelID))
+      case .alarm(_, let date, _): TodayWindow.Item(start: date, kind: .alarm)
+      case .gap(let gap): TodayWindow.Item(start: gap.start, kind: .reminder)
+      case .nowMarker(let date): TodayWindow.Item(start: date, kind: .reminder)
+      }
+    }
+
+    private func ribbon(_ plan: DayPlan, layout: TodayWindow.Layout) -> some View {
+      let current = isToday ? now : nil
+      let marks = zip(plan.planned, plan.window).map { item, entry in
+        let repeats: Bool = if case .due(let task) = item { task.repeats != nil } else { false }
+        let done: Bool = if case .due(let task) = item { task.isDone } else { false }
+        return DayRibbon.Mark(
+          start: entry.start, end: entry.end, kind: entry.kind, repeats: repeats,
+          faded: done || current.map { entry.kind != .reminder && entry.stop < $0 } ?? false,
+          late: !done && TodayWindow.isOpenPast(entry, now: current))
+      }
+      return DayRibbon(
+        marks: marks, range: plan.range, calendar: cal, now: current, start: plan.start,
+        end: layout.windowEnd, targets: plan.targets, laterCount: layout.later.count,
+        label: {
+          $0.plannerFormatted(date: .omitted, time: .shortened, runtime: presentation.runtime)
+        },
+        scrub: { moveWindow(to: $0, animated: false) },
+        jump: { moveWindow(to: $0, animated: true) }
+      )
+      .padding(.horizontal, 16)
+      .disabled(drag.session != nil || timeBusy)
+    }
+
+    private func moveWindow(to date: Date, animated: Bool) {
+      let next: Date? = isToday && date == now ? nil : date
+      guard next != windowStart else { return }
+      if animated, !reduceMotion {
+        withAnimation(.easeInOut(duration: 0.12)) { windowStart = next }
+      } else {
+        withTransaction(Transaction(animation: nil)) { windowStart = next }
+      }
+    }
+
     @ViewBuilder
-    private func dayItemRow(_ item: TimelineItem, items: DayItems) -> some View {
+    private func footer(_ plan: DayPlan, layout: TodayWindow.Layout, proxy: ScrollViewProxy)
+      -> some View
+    {
+      let settled = settlesHere && showsSettle ? settledRecords.count : 0
+      let named = layout.commitment.map { index in
+        let item = plan.planned[index]
+        return item.start.plannerFormatted(
+          date: .omitted, time: .shortened, runtime: presentation.runtime) + " " + item.title
+      }
+      if layout.overflows || !layout.later.isEmpty || settled > 0 {
+        HStack(spacing: 12) {
+          if layout.overflows {
+            Button {
+              withAnimation(reduceMotion ? nil : .snappy) {
+                proxy.scrollTo("now-line", anchor: .top)
+              }
+            } label: {
+              footerLabel(["Now ↓", named].compactMap { $0 }.joined(separator: " · "))
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("today.nowDown")
+          } else if let first = layout.later.first {
+            Button {
+              moveWindow(to: plan.window[first].start, animated: true)
+            } label: {
+              footerLabel(
+                ["Later", "\(layout.later.count)", named].compactMap { $0 }.joined(
+                  separator: " · ") + " ›")
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("today.later")
+          }
+          Spacer(minLength: 0)
+          if settled > 0 {
+            Button {
+              showsSettled = true
+            } label: {
+              Text("Settled \(settled)").font(.subheadline).foregroundStyle(.secondary)
+                .frame(minHeight: 44).contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("focus.settled")
+          }
+        }
+        .padding(.horizontal, 20)
+        .frame(minHeight: 44)
+      }
+    }
+
+    private func footerLabel(_ text: String) -> some View {
+      Text(text)
+        .font(.subheadline)
+        .foregroundStyle(.secondary)
+        .lineLimit(1)
+        .frame(minHeight: 44)
+        .contentShape(Rectangle())
+    }
+
+    @ViewBuilder
+    private func dayItemRow(_ item: TimelineItem) -> some View {
       if !isPastDay, dragTiming(item) != nil {
         timelineRow(item, on: day)
           .environment(\.agendaTimeEdit, { editTime(item) })
@@ -569,12 +720,13 @@
       }
     }
 
-    /// The movable row under the finger, if a drag may start now. An open swipe must close first.
     private func liftCandidate(at point: CGPoint) -> TimelineItem? {
-      guard !isPastDay, !timeBusy, pendingTime == nil, swipes.slides.isEmpty,
-        let id = drag.rowID(at: point)
-      else { return nil }
-      return items(on: day, now: now).timeline.first { $0.id == id && dragTiming($0) != nil }
+      guard !isPastDay, !timeBusy, pendingTime == nil, let id = drag.rowID(at: point) else {
+        return nil
+      }
+      return shownRows(makePlan(items(on: day, now: now))).first {
+        $0.id == id && dragTiming($0) != nil
+      }
     }
 
     private func beginDrag(at point: CGPoint) -> Bool {
@@ -582,16 +734,18 @@
       prepareTime(item, timing: timing)
       guard timeRequest != nil else { return false }
       let items = items(on: day, now: now)
-      let others = items.timeline.filter { if case .gap = $0 { false } else { true } }
+      let plan = makePlan(items)
+      let others = shownRows(plan).filter { if case .gap = $0 { false } else { true } }
       guard let originalIndex = others.firstIndex(where: { $0.id == item.id }) else { return false }
       var anchors = others
       anchors.remove(at: originalIndex)
+      let until = plan.layout?.later.first.map { plan.window[$0].start }
       let stops = TimelineDropPlan.stops(
         anchors: anchors.map(\.dropAnchor), originalIndex: originalIndex, timing: timing, day: day,
-        calendar: cal, boundaries: dayBoundaries)
-      let part = DayPart.of(timing.original, day: day, calendar: cal, boundaries: dayBoundaries)
-      guard let original = stops.firstIndex(where: { $0.part == part && $0.index == originalIndex })
-      else { return false }
+        calendar: cal, until: until)
+      guard let original = stops.firstIndex(where: { $0.index == originalIndex }) else {
+        return false
+      }
       frozenDayItems = items
       return drag.begin(
         TimelineDragModel.Session(
@@ -653,27 +807,6 @@
           onDelete: showsWeekStrip
             ? nil : { _ = actions.delete(alarm, context: context, toast: toast) },
           stoppedAt: stoppedAt)
-      case .done(let task, let doneAt):
-        TaskRow(
-          task: task, showsTime: true, time: doneAt, compact: true, agendaDay: rowDay,
-          onDelete: { requestDelete(task) }, open: openTask,
-          // A past day: never Settle (`SettleGate`), so this only carries whether Delete is allowed.
-          attention: attention(target(task), canDelete: canDelete(task), on: rowDay)
-        )
-      case .completed(let c):
-        PastDayRow(
-          time: c.at, title: c.title, detail: "Completed", mark: .completed,
-          todayStyle: !showsWeekStrip)
-      case .stoppedAlarm(let stop):
-        PastDayRow(
-          time: stop.at, title: stop.title, detail: "Alarm stopped", mark: .stopped,
-          todayStyle: !showsWeekStrip)
-      case .deletedEvent(let e):
-        PastDayRow(
-          time: e.start, title: e.title,
-          detail: DurationLabel.text(minutes: max(1, Int(e.end.timeIntervalSince(e.start) / 60)))
-            + " · Deleted later",
-          mark: .deletedEvent, todayStyle: !showsWeekStrip)
       case .gap(let free): FreeRow(free: free) { openFree(free, from: "today.freeRow") }
       case .nowMarker(let date): NowRow(date: date).id("now-line")
       }
@@ -688,7 +821,9 @@
       case .external(let event):
         guard event.end > now else { return nil }
         duration = event.end.timeIntervalSince(event.start)
-      case .due: duration = 0
+      case .due(let task):
+        guard !task.isDone else { return nil }
+        duration = 0
       case .alarm(_, _, let stopped):
         guard stopped == nil else { return nil }
         duration = 0
@@ -950,8 +1085,6 @@
         timeline.append(.external(e))
         busy.append(DateInterval(start: e.start, end: max(e.start, e.end)))
       }
-      // Today shows overdue reminders in its overdue line; a browsed past day keeps its own timeline.
-      // A completed task leaves the day (Undo in the toast brings it back).
       let open = tasks.filter {
         !$0.isDone
           && (!cal.isDate(day, inSameDayAs: now) || !plannerIsOverdue($0, now: now, calendar: cal))
@@ -966,9 +1099,15 @@
           anytime.append(task)
         }
       }
-      // Reminders with no time stay under "Anytime", flagged first.
+      if windowed {
+        for task in tasks where task.isDone {
+          guard let due = task.due, cal.isDate(due, inSameDayAs: day),
+            plannerDueHasTime(task, calendar: presentation.calendar)
+          else { continue }
+          timeline.append(.due(task))
+        }
+      }
       anytime.sort { ($0.flagged ? 0 : 1, $0.createdAt) < ($1.flagged ? 0 : 1, $1.createdAt) }
-      // What is still free, as quiet "Free 1 h 30 min" rows.
       if showsFreeTime {
         timeline += DaySchedule.freeGaps(
           busy: busy, day: day, now: now,
@@ -982,9 +1121,6 @@
       timeline += rings.map { ring in
         TimelineItem.alarm(alarms[ring.index], ring.date, nil)
       }
-      if cal.isDate(day, inSameDayAs: now), !timeline.isEmpty {
-        timeline.append(.nowMarker(now))
-      }
       return DayItems(
         allDay: local.filter {
           $0.isAllDay && !$0.occurs(on: day, calendar: cal).isEmpty
@@ -992,10 +1128,7 @@
               target($0, start: $0.occurs(on: day, calendar: cal).first ?? $0.start), on: day)
         },
         externalAllDay: external.filter { $0.isAllDay && !isHidden(target($0), on: day) },
-        // At the same minute the Now line comes first, so free time from now sits under it.
-        timeline: timeline.filter { !isHidden($0, on: day) }.sorted {
-          ($0.start, $0.isNow ? 0 : 1) < ($1.start, $1.isNow ? 0 : 1)
-        },
+        timeline: timeline.filter { !isHidden($0, on: day) }.sorted { $0.start < $1.start },
         anytime: anytime.filter { !isHidden(target($0), on: day) })
     }
 
@@ -1097,7 +1230,7 @@
       case .external(let event): isHidden(target(event), on: rowDay)
       case .due(let task): isHidden(target(task), on: rowDay)
       case .alarm(let alarm, let date, _): isHidden(target(alarm, fireDate: date), on: rowDay)
-      case .done, .completed, .stoppedAlarm, .deletedEvent, .gap, .nowMarker: false
+      case .gap, .nowMarker: false
       }
     }
 
@@ -1110,33 +1243,6 @@
           state, identity: target.identity, localReference: target.reference,
           title: target.title, context: context, toast: toast, on: rowDay ?? day)
       }
-    }
-
-    private func focusHeader(
-      _ title: String, count: Int, id: String, expanded: Binding<Bool>
-    )
-      -> some View
-    {
-      Button {
-        withAnimation(reduceMotion ? nil : .snappy) { expanded.wrappedValue.toggle() }
-      } label: {
-        HStack {
-          Text("\(title) (\(count))").font(AgendaRowStyle.disclosure.weight(.medium))
-          Rectangle().fill(.quaternary).frame(height: 1)
-          Image(systemName: expanded.wrappedValue ? "chevron.down" : "chevron.right")
-            .font(.caption.weight(.semibold))
-        }
-        .foregroundStyle(.secondary)
-        .frame(minHeight: 44)
-        .contentShape(Rectangle())
-      }
-      .buttonStyle(.plain)
-      .listRowSeparator(.hidden)
-      .listRowInsets(EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 20))
-      .accessibilityIdentifier("focus." + id)
-      .accessibilityLabel("\(title) (\(count))")
-      .accessibilityValue(expanded.wrappedValue ? "Expanded" : "Collapsed")
-      .accessibilityHint("Changes visibility for this day in Today and on widgets")
     }
 
     private var overdueRows: some View {
@@ -1189,56 +1295,67 @@
       }
     }
 
-    @ViewBuilder private var settledSection: some View {
-      let records = settledRecords
-      focusHeader("Settled", count: records.count, id: "settled", expanded: $settledExpanded)
-      if settledExpanded {
-        ForEach(records, id: \.identity) { record in
-          let source = resolved(record)
-          let restoreLabel = source == nil ? "Clear choice" : "Unsettle"
-          let target =
-            source
-            ?? FocusTarget(
-              identity: record.identity, reference: record.localReference, title: "Unavailable item"
-            )
-          HStack {
-            VStack(alignment: .leading, spacing: 3) {
-              Text(target.title).foregroundStyle(.primary)
-              Text("Hidden on this day in Today").font(.caption).foregroundStyle(.secondary)
+    private var settledSheet: some View {
+      NavigationStack {
+        List { settledRows }
+          .listStyle(.plain)
+          .navigationTitle("Settled")
+          .navigationBarTitleDisplayMode(.inline)
+          .toolbar {
+            ToolbarItem(placement: .confirmationAction) {
+              Button("Done") { showsSettled = false }
             }
-            Spacer()
-            Button {
-              changeFocus(source == nil ? nil : .active, target: target)
-            } label: {
-              Group {
-                if source != nil {
-                  Image(systemName: "arrow.uturn.backward")
-                    .font(ButtonConfiguration.Icon.actionFont)
-                    .frame(minWidth: ButtonConfiguration.minimumHitSize)
-                } else {
-                  Text(restoreLabel)
-                }
-              }
-              .frame(minHeight: ButtonConfiguration.minimumHitSize)
-              .contentShape(Rectangle())
-            }
-            .buttonStyle(.borderless)
-            .help(restoreLabel)
-            .accessibilityLabel(
-              source == nil ? "Clear unavailable Focus choice" : restoreLabel + " " + target.title)
           }
-          .modifier(TodayItemSurface(enabled: true))
-          .modifier(
-            TodayFocusRowActions(
-              enabled: true, settle: {}, ask: source?.subject,
-              open: source == nil ? nil : { openAttentionItem(target) },
-              delete: source != nil && canDeleteAttention(target)
-                ? { requestDeleteAttention(target) } : nil,
-              restore: { _ = changeFocus(source == nil ? nil : .active, target: target) },
-              restoreLabel: restoreLabel)
+      }
+      .presentationDetents([.medium, .large])
+    }
+
+    private var settledRows: some View {
+      ForEach(settledRecords, id: \.identity) { record in
+        let source = resolved(record)
+        let restoreLabel = source == nil ? "Clear choice" : "Unsettle"
+        let target =
+          source
+          ?? FocusTarget(
+            identity: record.identity, reference: record.localReference, title: "Unavailable item"
           )
-          .listRowSeparator(.hidden)
+        HStack {
+          VStack(alignment: .leading, spacing: 3) {
+            Text(target.title).foregroundStyle(.primary)
+            Text("Hidden on this day in Today").font(.caption).foregroundStyle(.secondary)
+          }
+          Spacer()
+          Button {
+            changeFocus(source == nil ? nil : .active, target: target)
+          } label: {
+            Group {
+              if source != nil {
+                Image(systemName: "arrow.uturn.backward")
+                  .font(ButtonConfiguration.Icon.actionFont)
+                  .frame(minWidth: ButtonConfiguration.minimumHitSize)
+              } else {
+                Text(restoreLabel)
+              }
+            }
+            .frame(minHeight: ButtonConfiguration.minimumHitSize)
+            .contentShape(Rectangle())
+          }
+          .buttonStyle(.borderless)
+          .help(restoreLabel)
+          .accessibilityLabel(
+            source == nil ? "Clear unavailable Focus choice" : restoreLabel + " " + target.title)
         }
+        .modifier(TodayItemSurface(enabled: true))
+        .modifier(
+          TodayFocusRowActions(
+            enabled: true, settle: {}, ask: source?.subject,
+            open: source == nil ? nil : { openAttentionItem(target) },
+            delete: source != nil && canDeleteAttention(target)
+              ? { requestDeleteAttention(target) } : nil,
+            restore: { _ = changeFocus(source == nil ? nil : .active, target: target) },
+            restoreLabel: restoreLabel)
+        )
+        .listRowSeparator(.hidden)
       }
     }
 
@@ -1520,31 +1637,48 @@
     }
   }
 
-  /// What one day holds, in the order the day view shows it.
   struct DayItems {
     var allDay: [OneEvent]
     var externalAllDay: [ExternalEvent]
     var timeline: [TimelineItem]
-    /// Due this day with no time, and no free gap left to suggest one.
     var anytime: [OneTask]
+  }
+
+  struct DayPlan {
+    var planned: [TimelineItem]
+    var free: [DateInterval]
+    var window: [TodayWindow.Item]
+    var rows: [TodayWindow.Row]
+    var layout: TodayWindow.Layout?
+    var start: Date
+    var range: DateInterval
+    var targets: [Date]
+  }
+
+  struct ScrollBox: Equatable {
+    var container: CGFloat
+    var offset: CGFloat
+    var top: CGFloat
+    var bottom: CGFloat
+  }
+
+  enum RowKind: Hashable {
+    case item, now, free
+
+    init(_ item: TimelineItem) {
+      switch item {
+      case .nowMarker: self = .now
+      case .gap: self = .free
+      default: self = .item
+      }
+    }
   }
 
   enum TimelineItem: Identifiable {
     case event(OneEvent, Date)
     case external(ExternalEvent)
-    /// A reminder, at the time it is due.
     case due(OneTask)
-    /// A ring; on a past day, when it was stopped (if Activity recorded the Stop).
     case alarm(OneAlarm, Date, Date?)
-    /// A past day: a reminder Today still has, completed that day, at its completion time.
-    case done(OneTask, Date)
-    /// A past day: a completion recorded in Activity whose reminder is gone or has moved on (repeating).
-    case completed(DayHistory.Completion)
-    /// A past day: a recorded Stop of an alarm that no longer rings that day.
-    case stoppedAlarm(DayHistory.AlarmStop)
-    /// A past day: an event deleted after it had started.
-    case deletedEvent(DayHistory.DeletedEvent)
-    /// Free time of 30 minutes or more, from now on.
     case gap(DateInterval)
     case nowMarker(Date)
 
@@ -1554,18 +1688,11 @@
       case .external(let e): return e.id
       case .due(let t): return ["due", AnyHashable(t.persistentModelID)]
       case .alarm(let a, let d, _): return [AnyHashable(a.persistentModelID), AnyHashable(d)]
-      case .done(let t, _): return ["done", AnyHashable(t.persistentModelID)]
-      case .completed(let c): return ["completed", c.id]
-      case .stoppedAlarm(let s): return ["stopped", s.id]
-      case .deletedEvent(let e): return ["deletedEvent", e.id]
       case .gap(let free): return ["gap", AnyHashable(free.start)]
       case .nowMarker: return "now"
       }
     }
 
-    var isNow: Bool { if case .nowMarker = self { true } else { false } }
-
-    /// What a dragged row lands between: only events take up time.
     var dropAnchor: TimelineDropAnchor {
       switch self {
       case .event(let event, let start):
@@ -1575,7 +1702,6 @@
       }
     }
 
-    /// Whether this item would clash with a row moved to `date`.
     func overlaps(_ date: Date, timing: TimelineDragTime) -> Bool {
       let length: TimeInterval
       switch self {
@@ -1601,26 +1727,13 @@
         && date.addingTimeInterval(timing.duration) > start
     }
 
-    /// Something on the day's plan, as opposed to free time or the Now line.
-    var isPlanned: Bool {
-      switch self {
-      case .gap, .nowMarker: false
-      default: true
-      }
-    }
-
-    /// The title a collapsed day part shows for this item; free time and the Now line have none.
-    var previewTitle: String? {
+    var title: String {
       switch self {
       case .event(let event, _): event.title
       case .external(let event): event.title
       case .due(let task): task.title
       case .alarm(let alarm, _, _): alarm.label.isEmpty ? "Alarm" : alarm.label
-      case .done(let task, _): task.title
-      case .completed(let completion): completion.title
-      case .stoppedAlarm(let stop): stop.title
-      case .deletedEvent(let event): event.title
-      case .gap, .nowMarker: nil
+      case .gap, .nowMarker: ""
       }
     }
 
@@ -1630,10 +1743,6 @@
       case .external(let e): return e.start
       case .due(let t): return t.due ?? .distantFuture
       case .alarm(_, let d, _): return d
-      case .done(_, let d): return d
-      case .completed(let c): return c.at
-      case .stoppedAlarm(let s): return s.at
-      case .deletedEvent(let e): return e.start
       case .gap(let free): return free.start
       case .nowMarker(let d): return d
       }

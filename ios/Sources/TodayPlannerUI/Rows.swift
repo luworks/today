@@ -221,7 +221,7 @@
         if showsTime, let start = time ?? task.due {
           TimeColumn(date: start, compact: attention != nil, tint: isOpenPast ? .red : nil)
             .dynamicTypeSize(
-            ...(attention == nil ? DynamicTypeSize.accessibility5 : .xxxLarge))
+              ...(attention == nil ? DynamicTypeSize.accessibility5 : .xxxLarge))
         }
         Button {
           actions.toggleDone(task, context: context, toast: toast)
