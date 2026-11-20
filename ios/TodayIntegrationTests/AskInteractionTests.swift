@@ -96,7 +96,7 @@
           ScriptedModelClient.reply("Delayed fixture reply", delay: .seconds(2))
         ]),
         voice: VoiceInput(driver: LiveSpeechInputDriver(locale: runtime.locale)),
-        presentation: presentation,
+        presentation: presentation, greetingDay: { ButlerGreeting.Day() },
         onBack: { _ in }, onAdded: { _ in }, onOpenDay: { _ in },
         onOpenTask: { _, _ in }, onOpenAlarm: { _, _ in }
       )
