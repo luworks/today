@@ -145,7 +145,15 @@
         edit: { _ in open(event) }, calendar: calendar, attention: attention)
     }
 
-    private var rowDetail: String { detail + (travel.map { " · " + $0 } ?? "") }
+    private var rowDetail: String {
+      guard attention == nil || event.isAllDay else {
+        let begin = start ?? event.start
+        let now = presentation.now
+        return begin <= now && now < begin.addingTimeInterval(event.duration)
+          ? "now" : DurationLabel.text(minutes: event.durationMinutes)
+      }
+      return detail + (travel.map { " · " + $0 } ?? "")
+    }
 
     /// "Drive 18 min · Leave by 14:20" when the event's Apple Calendar copy has a location (Today's own events keep none).
     private var travel: String? {
@@ -211,8 +219,9 @@
         spacing: attention == nil ? 10 : 0
       ) {
         if showsTime, let start = time ?? task.due {
-          TimeColumn(date: start, compact: attention != nil).dynamicTypeSize(
-            ...(attention == nil ? DynamicTypeSize.accessibility5 : .xxxLarge))
+          TimeColumn(date: start, compact: attention != nil, tint: isOpenPast ? .red : nil)
+            .dynamicTypeSize(
+              ...(attention == nil ? DynamicTypeSize.accessibility5 : .xxxLarge))
         }
         Button {
           actions.toggleDone(task, context: context, toast: toast)
@@ -326,7 +335,15 @@
     private var title: Text {
       Text(task.title)
         .strikethrough(task.isDone)
-        .foregroundStyle(task.isDone ? .secondary : .primary)
+        .foregroundStyle(
+          task.isDone || (attention != nil && task.repeats != nil) ? .secondary : .primary)
+    }
+
+    private var isOpenPast: Bool {
+      guard attention != nil, showsTime, !task.isDone, let due = time ?? task.due,
+        let agendaDay, presentation.calendar.isDate(agendaDay, inSameDayAs: presentation.now)
+      else { return false }
+      return due < presentation.now
     }
 
     @ViewBuilder private var detailText: some View {
@@ -343,6 +360,11 @@
 
     /// Most important first, so truncation drops the least useful bits: date, repeat, list, tags.
     private var detail: String? {
+      if attention != nil, agendaDay != nil,
+        !plannerIsOverdue(task, now: presentation.now, calendar: presentation.calendar)
+      {
+        return task.repeats != nil ? "↻" : nil
+      }
       if let agendaDay {
         let shown = showsTime ? (time ?? task.due) : nil
         return plannerRowSubtitle(

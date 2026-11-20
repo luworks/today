@@ -1,0 +1,391 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Today 时间窗</title>
+<style>
+:root{
+  --bg:#f2f2f7; --paper:#fff; --ink:#1c1c1e; --ink2:#6e6e73; --ink3:#aeaeb2; --hair:#e5e5ea; --fill:#f2f2f7;
+  --red:#ff3b30; --blue:#2f7cf6; --orange:#e8743b; --skel:#e5e5ea; --accent:#e8743b;
+  --win:rgba(232,116,59,.14); --winb:rgba(232,116,59,.9); --good:#1f9d55; --bad:#d4380d;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#000; --paper:#000; --ink:#f2f2f7; --ink2:#98989f; --ink3:#5c5c60; --hair:#2c2c2e; --fill:#1c1c1e;
+  --skel:#2c2c2e; --win:rgba(232,116,59,.22); --good:#4ade80; --bad:#ff7a59;
+}}
+:root[data-theme="dark"]{
+  --bg:#000; --paper:#000; --ink:#f2f2f7; --ink2:#98989f; --ink3:#5c5c60; --hair:#2c2c2e; --fill:#1c1c1e;
+  --skel:#2c2c2e; --win:rgba(232,116,59,.22); --good:#4ade80; --bad:#ff7a59;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.55 -apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC",sans-serif}
+main{max-width:1320px;margin:0 auto;padding:24px 16px 56px}
+h1{font-size:22px;margin:0 0 6px}
+h2{font-size:17px;margin:30px 0 8px}
+p{margin:6px 0}
+.lead{max-width:920px}
+.lead b{color:var(--accent)}
+.ctl{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;margin:14px 0 12px}
+.ctl .tm{display:flex;align-items:center;gap:8px;flex:1;min-width:240px;max-width:520px}
+.ctl input[type=range]{flex:1;accent-color:var(--accent)}
+.ctl output{font-weight:600;font-variant-numeric:tabular-nums}
+.ctl label{display:flex;align-items:center;gap:5px;white-space:nowrap}
+.ctl input[type=checkbox]{accent-color:var(--accent)}
+.devs{display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap}
+.dcol{display:flex;flex-direction:column;gap:6px}
+.dname{font-size:13px;font-weight:600}
+.dstat{font-size:12px;color:var(--ink2);font-variant-numeric:tabular-nums}
+.dstat b.ok{color:var(--good)} .dstat b.no{color:var(--bad)}
+.hint{font-size:12.5px;color:var(--ink2);margin:8px 0 0}
+table{width:100%;border-collapse:collapse;background:var(--paper);font-size:13.5px}
+th,td{padding:8px 10px;border-bottom:1px solid var(--hair);text-align:left;vertical-align:top}
+th{color:var(--ink2);font-weight:600;font-size:12.5px}
+.tw{overflow-x:auto;border-radius:12px;border:1px solid var(--hair)}
+code{font:12.5px ui-monospace,SFMono-Regular,Menlo,monospace;background:var(--fill);padding:1px 5px;border-radius:5px}
+ol,ul{padding-left:20px;margin:6px 0} li{margin:3px 0}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+@media (max-width:820px){.two{grid-template-columns:1fr}}
+
+/* device, drawn in iOS points */
+.dev{position:relative;background:var(--paper);border:1px solid var(--hair);border-radius:48px;overflow:hidden;font-size:17px;color:var(--ink)}
+.sb{display:flex;align-items:flex-end;justify-content:space-between;padding:0 30px 6px;font-size:16px;font-weight:600}
+.pills{display:flex;align-items:center;gap:10px;height:56px;padding:0 16px}
+.pills span{width:56px;height:44px;border-radius:22px;background:var(--fill)}
+.pills span:first-child{width:44px;background:var(--paper);border:1px solid var(--hair)}
+.pills em{margin-left:auto;font-style:normal;color:var(--ink2);font-size:16px}
+.wk{display:grid;grid-template-columns:repeat(7,1fr);height:58px;text-align:center;padding:0 8px;align-content:center}
+.wk small{display:block;color:var(--ink2);font-size:12px;line-height:16px}
+.wk b{display:inline-block;width:34px;height:34px;line-height:34px;font-weight:500;font-size:18px}
+.wk .on b{background:var(--orange);color:#fff;border-radius:50%;font-weight:700}
+.rib{position:relative;height:46px;margin:0 16px;touch-action:none;user-select:none;cursor:ew-resize}
+.rib .ax{position:absolute;left:0;right:0;top:19px;height:1px;background:var(--hair)}
+.rib .hr{position:absolute;top:31px;font-size:10px;color:var(--ink3);transform:translateX(-50%);font-variant-numeric:tabular-nums}
+.rib .m{position:absolute;transform:translateX(-50%)}
+.rib .m.ev{top:13px;height:13px;border-radius:4px;background:var(--blue);transform:none;min-width:5px}
+.rib .m.al{top:11px;width:2.5px;height:17px;border-radius:1px;background:var(--orange)}
+.rib .m.rem{top:15px;width:9px;height:9px;border-radius:50%;background:var(--ink)}
+.rib .m.rep{top:16px;width:7px;height:7px;border-radius:50%;border:1.5px solid var(--ink2)}
+.rib .m.ph{top:16px;width:7px;height:7px;border-radius:50%;background:var(--ink3)}
+.rib .m.open{background:var(--red);border-color:var(--red)}
+.rib .m.dn{opacity:.28}
+.rib .nw{position:absolute;top:4px;width:2px;height:30px;margin-left:-1px;background:var(--red);border-radius:1px}
+.rib .win{position:absolute;top:5px;height:28px;background:var(--win);border:1.5px solid var(--winb);border-radius:9px;pointer-events:none}
+.rib .win.drag{box-shadow:0 0 0 3px var(--win)}
+.rib .nowchip{position:absolute;right:-4px;top:-2px;font-size:11px;font-weight:600;color:#fff;background:var(--red);border-radius:9px;padding:1px 7px;cursor:pointer;pointer-events:auto}
+.hline{height:30px;padding:4px 16px 0;color:var(--ink2);font-size:15px}
+.list{overflow-y:auto;scrollbar-width:none}
+.list::-webkit-scrollbar{display:none}
+.r{display:flex;align-items:center;gap:10px;padding:0 16px;overflow:hidden}
+.r .t{width:46px;flex:none;color:var(--ink2);font-size:15px;font-variant-numeric:tabular-nums}
+.r .ic{flex:none;width:22px;height:22px;border-radius:50%;border:1.5px solid var(--ink3)}
+.r .ic.done{background:var(--ink3);border-color:var(--ink3)}
+.r .ic.ev{border:0;border-radius:2px;width:4px;height:24px;margin:0 9px;background:var(--blue)}
+.r .ic.al{border:0;text-align:center;font-size:17px;line-height:22px}
+.r .ic.al::before{content:"⏰"}
+.r .ic.ph{border-style:dashed}
+.r .ti{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.r .ti .bar{display:inline-block;width:62%;height:12px;border-radius:6px;background:var(--skel);vertical-align:middle}
+.r .tr{flex:none;font-size:13px;color:var(--ink3)}
+.r .tr.live{color:var(--blue);font-weight:600}
+.r.rep .ti{color:var(--ink2)}
+.r.open .t{color:var(--red);font-weight:600}
+.r.done .ti{color:var(--ink3);text-decoration:line-through}
+.r.past .t{color:var(--ink3)}
+.r.any .t{font-size:12px}
+.nowl{display:flex;align-items:center;gap:8px;padding:0 16px;color:var(--red);font-size:13px;font-weight:600}
+.nowl::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--red)}
+.nowl::after{content:"";flex:1;height:1.5px;background:var(--red)}
+.free{display:flex;align-items:center;padding:0 16px 0 72px;color:var(--ink3);font-size:14px}
+.foot{display:flex;align-items:center;gap:10px;padding:0 16px;font-size:15px;color:var(--ink2)}
+.foot .later{display:flex;align-items:center;gap:8px;flex:1;min-width:0;cursor:pointer}
+.foot .later b{color:var(--ink);font-weight:600;flex:none}
+.foot .later em{font-style:normal;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.foot .st{flex:none;font-size:14px;color:var(--ink3)}
+.foot{border-top:.5px solid var(--hair)}
+.dev.big .r .t{font-size:18px;width:54px}
+.dev.big .r .ti{font-size:21px}
+.dev.big .r .tr{font-size:16px}
+.dev.big .nowl{font-size:16px}
+.dev.big .foot{font-size:18px}
+.dev.big .foot .st{font-size:16px}
+.dev.big .hline{font-size:18px}
+.fab{position:absolute;right:18px;display:flex;gap:12px}
+.fab span{width:60px;height:60px;border-radius:30px;background:var(--paper);box-shadow:0 2px 10px rgba(0,0,0,.14);display:flex;align-items:center;justify-content:center;font-size:24px;color:var(--ink)}
+</style>
+</head>
+<body>
+<main>
+<h1>Today · 时间窗（E+H 定稿方向）</h1>
+<p class="lead"><b>一屏讲完今天，不用滚动。</b>没有早中晚，也没有 Earlier：今天已经过点还没做的，永远直接列出来；接下来的事一行一项，往后排到这一屏放满为止，放不下的收进最后一行 <b>Later</b>。顶部的时间轴就是“时间滚动条”：手指拖它，列表换一段时间；列表本身不滚。只有过点未做的事多到一屏装不下时，才需要滚动。</p>
+
+<div class="ctl">
+  <div class="tm"><span>现在</span><input id="now" type="range" min="360" max="1410" step="1" value="483"><output id="nowv">08:03</output></div>
+  <label><input type="checkbox" id="busy">忙碌的一天（+14 项）</label>
+  <label><input type="checkbox" id="lag">很多过点未做（+12 项）</label>
+  <label><input type="checkbox" id="big">更大字体</label>
+</div>
+<div class="devs" id="devs"></div>
+<p class="hint">每台手机都能操作：在时间轴上横向拖动（或点一下）换时间段；点 Now 回来；点 Later 翻到下一段。机型按真实 pt 尺寸绘制，再统一缩放。18:05 之后的 7 项截图里看不到，用虚线圆和灰条代替，时间是占位。</p>
+
+<section class="spec">
+<h2>页面结构（从上到下，pt）</h2>
+<div class="tw"><table>
+<tr><th>区块</th><th>高度</th><th>规则</th></tr>
+<tr><td>状态栏 + 顶栏胶囊 + 周条</td><td>系统 + 56 + 58</td><td>不变。</td></tr>
+<tr><td><b>时间轴</b>（新）</td><td>46</td><td>全天缩略：事件是蓝色条（按真实长度），闹钟是橙色竖线，一次性提醒是实心点，重复提醒是空心点，过点未做是红点，已完成、已结束的淡到 28%。红线是 Now，橙框是当前窗口。</td></tr>
+<tr><td>安静行（Health、天气、计时器、N overdue、空闲提示）</td><td>各 30</td><td>保持现有开关；它们出现时，下面的窗口自动缩短，不会把列表挤出屏幕。</td></tr>
+<tr><td><b>列表</b></td><td>剩下的全部</td><td>① 今天过点未做（红色时间）和 Anytime；② Now 线；③ 进行中的事件；④ 往后一行一项，直到放满。行高 44（跟着动态字体变），点击区域不小于 44。</td></tr>
+<tr><td><b>Later</b> 行</td><td>44</td><td>“Later · 6 · 18:05 Yuan 接 Alden 放学 ›”：数量 + 窗口外第一件事件或闹钟。点一下，窗口翻到下一段。右侧 Settled 2。这一行固定在列表下方、不随列表滚动；全天都放得下时只剩 Settled。过点未做多到要滚动时，它变成“Now ↓ · 08:00 下一件事件”，点一下滚到 Now，所以下一件硬承诺始终在屏幕上。</td></tr>
+<tr><td>浮动按钮 + Home 指示条</td><td>72 + 系统</td><td>列表底部留出这块空间，最后一行不会被盖住。</td></tr>
+</table></div>
+
+<div class="two">
+<div>
+<h2>列表规则</h2>
+<ol>
+<li><b>过点未做永远可见</b>：今天时间已过、还没完成的提醒，不折叠、不进 Later、不受窗口影响，排在 Now 线之上。只有它们多到超过一屏时才需要滚动，这是唯一需要滚动的情况。</li>
+<li><b>已完成、已结束不列出</b>：已结束的事件、响过的闹钟、做完的提醒只留在时间轴上（淡色）。想看就把窗口拖回过去。</li>
+<li><b>刚勾完的不马上消失</b>：划线留在原位，下次进入 Today、回到前台或换天时才收走，列表不会在手下跳动。</li>
+<li><b>窗口长度 = 一屏放得下的量</b>：按实际行高（含动态字体和当前显示的安静行）计算，不是固定小时数。SE 上短，Pro Max 上长。</li>
+<li><b>Later 一定点名硬承诺</b>：窗口外如果有事件或闹钟，Later 行写出第一件；其余的在时间轴上都有标记，没有藏起来没痕迹的承诺。</li>
+<li><b>一行一项</b>：时间 · 图标 · 标题（单行截断）· 尾标（事件时长或 now，重复提醒用 ↻）。列表名不再占第二行，详情点开看。重复提醒用次要色，一眼分出例行和要事。</li>
+<li><b>其他日子</b>：窗口从当天第一项开始，规则相同；过去的日子显示完成记录（DayHistory），不标红。</li>
+</ol>
+</div>
+<div>
+<h2>时间轴交互</h2>
+<ol>
+<li><b>拖动</b>：在时间轴上横向拖，窗口起点 1:1 跟手；每跨过一项的开始时间给一次 <code>detent</code>，快拖时合并；松手吸附到最近的一项或 Now，给一次 <code>settle</code>。列表跟着换段，不做位移动画，只做 120 ms 淡入淡出。</li>
+<li><b>点一下</b>：窗口跳到点击位置最近的一项。</li>
+<li><b>Now 胶囊</b>：窗口不在 Now 时出现在时间轴右上角，点它回来；底栏 Today 按钮也回到 Now。回到前台、隔天、重新进入 Today 时自动回 Now。</li>
+<li><b>Later 行</b>：点一下等于把窗口拖到 Later 里的第一项。</li>
+<li><b>手势归属</b>：时间轴独占横向拖动；顶栏和底栏的横滑仍然切 Tab，周条仍然翻周，左边缘仍然开侧栏（时间轴两侧各留 16 pt）。</li>
+<li><b>浏览安静</b>：窗口在 Now 时不发触感；Reduce Motion 下去掉淡入淡出。VoiceOver 把时间轴作为可调控件：上下滑一次移到前一项或后一项，读出“显示 08:00 到 20:00，之后还有 2 项”。</li>
+</ol>
+</div>
+</div>
+
+<h2>删除与改动</h2>
+<ul>
+<li><b>删</b>：<code>DayPart</code>、<code>DayPartDisclosure</code>、<code>DayPartRows</code> / <code>DayPartFill</code> / <code>DayPartSwipes</code>，Settings → Today → Divide the Day（<code>afternoonStart</code>、<code>eveningStart</code>），<code>DayPartTests</code> 和 <code>today-daypart-disclosure</code> fixture，Settled 独立区块（并入 Later 行右侧）。</li>
+<li><b>新</b>：TodayCore 里一个纯函数 <code>TodayWindow.layout(items, now, start, rowHeights, available)</code>，返回置顶的过点未做、窗口内各行、Later 数量与点名项、是否需要滚动，全部可单测；SwiftUI 层只有时间轴 <code>DayRibbon</code> 和一行一项的行样式。</li>
+<li><b>不加新设置</b>。Free 行和空闲提示（#392）保留，Free 行在窗口内同样一行；空间紧时 Free 行先让位（不占窗口名额），硬承诺和提醒优先。</li>
+</ul>
+
+<h2>验收</h2>
+<ul>
+<li>测试数据集里正常的一天：SE、16、16 Pro Max 默认状态都不需要滚动，Pro Max 能完整显示到 Later。</li>
+<li>过点未做的提醒在任何窗口位置、任何机型上都能看到（多于一屏时可滚动到）。</li>
+<li>拖动时间轴时列表每次换段 ≤ 1 帧（120 Hz 下 8 ms），无掉帧；松手吸附与触感同帧。</li>
+<li>动态字体到 AX1 时仍不出现截断的时间列，窗口自动变短。</li>
+</ul>
+</section>
+</main>
+
+<script>
+const DEV = [
+  { id: 'se', name: 'iPhone SE', w: 375, h: 667, top: 20, bot: 0, r: 0 },
+  { id: 'p16', name: 'iPhone 16', w: 393, h: 852, top: 54, bot: 34, r: 48 },
+  { id: 'pm', name: 'iPhone 16 Pro Max', w: 440, h: 956, top: 62, bot: 34, r: 54 },
+];
+const T = s => { const [h, m] = s.split(':').map(Number); return h * 60 + m; };
+const F = m => String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(Math.round(m) % 60).padStart(2, '0');
+const RAW = [
+  ['07:30', null, 'rem', 1, '刷牙', 1],
+  ['07:40', null, 'al', 0, '送 alden 上学'],
+  ['08:00', '08:30', 'ev', 0, 'Yuan- Alden上学'],
+  ['08:00', '08:10', 'ev', 0, '鸭子放出来-谁做谁删'],
+  ['08:30', null, 'rem', 1, '吃高血压药 量体重 本周目标80kg 阿德勒', 2],
+  ['09:00', null, 'rem', 1, '走路（上午）', 2],
+  ['10:21', null, 'rem', 1, '训练引体向上 先跳上去 再阻抗 5x8', 2],
+  ['12:01', null, 'rem', 1, '看 apple nvda ant 股票', 2],
+  ['12:30', null, 'rem', 0, 'Submissions are open. We are accepting questions', 1],
+  ['18:05', '18:35', 'ev', 0, 'Yuan 接 Alden 放学'],
+  ...['18:30', '19:00', '19:30', '20:00', '20:30', '21:00', '21:30'].map(t => [t, null, 'ph', 0, '']),
+];
+const BUSY = ['13:00', '13:20', '13:40', '14:00', '14:20', '14:40', '15:00', '15:20', '15:40', '16:00', '16:20', '16:40', '17:00', '17:20'].map(t => [t, null, 'ph', 0, '']);
+const LAG = ['06:00', '06:10', '06:20', '06:30', '06:40', '06:50', '07:00', '07:10', '07:20', '07:45', '07:50', '07:55'].map(t => [t, null, 'rem', 0, '', 1]);
+const S = { now: 483, busy: false, lag: false, big: false, ws: {}, drag: null };
+function items() {
+  return [...RAW, ...(S.busy ? BUSY : []), ...(S.lag ? LAG : [])].map(([t, e, k, rep, ti, sticky], i) => ({
+    i, t: T(t), end: e ? T(e) : null, k, rep: !!rep, ti,
+    sticky: sticky === 1,
+  })).sort((a, b) => a.t - b.t || a.i - b.i);
+}
+const stop = it => it.end ?? it.t;
+const isDone = (it, n) => it.k === 'rem' && it.t < n && !it.sticky;
+const isOpenPast = (it, n) => it.k === 'rem' && it.t < n && it.sticky;
+const isCommit = it => it.k === 'ev' || it.k === 'al';
+const H = () => S.big ? { row: 54, now: 26, foot: 52, any: 54 } : { row: 44, now: 22, foot: 44, any: 44 };
+
+function layout(dev, ws) {
+  const n = S.now, all = items(), hh = H();
+  const avail = dev.h - dev.top - 56 - 58 - 46 - 30 - 72 - dev.bot;
+  const pinned = all.filter(it => isOpenPast(it, n));
+  const cand = all.filter(it => !isOpenPast(it, n) && stop(it) >= ws && (ws < n || !isDone(it, n)));
+  let h = pinned.length * hh.row;
+  if (ws <= n) h += hh.now;
+  let k = 0;
+  const box = avail - hh.foot;
+  const over = h + hh.row > box;
+  const cap = over ? h + box : box;
+  while (k < cand.length && (h + hh.row <= cap || k === 0)) { h += hh.row; k++; }
+  const shown = cand.slice(0, k), later = cand.slice(k);
+  const nowIn = ws <= n && !(later.length && later[0].t <= n);
+  if (ws <= n && !nowIn) h -= hh.now;
+  const listRows = [...pinned, ...shown].sort((a, b) => a.t - b.t || a.i - b.i).map(it => ({ it }));
+  if (nowIn) {
+    const at = listRows.findIndex(r => r.it.t > n);
+    listRows.splice(at < 0 ? listRows.length : at, 0, { now: true });
+  }
+  const we = later.length ? Math.max(later[0].t, ws + 30) : Math.max(1440, ...all.map(stop));
+  const last = shown.length ? stop(shown[shown.length - 1]) : ws;
+  return { rows: listRows, later, we, last, over, scroll: h > box, avail, box, shown: shown.length + pinned.length, pinned: pinned.length, h };
+}
+
+function rowHTML(it, n, hh) {
+  const live = it.k === 'ev' && it.t <= n && n < it.end;
+  const cls = ['r', it.rep ? 'rep' : '', isOpenPast(it, n) ? 'open' : '', isDone(it, n) ? 'done' : '', stop(it) < n && !isOpenPast(it, n) ? 'past' : ''].join(' ');
+  const ic = it.k === 'ev' ? 'ev' : it.k === 'al' ? 'al' : it.k === 'ph' ? 'ph' : isDone(it, n) ? 'done' : '';
+  const ti = it.ti ? it.ti : '<span class="bar"></span>';
+  let tr = '';
+  if (it.k === 'ev') tr = live ? '<span class="tr live">now</span>' : `<span class="tr">${it.end - it.t}m</span>`;
+  else if (it.rep) tr = '<span class="tr">↻</span>';
+  return `<div class="${cls}" style="height:${hh.row}px"><span class="t">${F(it.t)}</span><span class="ic ${ic}"></span><span class="ti">${ti}</span>${tr}</div>`;
+}
+
+const R0 = 360, R1 = 1440, X = m => (Math.min(Math.max(m, R0), R1) - R0) / (R1 - R0) * 100;
+function ribbonHTML(ws, we) {
+  const n = S.now;
+  let h = '<div class="ax"></div>';
+  for (const hr of [6, 9, 12, 15, 18, 21, 24]) h += `<div class="hr" style="left:${X(hr * 60)}%">${hr}</div>`;
+  for (const it of items()) {
+    const faded = isDone(it, n) || (it.k !== 'rem' && stop(it) <= n) ? ' dn' : '';
+    const open = isOpenPast(it, n) ? ' open' : '';
+    if (it.k === 'ev') h += `<div class="m ev${faded}" style="left:${X(it.t)}%;width:${X(it.end) - X(it.t)}%"></div>`;
+    else h += `<div class="m ${it.k === 'rem' ? (it.rep ? 'rep' : 'rem') : it.k}${faded}${open}" style="left:${X(it.t)}%"></div>`;
+  }
+  h += `<div class="nw" style="left:${X(n)}%"></div>`;
+  h += `<div class="win" style="left:${X(ws)}%;width:${Math.max(1.5, X(we) - X(ws))}%"></div>`;
+  if (Math.abs(ws - n) > 1) h += `<div class="nowchip" data-now="1">Now</div>`;
+  return h;
+}
+
+function drawDev(dev) {
+  const ws = S.ws[dev.id] ?? S.now, L = layout(dev, ws), hh = H(), n = S.now;
+  const root = document.getElementById('d-' + dev.id);
+  root.querySelector('.rib').innerHTML = ribbonHTML(ws, L.we);
+  if (S.drag && S.drag.id === dev.id) root.querySelector('.win').classList.add('drag');
+  let body = '';
+  for (const r of L.rows) body += r.now ? `<div class="nowl" style="height:${hh.now}px">Now ${F(n)}</div>` : rowHTML(r.it, n, hh);
+  let foot = '';
+  if (L.over) {
+    const c = L.rows.filter(r => r.it && r.it.t >= n - 60 && isCommit(r.it) && stop(r.it) > n).map(r => r.it)[0] || L.later.find(isCommit);
+    foot = `<span class="later" data-tonow="1"><b>Now ↓</b>${c ? `<em>${F(c.t)} ${c.ti}</em>` : ''}</span>`;
+  } else if (L.later.length) {
+    const c = L.later.find(isCommit);
+    foot = `<span class="later" data-later="1"><b>Later · ${L.later.length}</b>${c ? `<em>${F(c.t)} ${c.ti}</em>` : ''}<span>›</span></span>`;
+  } else foot = '<span class="later"></span>';
+  const list = root.querySelector('.list');
+  list.innerHTML = body;
+  list.style.height = L.box + 'px';
+  const fw = root.querySelector('.footw');
+  fw.innerHTML = `<div class="foot" style="height:${hh.foot}px">${foot}<span class="st">Settled 2</span></div>`;
+  root.classList.toggle('big', S.big);
+  root.querySelector('.sb span').textContent = F(n);
+  const st = document.getElementById('s-' + dev.id);
+  const winTxt = `${F(Math.max(ws, R0))}–${L.later.length ? F(L.last) : '24:00'}`;
+  st.innerHTML = `窗口 ${winTxt} · 显示 ${L.shown} 项${L.pinned ? `（过点未做 ${L.pinned}）` : ''} · Later ${L.later.length} · ` +
+    (L.scroll ? `<b class="no">需滚动</b>（过点未做 ${L.pinned} 项，先看它们，往下是接下来的一屏）` : `<b class="ok">不用滚动</b>`);
+}
+function drawAll() { DEV.forEach(drawDev); }
+
+function build() {
+  const host = document.getElementById('devs');
+  host.innerHTML = DEV.map(d => `<div class="dcol"><div class="dname">${d.name} · ${d.w}×${d.h} pt</div><div class="dstat" id="s-${d.id}"></div>
+  <div class="zoomer" data-w="${d.w}" data-h="${d.h}"><div class="dev" id="d-${d.id}" style="width:${d.w}px;height:${d.h}px;border-radius:${d.r || 28}px">
+    <div class="sb" style="height:${d.top}px"><span>08:03</span><span>▮▮▮ 99</span></div>
+    <div class="pills"><span></span><span></span><span></span><span></span><em>Nov 2026</em></div>
+    <div class="wk">${['M16', 'T17', 'W18', 'T19', 'F20', 'S21', 'S22'].map((x, i) => `<div class="${i === 4 ? 'on' : ''}"><small>${x[0]}</small><b>${x.slice(1)}</b></div>`).join('')}</div>
+    <div class="rib" data-dev="${d.id}"></div>
+    <div class="hline">♥ 451 steps</div>
+    <div class="list"></div>
+    <div class="footw"></div>
+    <div class="fab" style="bottom:${d.bot + 8}px"><span>✦</span><span>＋</span></div>
+  </div></div></div>`).join('');
+  fit();
+}
+function fit() {
+  const host = document.getElementById('devs');
+  const sum = DEV.reduce((s, d) => s + d.w + 2, 0);
+  const z = Math.min(0.82, Math.max(0.55, (host.clientWidth - 16 * (DEV.length - 1) - 1) / sum));
+  document.querySelectorAll('.zoomer').forEach(el => {
+    el.firstElementChild.style.zoom = z;
+    el.parentElement.style.width = Math.floor((+el.dataset.w + 2) * z) + 'px';
+  });
+}
+window.addEventListener('resize', fit);
+
+function snapTargets() {
+  const n = S.now;
+  const t = new Set([n]);
+  for (const it of items()) if (!isOpenPast(it, n)) t.add(it.t);
+  return [...t].sort((a, b) => a - b);
+}
+function nearest(m) {
+  let best = S.now, d = 1e9;
+  for (const t of snapTargets()) { const dd = Math.abs(t - m); if (dd < d) { d = dd; best = t; } }
+  return best;
+}
+function minuteAt(rib, clientX) {
+  const r = rib.getBoundingClientRect();
+  return R0 + Math.min(Math.max((clientX - r.left) / r.width, 0), 1) * (R1 - R0);
+}
+document.addEventListener('pointerdown', e => {
+  if (e.target.closest('[data-now]')) return;
+  const rib = e.target.closest('.rib');
+  if (!rib) return;
+  const id = rib.dataset.dev, cur = S.ws[id] ?? S.now;
+  S.drag = { id, rib, x0: e.clientX, m0: minuteAt(rib, e.clientX), ws0: cur, moved: false, last: nearest(cur) };
+  rib.setPointerCapture(e.pointerId);
+  e.preventDefault();
+});
+document.addEventListener('pointermove', e => {
+  const d = S.drag;
+  if (!d) return;
+  if (Math.abs(e.clientX - d.x0) > 3) d.moved = true;
+  if (!d.moved) return;
+  const m = Math.min(Math.max(d.ws0 + (minuteAt(d.rib, e.clientX) - d.m0), R0), R1 - 30);
+  const snap = nearest(m);
+  if (snap !== d.last) { d.last = snap; }
+  S.ws[d.id] = snap;
+  drawDev(DEV.find(x => x.id === d.id));
+});
+document.addEventListener('pointerup', e => {
+  const d = S.drag;
+  if (!d) return;
+  S.drag = null;
+  if (!d.moved) S.ws[d.id] = nearest(minuteAt(d.rib, e.clientX));
+  drawDev(DEV.find(x => x.id === d.id));
+});
+document.addEventListener('click', e => {
+  const nowc = e.target.closest('[data-now]');
+  if (nowc) { const id = nowc.closest('.rib').dataset.dev; delete S.ws[id]; drawDev(DEV.find(x => x.id === id)); return; }
+  const tn = e.target.closest('[data-tonow]');
+  if (tn) { const l = tn.closest('.dev').querySelector('.list'), nl = l.querySelector('.nowl'); if (nl) l.scrollTo({ top: nl.offsetTop - l.offsetTop - 8, behavior: 'smooth' }); return; }
+  const lt = e.target.closest('[data-later]');
+  if (lt) {
+    const id = lt.closest('.dev').id.slice(2), dev = DEV.find(x => x.id === id);
+    const L = layout(dev, S.ws[id] ?? S.now);
+    if (L.later.length) { S.ws[id] = L.later[0].t; drawDev(dev); }
+  }
+});
+const nowIn = document.getElementById('now');
+nowIn.addEventListener('input', () => { S.now = +nowIn.value; S.ws = {}; document.getElementById('nowv').textContent = F(S.now); drawAll(); });
+for (const k of ['busy', 'lag', 'big']) document.getElementById(k).addEventListener('change', e => { S[k] = e.target.checked; S.ws = {}; drawAll(); });
+build();
+drawAll();
+</script>
+</body>
+</html>

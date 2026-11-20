@@ -10,8 +10,7 @@
     package static let iconWidth: CGFloat = 32
     package static let titleGap: CGFloat = 6
     package static let timeWidth: CGFloat = 50
-    /// A one-line row; a title with a secondary line grows past it by content plus padding.
-    package static let minHeight: CGFloat = 38
+    package static let minHeight: CGFloat = 44
     package static let verticalPadding: CGFloat = 5
   }
 
@@ -99,12 +98,14 @@
   }
 
   package struct TimeColumn: View {
-    package init(date: Date, compact: Bool = false) {
+    package init(date: Date, compact: Bool = false, tint: Color? = nil) {
       self.date = date
       self.compact = compact
+      self.tint = tint
     }
     package var compact = false
     package let date: Date
+    package var tint: Color?
     @Environment(PlannerPresentation.self) private var presentation
     @Environment(\.agendaTimeEdit) private var edit
     @Environment(\.agendaDragTime) private var dragTime
@@ -164,7 +165,7 @@
         }
       }
       .font(AgendaRowStyle.detail.monospacedDigit())
-      .foregroundStyle(.secondary)
+      .foregroundStyle(tint.map(AnyShapeStyle.init) ?? AnyShapeStyle(.secondary))
       .lineLimit(1)
       .fixedSize()
       .frame(minWidth: compact ? AgendaRowStyle.timeWidth : 58, alignment: .leading)
@@ -172,7 +173,7 @@
   }
 
   /// Title and detail share at most two lines, including at accessibility text sizes.
-  /// `singleLine` is Today's row: one line, the detail trailing, dropped when the title needs its width.
+  /// `singleLine` is Today's row: one line, the short detail trailing and the title truncating first.
   package struct TitleDetail<Detail: View>: View {
     package init(
       title: Text, hasDetail: Bool = true, singleLine: Bool = false,
@@ -192,13 +193,10 @@
     @ViewBuilder package var body: some View {
       if singleLine, !typeSize.isAccessibilitySize {
         if hasDetail {
-          ViewThatFits(in: .horizontal) {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-              title.lineLimit(1)
-              Spacer(minLength: 0)
-              detail.lineLimit(1)
-            }
+          HStack(alignment: .firstTextBaseline, spacing: 8) {
             title.lineLimit(1)
+            Spacer(minLength: 0)
+            detail.lineLimit(1).layoutPriority(1)
           }
         } else {
           title.lineLimit(1)

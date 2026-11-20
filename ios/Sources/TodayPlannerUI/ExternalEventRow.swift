@@ -106,7 +106,14 @@
         : "\(DurationLabel.text(minutes: event.durationMinutes)) · \(event.calendarTitle)"
     }
 
-    private var rowDetail: String { detail + (travel.map { " · " + $0 } ?? "") }
+    private var rowDetail: String {
+      guard attention == nil || event.isAllDay else {
+        let now = presentation.now
+        return event.start <= now && now < event.end
+          ? "now" : DurationLabel.text(minutes: event.durationMinutes)
+      }
+      return detail + (travel.map { " · " + $0 } ?? "")
+    }
 
     /// "Drive 18 min · Leave by 14:20" for an upcoming event with a location (today or tomorrow).
     private var travel: String? {
