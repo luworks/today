@@ -461,6 +461,8 @@
           centerNow(proxy)
         }
       }
+      // Pulling past the top opens AI chat instead of refreshing (docs/design/pull-to-ask.md).
+      .pullToAsk()
       .background(alignment: .topLeading) { DayPartSwipeLayer(swipes: swipes) }
       .background {
         TimelineHoldDragInstaller(

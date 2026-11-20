@@ -35,6 +35,7 @@
 | Clock · Stopwatch | 原生横向分页切换模拟／数字表面，运行时更新读数，轻 impact 绑定总状态。 [StopwatchView][watch] | Start、Stop、Lap、Reset 各自精确确认一次。自动计时和每次重绘保持安静；两个表面共享同一计时。 |
 | Clock · Timer、Today 的运行计时器 | Clock 有选择器、最近使用、进度环和按钮；Today 支持对应计时器行与侧滑操作。 [TimerSection][timer] · [TimerCard][timercard] · [Today TimerRows][timerrows] | Start／Pause／Resume／Stop 跨入口用同一结果语义。倒计时静默、低干扰，完成走系统的提醒路径。暂停时数字和环一致冻结。 |
 | 顶／底栏、Drawer、Pill、Sheet | Tab 滑动到松手才切；边缘抽屉有轴向捕获、按投影落位、开关 impact；PressScale 在按下给 impact，Pill 分段另对选择变化发 feedback。 [HomeView][home] · [Drawer][drawer] · [PressScale][press] · [PillStyle][pill] | 一次动作的反馈只由一个控件负责。顶／底栏、边缘、日历内页、行侧滑和系统返回明确分区。复用原生 Sheet、导航和菜单；需要实时位移的交互尽早给视觉响应。 |
+| 日历面 · 顶部下拉呼出 AI | Today 时间线、Calendar 2 Day 纵向滚动与 Month 选中日列表滚到顶后继续下拉，越过 64 pt 过冲即 armed（56 pt 回退解除），松手打开新聊天且编辑框直接聚焦；过顶时一次 detent，未过阈松手回弹。减速回弹的过冲不触发。底部输入框保留为等价入口。设计与手势地图见 [pull-to-ask](pull-to-ask.md)。 | 真机确认过冲阈值手感；Month 分页与 Year 纵向滚动本身不接管，避免与翻月／年浏览冲突。 |
 | Ask · 输入、卡片、批量提交 | 已有流式／状态更新、滚动到末尾、复制成功和批量 Added 的反馈点。 [AskView][ask] · [CaptureStack][capture] · [AskViewParts][askparts] | 等待开始与保存成功分开，流式文本保持安静。一次用户意图最多一次结果触感；批量部分成功回执显示发生了什么及可用 Undo。不抢离开底部阅读历史的滚动位置。 |
 | Search、Activity 与 Undo | 搜索重用规划行组件。Activity 可逐项撤销，Undo toast 已有 Reduce Motion 路径。 [SearchView][search] · [ActivityView][activity] · [UndoToastView][undo] | 搜索结果更新、加载和筛选保持稳定。撤销在完成后确认一次，保住可见锚点，拒绝或冲突显示具体原因。 |
 | Health、Settings | Health 有下拉刷新、图表切换、系统列表排序、管理指标。Settings 多复用系统菜单、表单和选择器。 [HealthView][health] · [SettingsView][settings] | 系统交互用系统反馈，普通浏览、拉取和图表自动更新保持安静。移除或重排时保住语义位置。权限拒绝和破坏性确认用清晰的状态与文字。 |
