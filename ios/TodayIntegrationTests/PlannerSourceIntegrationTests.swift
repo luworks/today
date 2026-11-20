@@ -137,7 +137,7 @@
           source: MockHealthSource(), store: HealthSelectionStore(defaults: a.defaults),
           runtime: runtime, gate: HealthAccessGate()))
       let view = DayAgenda(
-        day: .constant(a.now), showsWeekStrip: false, openTask: { _ in }, openEvent: { _ in },
+        day: .constant(a.now), openTask: { _ in }, openEvent: { _ in },
         openAlarm: { _ in }, openTimer: {}, actions: actions, calendar: calendar,
         timers: a.services.timers, reminders: reminderSync, ledger: a.services.ledger,
         travel: a.services.travel, presentation: presentation

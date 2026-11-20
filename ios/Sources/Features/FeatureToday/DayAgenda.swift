@@ -20,7 +20,6 @@
     private let travel: any TravelTimeProviding
     @Environment(PlannerPresentation.self) private var presentation
     @Binding var day: Date
-    var showsWeekStrip: Bool
     private var nowRequest: Int
     /// Opens the Timer tab (a tap on a running timer's row).
     let openTimer: @MainActor () -> Void
@@ -31,7 +30,7 @@
     let openTidy: (@MainActor ([OneTask]) -> Void)?
 
     package init(
-      day: Binding<Date>, showsWeekStrip: Bool, nowRequest: Int = 0,
+      day: Binding<Date>, nowRequest: Int = 0,
       openTask: @escaping @MainActor (OneTask) -> Void,
       openEvent: @escaping @MainActor (OneEvent) -> Void,
       openAlarm: @escaping @MainActor (OneAlarm) -> Void,
@@ -66,7 +65,6 @@
         wrappedValue: Preferences.freeRowMinutes, Preferences.freeRowMinutesKey,
         store: presentation.defaults)
       _day = day
-      self.showsWeekStrip = showsWeekStrip
       self.nowRequest = nowRequest
       self.openTask = openTask
       self.openEvent = openEvent
@@ -131,11 +129,6 @@
         let dayItems = frozenDayItems ?? items(on: day, now: now)
         let plan = makePlan(dayItems)
         VStack(spacing: 0) {
-          if !showsWeekStrip {
-            WeekStrip(selected: $day, calendar: cal)
-              .padding(.horizontal, 8)
-              .padding(.bottom, 2)
-          }
           if let layout = plan.layout, !plan.window.isEmpty {
             ribbon(plan, layout: layout)
           }
@@ -226,17 +219,16 @@
         await health.load()
       }
       .task(id: [showsWeather, isTodayTab, scenePhase == .active]) {
-        guard !showsWeekStrip else { return }
         weather.update(enabled: showsWeather && isTodayTab && scenePhase == .active)
       }
       .onDisappear {
-        if !showsWeekStrip { weather.update(enabled: false) }
+        weather.update(enabled: false)
       }
       .task {
         while !Task.isCancelled {
           try? await Task.sleep(for: .seconds(60))
           refreshClock()
-          if !Task.isCancelled, !showsWeekStrip, showsWeather, isTodayTab, scenePhase == .active {
+          if !Task.isCancelled, showsWeather, isTodayTab, scenePhase == .active {
             weather.update(enabled: true)
           }
         }
@@ -250,9 +242,7 @@
 
     private func refreshClock() {
       let next = presentation.now
-      if !showsWeekStrip {
-        day = presentation.runtime.refreshedTodayDay(day, previousNow: now, now: next)
-      }
+      day = presentation.runtime.refreshedTodayDay(day, previousNow: now, now: next)
       now = next
     }
 
@@ -337,7 +327,7 @@
     }
 
     /// The Today tab on today (not the Calendar tab, not another day).
-    private var isTodayTab: Bool { !showsWeekStrip && cal.isDate(day, inSameDayAs: now) }
+    private var isTodayTab: Bool { cal.isDate(day, inSameDayAs: now) }
 
     private func list(_ proxy: ScrollViewProxy, items: DayItems, plan: DayPlan) -> some View {
       List {
@@ -384,11 +374,9 @@
         }
         if !items.allDay.isEmpty || !items.externalAllDay.isEmpty {
           Section {
-            if !showsWeekStrip {
-              AgendaHeader(title: "All day", isInline: true)
-                .accessibilityAddTraits(.isHeader)
-                .listRowSeparator(.hidden)
-            }
+            AgendaHeader(title: "All day")
+              .accessibilityAddTraits(.isHeader)
+              .listRowSeparator(.hidden)
             ForEach(items.allDay) {
               EventRow(
                 event: $0, pendingDelete: $pendingDelete, open: openEvent, calendar: calendar,
@@ -404,8 +392,6 @@
                 attention: attention(target($0), canDelete: canDelete($0))
               )
             }
-          } header: {
-            if showsWeekStrip { AgendaHeader(title: "All day") }
           }
         }
         if !items.anytime.isEmpty {
@@ -417,25 +403,15 @@
             )
           }
         }
-        if showsWeekStrip {
-          Section {
-            timelineContent(items, plan: plan)
-          } header: {
-            AgendaHeader(
-              title: day.plannerFormatted(
-                .dateTime.month().day().weekday(.wide), runtime: presentation.runtime))
-          }
-        } else {
-          Section {
-            windowMarker
-            timelineContent(items, plan: plan)
-          }
+        Section {
+          windowMarker
+          timelineContent(items, plan: plan)
         }
       }
       .listStyle(.plain)
       .animation(reduceMotion ? nil : .snappy, value: items.timeline.map(\.start))
-      .environment(\.defaultMinListRowHeight, showsWeekStrip ? 24 : 0)
-      .listSectionSpacing(showsWeekStrip ? 6 : 0)
+      .environment(\.defaultMinListRowHeight, 0)
+      .listSectionSpacing(0)
       .scrollContentBackground(.hidden)
       .onScrollPhaseChange { _, phase in
         if phase == .tracking || phase == .interacting || phase == .decelerating {
@@ -512,12 +488,12 @@
       if isPastDay {
         if historyDay == cal.startOfDay(for: day) {
           ForEach(history.facts.filter(\.isPrimary)) { fact in
-            HistoricalFactRow(fact: fact, todayStyle: !showsWeekStrip)
+            HistoricalFactRow(fact: fact, todayStyle: true)
           }
           let changes = history.facts.filter { !$0.isPrimary }
           if !changes.isEmpty {
             DisclosureGroup("Changes (\(changes.count))") {
-              ForEach(changes) { fact in HistoricalFactRow(fact: fact, todayStyle: !showsWeekStrip)
+              ForEach(changes) { fact in HistoricalFactRow(fact: fact, todayStyle: true)
               }
             }
           }
@@ -562,7 +538,7 @@
 
     private var isToday: Bool { cal.isDate(day, inSameDayAs: now) }
 
-    private var windowed: Bool { !showsWeekStrip && !isPastDay }
+    private var windowed: Bool { !isPastDay }
 
     private var rowHeights: TodayWindow.Heights {
       TodayWindow.Heights(
@@ -808,8 +784,7 @@
           alarm: alarm, date: date, open: openAlarm,
           attention: attention(
             target(alarm, fireDate: date), canDelete: true, on: rowDay),
-          onDelete: showsWeekStrip
-            ? nil : { _ = actions.delete(alarm, context: context, toast: toast) },
+          onDelete: { _ = actions.delete(alarm, context: context, toast: toast) },
           stoppedAt: stoppedAt)
       case .gap(let free): FreeRow(free: free) { openFree(free, from: "today.freeRow") }
       case .nowMarker(let date): NowRow(date: date).id("now-line")
@@ -1183,7 +1158,7 @@
 
     /// Settle lives on the Today tab's current day only (`SettleGate`); past and future days never offer or apply it.
     private func settles(on rowDay: Date? = nil) -> Bool {
-      !showsWeekStrip && SettleGate.applies(to: day, now: now, calendar: cal)
+      SettleGate.applies(to: day, now: now, calendar: cal)
         && SettleGate.applies(to: rowDay ?? day, now: now, calendar: cal)
     }
 
@@ -1193,7 +1168,6 @@
     private func attention(
       _ target: @autoclosure () -> FocusTarget, canDelete: Bool, on rowDay: Date? = nil
     ) -> TodayRowAttention? {
-      guard !showsWeekStrip else { return nil }
       var settle: (() -> Void)?
       if showsSettle, settles(on: rowDay) {
         let target = target()
@@ -1753,18 +1727,14 @@
     }
   }
 
-  /// Small section label for the day view, so headers take less space than the default plain-list header.
   struct AgendaHeader: View {
     let title: String
-    var isInline = false
     package var body: some View {
       Text(title)
-        .font(isInline ? .caption.weight(.semibold) : .footnote.weight(.semibold))
-        // secondaryLabel, not .secondary: a list header is already dimmed, and .secondary on top read too faint.
+        .font(.caption.weight(.semibold))
         .foregroundStyle(Color(.secondaryLabel))
         .textCase(nil)
-        .listRowInsets(
-          EdgeInsets(top: isInline ? 2 : 8, leading: 20, bottom: isInline ? 0 : 2, trailing: 20))
+        .listRowInsets(EdgeInsets(top: 2, leading: 20, bottom: 0, trailing: 20))
     }
   }
 

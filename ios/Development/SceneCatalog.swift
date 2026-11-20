@@ -675,7 +675,7 @@
 
     private var agenda: some View {
       DayAgenda(
-        day: $day, showsWeekStrip: false, openTask: { opened = .task($0) },
+        day: $day, openTask: { opened = .task($0) },
         openEvent: { opened = .local($0) }, openAlarm: { opened = .alarm($0) },
         openTimer: { showsTimer = true },
         actions: session.services.actions, calendar: session.services.calendar,

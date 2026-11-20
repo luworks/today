@@ -11,6 +11,5 @@
     package static let welcome = PullToAskWelcome.beats.map {
       SensoryFeedback.impact(flexibility: .soft, intensity: $0.intensity)
     }
-    package static let dateSelection = Animation.easeOut(duration: 0.12)
   }
 #endif

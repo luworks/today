@@ -12,7 +12,7 @@ fallback and VoiceOver-equivalent entry.
 | Surface | Gesture | Owner |
 | --- | --- | --- |
 | Today timeline (`DayAgenda` List) | Vertical scroll; top overscroll only rubber-bands. No `refreshable` anywhere in Today/Calendar. | UIKit scroll view inside the SwiftUI `List` |
-| Today week strip | Horizontal drag, axis locked at 8 pt, follows the finger; release past about two day cells commits one adjacent week, vertical drags are ignored. Detent/settle haptics via `InteractionFeedback`. | `WeekStrip` + `WeekStripSwipe` |
+| Today week strip | Calendar → Month's folded strip: horizontal paging one week per swipe; its grab handle drags down to the month grid and up to fold back. | `MonthCalendar` (`MonthFold`, `MonthWeekStrip`) |
 | Today rows | Trailing swipe for row actions; 0.35 s hold then move drags one occurrence in time; a still hold opens the long-press menu. | `RowActions`, `TimelineHoldDrag` |
 | Calendar 2 Day | Horizontal paging one day per swipe inside a vertical hour scroll. | `OneDayPaging` in `CalendarView` |
 | Calendar Month | Vertical paging one month per swipe; below the grid a continuous multi-day agenda `List` (`DayAgendaList` until November 2026). | `OneMonthPaging`, `MonthAgendaList` |
