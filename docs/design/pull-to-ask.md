@@ -2,9 +2,10 @@
 
 Owner request (2026-11-20): in the calendar surfaces, pulling down past a
 point should not refresh; it should open AI chat with the input already
-focused, so typing can start without tapping the bottom field. The bottom
-"Ask AI or add anything" field stays for now as the fallback and the
-VoiceOver-equivalent entry; retiring it is a later step, not this one.
+focused, so typing can start without tapping the bottom field. Follow-up
+(2026-11-20): the full-width "Ask AI or add anything" field was replaced by
+a floating ✦ Chat button beside Today (shown only off today) and +; ✦ is the
+fallback and VoiceOver-equivalent entry.
 
 ## Gesture map before this change
 
