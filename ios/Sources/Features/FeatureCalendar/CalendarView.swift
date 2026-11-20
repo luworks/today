@@ -306,12 +306,17 @@
     @AppStorage(Preferences.firstWeekdayKey) private var firstWeekday = Preferences.firstWeekday
       .rawValue
     @AppStorage(Preferences.weekNumbersKey) private var showsWeekNumbers = Preferences.weekNumbers
+    @AppStorage(Preferences.dimPastDaysKey) private var dimsPast = Preferences.dimPastDays
     /// Months from the current one, the id of each page in the pager.
     @State private var pos: Int? = 0
     @State private var settled = 0
     @State private var isUserPaging = false
     @State private var clockRevision = 0
     @State private var marks = MonthMarksCache()
+    @SceneStorage("today.calendar.monthWeekMode") private var collapsed = false
+    @State private var dragProgress: Double?
+    @State private var weekPos: Int? = 0
+    @State private var weekSettled = 0
     @ScaledMetric(relativeTo: .body) private var rowHeight: CGFloat = 51
     private var cal: Calendar {
       Preferences.firstWeekdayChoice(presentation.defaults).calendar(base: presentation.calendar)
@@ -332,7 +337,8 @@
       VStack(spacing: 0) {
         weekdayHeader
         Rectangle().fill(Color(.separator)).frame(height: 0.5)
-        pager
+        grid
+        handle
         MonthAgendaList(
           calendar: calendar, day: $day, events: events, tasks: tasks, alarms: alarms,
           signature: signature, open: open, edit: edit)
@@ -343,6 +349,11 @@
           settled = target
           withAnimation(.snappy) { pos = target }
         }
+        let week = MonthWeekStrip.weekOffset(of: new, from: presentation.now, calendar: cal)
+        if week != weekSettled {
+          weekSettled = week
+          withAnimation(.snappy) { weekPos = week }
+        }
       }
       .onChange(of: month(current)) { _, new in onVisibleDays(new...new) }
       .onReceive(Timer.publish(every: 30, on: .main, in: .common).autoconnect()) { _ in
@@ -352,8 +363,137 @@
         let target = CalendarMath.monthOffset(of: day, from: base, calendar: cal)
         settled = target
         pos = target
+        weekSettled = MonthWeekStrip.weekOffset(of: day, from: presentation.now, calendar: cal)
+        weekPos = weekSettled
         onVisibleDays(month(target)...month(target))
       }
+    }
+
+    private var progress: Double { dragProgress ?? (collapsed ? 1 : 0) }
+
+    private var monthHeight: CGFloat {
+      CGFloat(CalendarMath.monthWeeks(of: month(current), calendar: cal).count) * rowHeight
+    }
+
+    @ViewBuilder private var grid: some View {
+      if collapsed && dragProgress == nil {
+        weekStrip
+      } else {
+        let row = MonthWeekStrip.row(
+          of: day, inMonthWeeks: CalendarMath.monthWeeks(of: month(current), calendar: cal),
+          calendar: cal)
+        let p = CGFloat(progress)
+        pager
+          .offset(y: -CGFloat(row) * rowHeight * p)
+          .frame(height: monthHeight - (monthHeight - rowHeight) * p, alignment: .top)
+          .clipped()
+      }
+    }
+
+    private var handle: some View {
+      let distance = Double(monthHeight - rowHeight)
+      return Capsule()
+        .fill(Color(.tertiaryLabel))
+        .frame(width: 36, height: 5)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 6)
+        .contentShape(Rectangle())
+        .gesture(
+          DragGesture(minimumDistance: 4, coordinateSpace: .global)
+            .onChanged { value in
+              dragProgress = MonthWeekStrip.progress(
+                collapsed: collapsed, translation: Double(value.translation.height),
+                distance: distance)
+            }
+            .onEnded { value in
+              settle(
+                MonthWeekStrip.settlesCollapsed(
+                  progress: progress,
+                  predictedTranslation: Double(value.predictedEndTranslation.height),
+                  distance: distance))
+            }
+        )
+        .onTapGesture { settle(!collapsed) }
+        .accessibilityElement()
+        .accessibilityLabel(collapsed ? "Show Month" : "Show Week")
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction { settle(!collapsed) }
+        .accessibilityIdentifier("calendar.monthHandle")
+    }
+
+    private func settle(_ toCollapsed: Bool) {
+      if dragProgress == nil { dragProgress = collapsed ? 1 : 0 }
+      withAnimation(.spring(response: 0.35, dampingFraction: 0.86)) {
+        dragProgress = toCollapsed ? 1 : 0
+      } completion: {
+        collapsed = toCollapsed
+        dragProgress = nil
+      }
+    }
+
+    private var weekStrip: some View {
+      let signature = signature
+      let selectedDay = $day
+      return ScrollView(.horizontal, showsIndicators: false) {
+        LazyHStack(spacing: 0) {
+          ForEach(-520...520, id: \.self) { offset in
+            let days = MonthWeekStrip.days(
+              ofWeek: MonthWeekStrip.week(offset, from: presentation.now, calendar: cal),
+              calendar: cal)
+            HStack(spacing: 0) {
+              if showsWeekNumbers {
+                Text(String(CalendarMath.weekNumber(of: days[0], calendar: cal)))
+                  .font(.system(size: 11, weight: .medium).monospacedDigit())
+                  .foregroundStyle(.secondary)
+                  .frame(width: Self.weekNumberWidth, height: rowHeight)
+                  .accessibilityIdentifier("calendar.weekNumber")
+              }
+              ForEach(days, id: \.self) { d in
+                let page = marks.pages[CalendarMath.monthStart(offset: 0, from: d, calendar: cal)]
+                MonthCell(
+                  day: d, number: cal.component(.day, from: d),
+                  isToday: cal.isDate(d, inSameDayAs: presentation.now),
+                  isSelected: cal.isDate(d, inSameDayAs: day),
+                  past: dimsPast && d < cal.startOfDay(for: presentation.now),
+                  rowHeight: rowHeight, summary: page?.days[d], tints: page?.tints ?? [],
+                  label: d.plannerFormatted(
+                    date: .complete, time: .omitted, runtime: presentation.runtime),
+                  identifier: CalendarIDs.day(d, calendar: cal)
+                ) { picked in
+                  if cal.isDate(picked, inSameDayAs: selectedDay.wrappedValue) {
+                    openDay(picked)
+                  } else {
+                    selectedDay.wrappedValue = cal.startOfDay(for: picked)
+                  }
+                }
+                .equatable()
+              }
+            }
+            .containerRelativeFrame(.horizontal)
+            .overlay(alignment: .bottom) { Rectangle().fill(Color(.separator)).frame(height: 0.5) }
+            .id(offset)
+            .task(id: signature) {
+              for start in Set(
+                days.map { CalendarMath.monthStart(offset: 0, from: $0, calendar: cal) })
+              {
+                await load(start, signature: signature)
+              }
+            }
+          }
+        }
+        .scrollTargetLayout()
+      }
+      .scrollTargetBehavior(.paging)
+      .scrollPosition(id: $weekPos)
+      .onScrollPhaseChange { _, phase in
+        guard phase == .idle, let week = weekPos, week != weekSettled else { return }
+        let delta = week - weekSettled
+        weekSettled = week
+        day = MonthWeekStrip.shifted(day, weeks: delta, calendar: cal)
+      }
+      .frame(height: rowHeight)
+      .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+      .accessibilityIdentifier("calendar.weekStrip")
     }
 
     private var weekdayHeader: some View {
