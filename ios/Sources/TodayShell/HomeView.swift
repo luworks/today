@@ -115,6 +115,7 @@
     /// tap on the bottom field only reveals it; nil until the first one is built.
     @State private var ask: AskRoute?
     @State private var askVisible = false
+    @State private var pullWelcomes = 0
     @State private var showsSearch = false
     @State private var newItem: NewItem?
     @State private var showsSettings = false
@@ -252,6 +253,7 @@
         }
         .allowsHitTesting(askVisible)
       }
+      .overlay { PullToAskWelcomeEdge(trigger: pullWelcomes) }
       .sheet(item: $editor) {
         PlannerEditor(destination: $0, toast: toast, composition: composition)
       }
@@ -268,12 +270,12 @@
       .environment(presentation)
       .environment(\.calendarCityDatabase, composition.world.database)
       .environment(\.askAbout, { openAsk(nil, subject: $0) })
-      // Pulling a calendar surface down past its top starts a new chat, like tapping the bottom field.
       .environment(
         \.pullToAsk,
         {
           guard !askVisible, !drawer.isOpen, !keyboardUp else { return }
           openAsk(nil)
+          pullWelcomes += 1
         }
       )
       .defaultAppStorage(session.defaults)
