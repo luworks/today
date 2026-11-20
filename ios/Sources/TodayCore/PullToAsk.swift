@@ -14,7 +14,6 @@ public struct PullToAsk: Equatable, Sendable {
   public static let disarmBelow: CGFloat = 56
 
   public enum Event: Equatable, Sendable {
-    /// The pull crossed into armed; play one detent haptic.
     case armed
     /// The finger released while armed; open chat.
     case open
