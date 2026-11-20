@@ -110,7 +110,8 @@ final class ActionPolicyTests: XCTestCase {
     let en = AgentReply.receipt(
       .init(added: [AgentReply.label(kind: .reminder, title: "Milk", chinese: false)]),
       chinese: false)
-    XCTAssertEqual(en, "Added the reminder “Milk”. Tap Undo if you don't want it.")
+    XCTAssertEqual(
+      en, "Added the reminder “Milk”. Undo is on the card, should you change your mind.")
     for text in [zh, en] {
       XCTAssertFalse(text.contains("Add") && !text.contains("Added"), text)
       XCTAssertFalse(text.contains("点添加") || text.contains("点“添加”"), text)
