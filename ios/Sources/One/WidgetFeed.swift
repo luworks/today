@@ -290,14 +290,58 @@
 
     /// Rewrites the snapshot from the data store (no views needed).
     package func rewriteFromStore() {
-      guard let context = container?.mainContext else { return }
+      guard let contents = storeContents() else { return }
+      let (tasks, events, alarms) = contents
+      update(
+        tasks: tasks, events: events, alarms: alarms, now: runtime.now(), calendar: runtime.calendar
+      )
+    }
+
+    package func butlerDay() -> ButlerGreeting.Day {
+      let now = runtime.now()
+      let calendar = runtime.calendar
+      guard calendarService.isReady, let contents = storeContents() else {
+        return ButlerGreeting.Day(isComplete: false)
+      }
+      let (tasks, events, alarms) = contents
+      let items = visibleItems(
+        tasks: tasks, events: events, alarms: alarms, now: now, calendar: calendar
+      ).items
+      let tomorrow = calendar.date(byAdding: .day, value: 1, to: now) ?? now
+      let today = calendar.startOfDay(for: now)
+      let focus = focus.flatMap { $0.records.isEmpty ? nil : $0 }
+      let open = tasks.filter { task in
+        guard let focus else { return true }
+        return focus.state(for: focus.identity(of: task, reminders: reminders), now: now, on: now)
+          != .settled
+      }
+      func greetingItem(_ item: WidgetItem) -> ButlerGreeting.Item {
+        ButlerGreeting.Item(
+          title: item.title, start: item.start,
+          isAllDay: item.isAllDay || item.startedEarlier == true)
+      }
+      return ButlerGreeting.Day(
+        today: items.filter {
+          calendar.isDate($0.start, inSameDayAs: now)
+            && NextItems.isLeft($0, now: now, calendar: calendar)
+        }.map(greetingItem),
+        anytime: open.filter { task in
+          guard let due = task.due, calendar.isDate(due, inSameDayAs: now) else { return false }
+          return UpNextLive.timedDue(due, isDone: task.isDone, calendar: calendar).map { $0 <= now }
+            ?? true
+        }.count,
+        overdue: open.filter { $0.due.map { $0 < today } == true }.count,
+        tomorrow: items.filter { calendar.isDate($0.start, inSameDayAs: tomorrow) }.map(
+          greetingItem))
+    }
+
+    private func storeContents() -> ([OneTask], [OneEvent], [OneAlarm])? {
+      guard let context = container?.mainContext else { return nil }
       let tasks =
         (try? context.fetch(FetchDescriptor<OneTask>(predicate: #Predicate { !$0.isDone }))) ?? []
       let events = (try? context.fetch(FetchDescriptor<OneEvent>())) ?? []
       let alarms = (try? context.fetch(FetchDescriptor<OneAlarm>())) ?? []
-      update(
-        tasks: tasks, events: events, alarms: alarms, now: runtime.now(), calendar: runtime.calendar
-      )
+      return (tasks, events, alarms)
     }
   }
 #endif

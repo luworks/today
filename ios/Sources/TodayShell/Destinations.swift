@@ -135,6 +135,7 @@
         agentModel: composition.agentModel,
         voice: composition.voice,
         presentation: composition.presentation,
+        greetingDay: session.widget.butlerDay,
         onBack: onBack, onAdded: onAdded, onOpenDay: onOpenDay,
         onOpenTask: { task, completion in
           didDismissEditor = completion
