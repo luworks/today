@@ -15,7 +15,15 @@
     var previewText: ((Item) -> String?)? = nil
     @ViewBuilder let row: (Item) -> Row
 
+    private var collapsedParts: Set<DayPart> {
+      Set(
+        rows.compactMap {
+          if case .collapsed(let part, _, _) = $0 { part } else { nil }
+        })
+    }
+
     var body: some View {
+      let collapsed = collapsedParts
       ForEach(rows) { entry in
         switch entry {
         case .label(let part):
@@ -26,7 +34,7 @@
             onToggle: onToggle
           )
           .modifier(drag.frameReader(entry.id))
-        case .cardEnd: DayPartGap()
+        case .cardEnd(let part): if !collapsed.contains(part) { DayPartGap() }
         case .emptyPart:
           Color.clear
             .frame(height: AgendaRowStyle.minHeight)
@@ -93,7 +101,7 @@
               Image(systemName: "chevron.down").font(.caption.weight(.semibold))
             }
             .foregroundStyle(.secondary)
-            .frame(minHeight: 44)
+            .frame(minHeight: 32)
             .contentShape(Rectangle())
           }
           .buttonStyle(.plain)
@@ -110,7 +118,7 @@
       }
       .listRowSeparator(.hidden)
       .listRowInsets(
-        EdgeInsets(top: onToggle == nil ? 10 : 0, leading: 20, bottom: 4, trailing: 20)
+        EdgeInsets(top: onToggle == nil ? 10 : 0, leading: 20, bottom: 0, trailing: 20)
       )
       .listRowBackground(DayPartShape(edge: .top))
     }
@@ -150,7 +158,7 @@
           Image(systemName: "chevron.right").font(.caption.weight(.semibold))
         }
         .foregroundStyle(.secondary)
-        .frame(minHeight: 44)
+        .frame(minHeight: 36)
         .contentShape(Rectangle())
       }
       .buttonStyle(.plain)

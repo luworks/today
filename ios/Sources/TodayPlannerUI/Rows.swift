@@ -102,7 +102,7 @@
           .frame(height: attention == nil ? nil : 20)
           .modifier(AgendaIconSlot(enabled: attention != nil))
         VStack(alignment: .leading, spacing: 1) {
-          TitleDetail(title: Text(event.title)) {
+          TitleDetail(title: Text(event.title), singleLine: attention != nil) {
             Group {
               if attention != nil {
                 Text(rowDetail)
@@ -227,7 +227,7 @@
         .modifier(AgendaIconSlot(enabled: attention != nil))
         .sensoryFeedback(.success, trigger: task.isDone) { _, done in done }
         .accessibilityLabel(task.isDone ? "Reopen \(task.title)" : "Complete \(task.title)")
-        TitleDetail(title: title, hasDetail: detail != nil) {
+        TitleDetail(title: title, hasDetail: detail != nil, singleLine: attention != nil) {
           detailText
         }
         Spacer(minLength: 0)
@@ -374,6 +374,7 @@
     @Environment(PlannerActions.self) private var actions
     @Environment(\.modelContext) private var context
     @Environment(UndoToast.self) private var toast: UndoToast?
+    @Environment(\.dynamicTypeSize) private var typeSize
     private let open: @MainActor (OneAlarm) -> Void
     private let attention: TodayRowAttention?
     private let onDelete: (() -> Void)?
@@ -409,14 +410,16 @@
             .frame(width: attention == nil && stoppedAt == nil ? 4 + 6 : nil)
             .modifier(AgendaIconSlot(enabled: attention != nil))
           if let stoppedAt {
-            TitleDetail(title: Text(alarm.label.isEmpty ? "Alarm" : alarm.label)) {
+            TitleDetail(
+              title: Text(alarm.label.isEmpty ? "Alarm" : alarm.label), singleLine: attention != nil
+            ) {
               Text("Stopped " + stoppedLabel(stoppedAt))
                 .font(attention == nil ? .caption : AgendaRowStyle.detail)
             }
             .foregroundStyle(.secondary)
           } else {
             Text(alarm.label.isEmpty ? "Alarm" : alarm.label)
-              .lineLimit(2)
+              .lineLimit(attention != nil && !typeSize.isAccessibilitySize ? 1 : 2)
               .foregroundStyle(alarm.isOn ? Color.primary : Color.secondary)
           }
           Spacer(minLength: 0)

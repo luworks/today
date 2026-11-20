@@ -172,18 +172,38 @@
   }
 
   /// Title and detail share at most two lines, including at accessibility text sizes.
+  /// `singleLine` is Today's row: one line, the detail trailing, dropped when the title needs its width.
   package struct TitleDetail<Detail: View>: View {
-    package init(title: Text, hasDetail: Bool = true, @ViewBuilder detail: () -> Detail) {
+    package init(
+      title: Text, hasDetail: Bool = true, singleLine: Bool = false,
+      @ViewBuilder detail: () -> Detail
+    ) {
       self.title = title
       self.hasDetail = hasDetail
+      self.singleLine = singleLine
       self.detail = detail()
     }
     package let title: Text
     package let hasDetail: Bool
+    package let singleLine: Bool
     @ViewBuilder package var detail: Detail
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     @ViewBuilder package var body: some View {
-      if hasDetail {
+      if singleLine, !typeSize.isAccessibilitySize {
+        if hasDetail {
+          ViewThatFits(in: .horizontal) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+              title.lineLimit(1)
+              Spacer(minLength: 0)
+              detail.lineLimit(1)
+            }
+            title.lineLimit(1)
+          }
+        } else {
+          title.lineLimit(1)
+        }
+      } else if hasDetail {
         ViewThatFits(in: .horizontal) {
           HStack(alignment: .firstTextBaseline, spacing: 8) {
             title.lineLimit(1)
@@ -267,7 +287,7 @@
       .font(AgendaRowStyle.detail.weight(.semibold).monospacedDigit())
       .foregroundStyle(.red)
       .listRowSeparator(.hidden)
-      .listRowInsets(EdgeInsets(top: 4, leading: 20, bottom: 4, trailing: 20))
+      .listRowInsets(EdgeInsets(top: 2, leading: 20, bottom: 2, trailing: 20))
     }
   }
 
@@ -286,7 +306,7 @@
         }
         Circle().fill(.red).frame(width: 12, height: 12)
       }
-      .frame(width: 32, height: 32)
+      .frame(width: 32, height: 18)
       .accessibilityHidden(true)
       .onScrollVisibilityChange(threshold: 0.1) { visible = $0 }
       .onDisappear { visible = false }

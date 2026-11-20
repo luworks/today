@@ -40,7 +40,8 @@
         TitleDetail(
           title: Text(title.isEmpty ? fallbackTitle : title)
             .strikethrough(mark == .completed)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(.secondary),
+          singleLine: todayStyle
         ) {
           Text(detail).font(.caption).foregroundStyle(.secondary)
         }
