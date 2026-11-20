@@ -15,7 +15,7 @@ fallback and VoiceOver-equivalent entry.
 | Today week strip | Horizontal drag, axis locked at 8 pt, follows the finger; release past about two day cells commits one adjacent week, vertical drags are ignored. Detent/settle haptics via `InteractionFeedback`. | `WeekStrip` + `WeekStripSwipe` |
 | Today rows | Trailing swipe for row actions; 0.35 s hold then move drags one occurrence in time; a still hold opens the long-press menu. | `RowActions`, `TimelineHoldDrag` |
 | Calendar 2 Day | Horizontal paging one day per swipe inside a vertical hour scroll. | `OneDayPaging` in `CalendarView` |
-| Calendar Month | Vertical paging one month per swipe; the selected day's agenda is a separate `List` below the grid. | `OneMonthPaging`, `DayAgendaList` |
+| Calendar Month | Vertical paging one month per swipe; below the grid a continuous multi-day agenda `List` (`DayAgendaList` until November 2026). | `OneMonthPaging`, `MonthAgendaList` |
 | Calendar Year | Continuous vertical scrolling. | `CalendarView` |
 | Any page | Rightward swipe from the left edge (24 pt strip) opens the sidebar with past chats; the same swipe on the Chat page returns to the sidebar. | `DrawerDrag`, Chat overlay in `HomeView` |
 | Top/bottom bars | Horizontal swipe switches tabs. | `TabSwipe` |
@@ -31,11 +31,12 @@ there. That is the trigger this change uses.
 
 ## The chosen interaction
 
-- **Where.** The Today timeline list, Calendar's 2 Day hour scroll, and the
-  Month view's selected-day agenda list. The Month pager and Year scroll
-  keep their vertical paging/scrolling: pulling there moves months/years,
-  and hijacking it would break browsing. Their day surfaces above still
-  offer the pull.
+- **Where.** The Today timeline list and Calendar's 2 Day hour scroll. The
+  Month pager, the Month agenda and Year scroll keep their vertical
+  paging/scrolling: pulling there moves months, earlier days or years, and
+  hijacking it would break browsing. Since November 2026 the Month agenda
+  is a continuous multi-day list (`MonthAgendaList`) whose top edge loads
+  earlier days, so it no longer offers the pull; ✦ stays its equivalent.
 - **Trigger.** Scroll to the top, keep pulling down. Overscroll distance is
   read from the scroll geometry, so ordinary scrolling, paging and row
   gestures never produce it. At 64 pt of overscroll the pull is armed
