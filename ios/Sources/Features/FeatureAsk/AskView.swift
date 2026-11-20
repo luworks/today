@@ -99,6 +99,9 @@
     /// What the last turn left open (a "which one?" with real items, or a "when?"), so the next message can answer it.
     @State var followup: Followup?
     @State var focused = false
+    @State var greeting: String?
+    @State var revealed = false
+    let greetingDay: @MainActor () -> ButlerGreeting.Day
 
     package init(
       thread: ChatThread? = nil, subject: AskSubject? = nil, isPresented: Bool = true,
@@ -107,6 +110,7 @@
       actions: PlannerActions, ledger: Ledger, activity: ActivityCenter,
       agentModel: AgentModel, voice: VoiceInput,
       presentation: PlannerPresentation,
+      greetingDay: @escaping @MainActor () -> ButlerGreeting.Day,
       onBack: @escaping (Bool) -> Void, onAdded: @escaping (Capture) -> Void,
       onOpenDay: @escaping (Date) -> Void,
       onOpenTask: @escaping (OneTask, @escaping () -> Void) -> Void,
@@ -124,6 +128,7 @@
       self.activity = activity
       self.agentModel = agentModel
       self.presentation = presentation
+      self.greetingDay = greetingDay
       _voice = State(initialValue: voice)
       _turnStart = State(initialValue: now())
       self.onOpenTask = onOpenTask
@@ -147,6 +152,7 @@
             // A reopened conversation starts at its end with the keyboard down; a new chat is ready to type
             // (built hidden, it takes focus in the same update that reveals it).
             if messages.isEmpty { focused = true }
+            if isPresented { reveal() }
             refreshCardTitles()
             #if DEBUG
               registerEvalProbe()
@@ -158,7 +164,13 @@
             }
             focused = presented && (messages.isEmpty || !draft.isEmpty)
             if !presented { voice.stop() }
-            if presented { refreshCardTitles() }
+            if presented {
+              reveal()
+              refreshCardTitles()
+            } else {
+              greeting = nil
+              revealed = false
+            }
           }
           .onDisappear {
             captureTask?.cancel()
@@ -306,10 +318,17 @@
 
     var emptyState: some View {
       VStack(alignment: .leading, spacing: 24) {
-        Text(subject == nil ? "What do you want to plan?" : "What about this?")
-          .font(.title2.weight(.medium))
         if let subject {
+          Text("What about this?")
+            .font(.title2.weight(.medium))
           subjectCard(subject)
+        } else if let greeting {
+          Text(greeting)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .transition(
+              reduceMotion ? .opacity : .opacity.combined(with: .offset(y: 8))
+            )
+            .accessibilityIdentifier("ask.greeting")
         }
       }
       .frame(maxWidth: .infinity, alignment: .leading)
@@ -488,7 +507,7 @@
     /// tapping it again deselects. The kind's skill is added when the message is sent (`AskQuickKind`).
     var quickKinds: some View {
       HStack(spacing: 8) {
-        ForEach(AskQuickKind.allCases, id: \.self) { kind in
+        ForEach(Array(AskQuickKind.allCases.enumerated()), id: \.element) { index, kind in
           let selected = quickKind == kind
           Button {
             quickKind = selected ? nil : kind
@@ -509,10 +528,32 @@
           .buttonStyle(.plain)
           .accessibilityAddTraits(selected ? .isSelected : [])
           .accessibilityIdentifier("ask-kind-\(kind.rawValue)")
+          .opacity(revealed ? 1 : 0)
+          .offset(y: revealed || reduceMotion ? 0 : 6)
+          .animation(revealAnimation.delay(0.08 + 0.03 * Double(index)), value: revealed)
         }
         Spacer(minLength: 0)
       }
       .padding(.horizontal, 4)
+    }
+
+    var revealAnimation: Animation {
+      reduceMotion ? .easeOut(duration: 0.3) : .spring(duration: 0.4, bounce: 0.15)
+    }
+
+    func reveal() {
+      Task { @MainActor in
+        let text =
+          messages.isEmpty && subject == nil
+          ? ButlerGreeting.text(
+            greetingDay(), now: now(), calendar: presentation.calendar,
+            locale: presentation.locale)
+          : nil
+        withAnimation(revealAnimation) {
+          greeting = text
+          revealed = true
+        }
+      }
     }
 
     func reply(_ text: String) -> ChatMessage {

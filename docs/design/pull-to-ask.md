@@ -67,6 +67,29 @@ there. That is the trigger this change uses.
   open Chat quietly. The Chat panel does not grow out of the orb: it is a
   prebuilt page revealed with animations disabled, and morphing it would
   delay the keyboard.
+- **Greeting.** A new, empty chat (pull, ✦ or the sidebar) opens with one
+  quiet assistant line that already knows the day, in the voice of a head
+  butler: composed, understated, British spelling, never cute (owner,
+  2026-11-20). "Good morning. Next is Yuan – Alden上学 at 08:00; six things
+  remain today, one overdue." / "Good evening. Nothing further today.
+  Tomorrow begins at 07:30 with 刷牙." / "Good afternoon. Your day is clear."
+  It is rule-built and read-only (`ButlerGreeting` in TodayCore, unit-tested:
+  salutation 05:00 morning, 12:00 afternoon, 17:00 evening; next = first
+  timed item still to start; "remain" = items still left today plus
+  reminders due today with no time or a passed time; overdue = open reminders
+  due before today; settled items are left out like on Today; at most 90
+  characters, a long title is cut with "…"). Its input comes from the
+  widget feed's item list (`WidgetFeed.butlerDay`), the same read as the Up
+  Next card, widgets and Siri; while Apple Calendar is still warming up it
+  says only the salutation. No model call, so nothing waits: the editor is
+  focused and the keyboard rises first, the line is computed on the next
+  main-actor turn and rises in (`spring(duration: 0.4, bounce: 0.15)`, 8 pt),
+  then the Reminder / Event / Alarm buttons follow with a 30 ms stagger.
+  Reduce Motion fades only. It replaces the former "What do you want to
+  plan?" title, is static text for VoiceOver (`ask.greeting`), is never saved
+  into the thread or sent to the agent, and is gone once a message is sent.
+  The brief also mentioned suggestion chips (`AskSuggestions`); those were
+  removed in P4, so the only chips are the kind buttons.
 - **Return.** Chat's existing Close button (and its left-edge swipe to the
   sidebar) behave as before. The calendar page stayed mounted underneath,
   so closing lands back at the top the pull started from; the viewed day

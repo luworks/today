@@ -604,7 +604,7 @@
             actions: session.services.actions, ledger: session.services.ledger,
             activity: session.services.activity,
             agentModel: session.askCapabilities.agentModel, voice: session.voice,
-            presentation: session.presentation,
+            presentation: session.presentation, greetingDay: { ButlerGreeting.Day() },
             onBack: { _ in askClosed = true }, onAdded: session.captureAdded,
             onOpenDay: {
               day = $0
