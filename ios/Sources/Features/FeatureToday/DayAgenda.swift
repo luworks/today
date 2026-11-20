@@ -130,6 +130,13 @@
     @State private var history = DayHistory()
     @State private var historyDay: Date?
     @State private var settledExpanded = false
+    /// Manual day-part choices for this agenda's lifetime, keyed by day plus part, like `settledExpanded`:
+    /// keeping them in `@State` (not `@AppStorage`) means a part closed today never stays closed tomorrow.
+    @State private var dayPartOverrides: [String: Bool] = [:]
+    /// The moment the viewed day was shown. Freezing it keeps the default open part steady when time
+    /// crosses a part boundary, so nothing opens or closes under a scrolling user.
+    @State private var disclosureAnchorDay: Date?
+    @State private var disclosureAnchorNow: Date?
     @Environment(\.modelContext) private var context
     @Environment(UndoToast.self) private var toast: UndoToast?
 
@@ -146,10 +153,12 @@
         }
         .onAppear {
           refreshClock()
+          freezeDisclosureAnchor()
           startCenteringNow(proxy)
         }
         .onChange(of: nowRequest) { _, _ in startCenteringNow(proxy, explicit: true) }
         .onChange(of: day) { _, _ in
+          freezeDisclosureAnchor()
           showsAllOverdue = false
           timeRequest = nil
           pendingTime = nil
@@ -234,6 +243,27 @@
           }
         }
       }
+    }
+
+    private func freezeDisclosureAnchor() {
+      disclosureAnchorDay = cal.startOfDay(for: day)
+      disclosureAnchorNow = presentation.now
+    }
+
+    private var disclosureAnchor: Date {
+      if disclosureAnchorDay == cal.startOfDay(for: day), let anchor = disclosureAnchorNow {
+        return anchor
+      }
+      return now
+    }
+
+    private func toggleDayPart(_ part: DayPart) {
+      let anchor = disclosureAnchor
+      let key = DayPartDisclosure.overrideKey(day: day, part: part, calendar: cal)
+      let expanded = DayPartDisclosure.isExpanded(
+        part, viewingToday: cal.isDate(day, inSameDayAs: anchor), anchorNow: anchor, day: day,
+        calendar: cal, boundaries: dayBoundaries, override: dayPartOverrides[key])
+      withAnimation(reduceMotion ? nil : .snappy) { dayPartOverrides[key] = !expanded }
     }
 
     /// Reuse the existing clock refresh and foreground boundary; keep explicitly browsed days.
@@ -469,7 +499,16 @@
         Text("Nothing planned").foregroundStyle(.secondary)
           .listRowSeparator(.hidden)
       }
-      DayPartRows(rows: timelineRows(items), swipes: swipes, drag: drag) { item in
+      DayPartRows(
+        rows: timelineRows(items), swipes: swipes, drag: drag,
+        onToggle: isPastDay ? nil : { toggleDayPart($0) },
+        previewText: { item in
+          guard let title = item.previewTitle else { return nil }
+          let time = item.start.plannerFormatted(
+            date: .omitted, time: .shortened, runtime: presentation.runtime)
+          return "\(time) \(title)"
+        }
+      ) { item in
         dayItemRow(item, items: items)
       }
       if !items.anytime.isEmpty {
@@ -486,9 +525,17 @@
     /// The day's rows; during a drag the dragged row sits at the place it would land, and Free rows step aside.
     private func timelineRows(_ items: DayItems) -> [DayPartRow<TimelineItem>] {
       guard let session = drag.session else {
+        // All-day events and Anytime reminders sit outside these cards, so they never count toward a fold.
+        let anchor = disclosureAnchor
+        let collapsed =
+          isPastDay
+          ? Set<DayPart>()
+          : DayPartDisclosure.collapsedParts(
+            viewingToday: cal.isDate(day, inSameDayAs: anchor), anchorNow: anchor, day: day,
+            calendar: cal, boundaries: dayBoundaries, overrides: dayPartOverrides)
         return DayPart.rows(
           items.timeline, day: day, calendar: cal, boundaries: dayBoundaries, start: \.start,
-          isPlanned: \.isPlanned)
+          isPlanned: \.isPlanned, collapsed: collapsed)
       }
       let stop = session.stops[drag.stopIndex]
       var rows = session.anchors
@@ -1454,6 +1501,21 @@
       switch self {
       case .gap, .nowMarker: false
       default: true
+      }
+    }
+
+    /// The title a collapsed day part shows for this item; free time and the Now line have none.
+    var previewTitle: String? {
+      switch self {
+      case .event(let event, _): event.title
+      case .external(let event): event.title
+      case .due(let task): task.title
+      case .alarm(let alarm, _, _): alarm.label.isEmpty ? "Alarm" : alarm.label
+      case .done(let task, _): task.title
+      case .completed(let completion): completion.title
+      case .stoppedAlarm(let stop): stop.title
+      case .deletedEvent(let event): event.title
+      case .gap, .nowMarker: nil
       }
     }
 
