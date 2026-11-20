@@ -49,7 +49,7 @@
           .frame(height: attention == nil ? nil : 20)
           .modifier(AgendaIconSlot(enabled: attention != nil))
         VStack(alignment: .leading, spacing: 1) {
-          TitleDetail(title: Text(event.title)) {
+          TitleDetail(title: Text(event.title), singleLine: attention != nil) {
             Group {
               if attention != nil {
                 Text(rowDetail)
