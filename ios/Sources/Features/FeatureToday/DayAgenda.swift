@@ -130,6 +130,7 @@
     @State private var history = DayHistory()
     @State private var historyDay: Date?
     @State private var settledExpanded = false
+    @State private var freeChoice: FreeTimeChoice?
     /// Manual day-part choices for this agenda's lifetime, keyed by day plus part, like `settledExpanded`:
     /// keeping them in `@State` (not `@AppStorage`) means a part closed today never stays closed tomorrow.
     @State private var dayPartOverrides: [String: Bool] = [:]
@@ -401,6 +402,9 @@
         }
         // Overdue first: never moved silently, and one tap from a new date.
         if isTodayTab, !overdue.isEmpty { overdueSection }
+        if isTodayTab, showsFreeTime, let conclusion = deadlineConclusion(items) {
+          conclusionLine(conclusion, anytime: items.anytime)
+        }
         if !items.allDay.isEmpty || !items.externalAllDay.isEmpty {
           Section {
             if !showsWeekStrip {
@@ -471,6 +475,7 @@
           ended: { endDrag(cancelled: $0) })
       }
       .entryDeleteDialog($pendingDelete)
+      .sheet(item: $freeChoice) { freeSheet($0) }
     }
 
     @ViewBuilder
@@ -669,7 +674,7 @@
           detail: DurationLabel.text(minutes: max(1, Int(e.end.timeIntervalSince(e.start) / 60)))
             + " · Deleted later",
           mark: .deletedEvent, todayStyle: !showsWeekStrip)
-      case .gap(let free): FreeRow(free: free)
+      case .gap(let free): FreeRow(free: free) { openFree(free, from: "today.freeRow") }
       case .nowMarker(let date): NowRow(date: date).id("now-line")
       }
     }
@@ -1408,6 +1413,104 @@
       }
     }
 
+    private func gapReminder(_ task: OneTask) -> GapFit.Reminder {
+      GapFit.Reminder(
+        minutes: task.durationMinutes, due: task.due,
+        dueHasTime: plannerDueHasTime(task, calendar: presentation.calendar),
+        repeats: task.repeatRule != nil, flagged: task.flagged)
+    }
+
+    private var openTasks: [OneTask] {
+      tasks.filter { !$0.isDone && !isHidden(target($0)) }
+    }
+
+    private func deadlineConclusion(_ items: DayItems) -> GapFit.Conclusion? {
+      let gaps = items.timeline.compactMap { item -> DateInterval? in
+        if case .gap(let free) = item { return free }
+        return nil
+      }
+      return GapFit.conclusion(
+        reminders: items.anytime.map(gapReminder), gaps: gaps, now: now, calendar: cal)
+    }
+
+    private func conclusionLine(_ conclusion: GapFit.Conclusion, anytime: [OneTask]) -> some View {
+      let text = conclusion.text(
+        title: { anytime.indices.contains($0) ? anytime[$0].title : "" },
+        time: {
+          $0.plannerFormatted(date: .omitted, time: .shortened, runtime: presentation.runtime)
+        })
+      return Button {
+        if let opening = conclusion.opening { openFree(opening, from: "today.deadlineLine") }
+      } label: {
+        Text(text)
+          .font(.footnote)
+          .foregroundStyle(.secondary)
+          .frame(maxWidth: .infinity, minHeight: 32, alignment: .leading)
+          .contentShape(Rectangle())
+      }
+      .buttonStyle(.plain)
+      .allowsHitTesting(conclusion.opening != nil)
+      .listRowSeparator(.hidden)
+      .listRowInsets(EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 20))
+      .accessibilityIdentifier("today.deadlineLine")
+    }
+
+    private func openFree(_ gap: DateInterval, from source: String) {
+      guard !isPastDay else { return }
+      ledger.activity.record(ActivityEvents.screenOpen(source))
+      freeChoice = FreeTimeChoice(gap: gap)
+    }
+
+    private func freeSheet(_ choice: FreeTimeChoice) -> some View {
+      let open = openTasks
+      let result = GapFit.candidates(
+        for: choice.gap, reminders: open.map(gapReminder), now: presentation.now, calendar: cal)
+      let format = { (date: Date) in
+        date.plannerFormatted(date: .omitted, time: .shortened, runtime: presentation.runtime)
+      }
+      let span = format(choice.gap.start) + "–" + format(choice.gap.end)
+      let rows = (result?.candidates ?? []).map { candidate in
+        let task = open[candidate.index]
+        let length =
+          candidate.fit == .fits
+          ? "Fits · " + DurationLabel.text(minutes: task.durationMinutes) : "Length not set"
+        let move =
+          ledger.timeLabel(task.due, none: "No date") + " → "
+          + ledger.timeLabel(result?.start, none: "")
+        return FreeTimeSheet.Row(task: task, detail: length + " · " + move)
+      }
+      let tooLong = result?.tooLong ?? 0
+      return FreeTimeSheet(
+        title: DaySchedule.freeLabel(choice.gap.duration),
+        subtitle: result.map { "\(span) · due \(format($0.start)) if you pick one" }
+          ?? "This free time has passed.",
+        rows: rows,
+        footer: (tooLong > 0 ? "\(tooLong) longer reminders need more time. " : "")
+          + "Nothing changes until you tap. Undo follows.",
+        place: { place($0, in: choice.gap) })
+    }
+
+    private func place(_ task: OneTask, in gap: DateInterval) {
+      let open = openTasks
+      guard
+        let result = GapFit.candidates(
+          for: gap, reminders: open.map(gapReminder), now: presentation.now, calendar: cal),
+        result.candidates.contains(where: { open[$0.index] === task })
+      else {
+        toast?.showNotice("This free time changed. Tap it again.")
+        return
+      }
+      let time = result.start.plannerFormatted(
+        date: .omitted, time: .shortened, runtime: presentation.runtime)
+      do {
+        try TaskActions.place(
+          task, at: result.start, label: "“\(task.title)” due \(time)", context: context,
+          toast: toast, reminders: reminders, ledger: ledger, runtime: presentation.runtime)
+      } catch {
+        toast?.showNotice("Couldn't move this reminder. " + error.localizedDescription)
+      }
+    }
+
     /// Oldest deadline first.
     private var overdue: [OneTask] {
       tasks.filter { plannerIsOverdue($0, now: now, calendar: cal) && !isHidden(target($0)) }.sorted
@@ -1569,6 +1672,12 @@
     @Environment(PlannerPresentation.self) private var presentation
     private var secondaryTime = AgendaSecondaryTime()
     let free: DateInterval
+    let open: () -> Void
+
+    init(free: DateInterval, open: @escaping () -> Void) {
+      self.free = free
+      self.open = open
+    }
 
     package var body: some View {
       let title = DaySchedule.freeLabel(free.duration)
@@ -1595,9 +1704,15 @@
       .fixedSize(horizontal: false, vertical: true)
       .listRowSeparator(.hidden)
       .listRowInsets(EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 20))
+      .contentShape(Rectangle())
+      .onTapGesture(perform: open)
       .accessibilityElement(children: .combine)
       .accessibilityLabel(
-        Text(verbatim: title + " from " + start + (remote.map { ", " + $0.spoken } ?? "")))
+        Text(verbatim: title + " from " + start + (remote.map { ", " + $0.spoken } ?? ""))
+      )
+      .accessibilityAddTraits(.isButton)
+      .accessibilityHint("Shows reminders that could fit here")
+      .accessibilityIdentifier("today.freeRow")
     }
   }
 

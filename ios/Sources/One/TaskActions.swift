@@ -322,6 +322,23 @@
         context: context)
     }
 
+    package static func place(
+      _ task: OneTask, at date: Date, label: String, context: ModelContext, toast: UndoToast?,
+      reminders: any ReminderService, ledger: Ledger, runtime: PlannerRuntime
+    ) throws {
+      let snapshot = Ledger.snapshot(of: task)
+      _ = try reminders.prepareOccurrenceMove(task, expected: snapshot)
+      let receipt = try AttachedReminderActions.apply(
+        .move(date), to: task, expected: snapshot, context: context, reminders: reminders,
+        ledger: ledger, runtime: runtime, actor: .you, channel: .app)
+      @MainActor func restore() {
+        do { try receipt.undo() } catch {
+          toast?.show("Couldn't restore reminder. " + error.localizedDescription, undo: restore)
+        }
+      }
+      toast?.show(label, undo: restore)
+    }
+
     private static func nextOccurrence(of task: OneTask, runtime: PlannerRuntime) -> OneTask? {
       guard let rule = task.repeats else { return nil }
       let next = task.copy()
