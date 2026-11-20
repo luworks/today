@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "about": "Day-part progressive disclosure. Timed items in Morning, Afternoon and Evening, plus one all-day event and one untimed reminder that stay outside the day-part cards and never count toward a fold. Load in TodayMock with -uiTestingNow 09:41: Morning opens, Afternoon previews its 13:00 item with +1, Evening previews Gym at 18:30 with +2. Local dates are relative to load day.",
+  "lists": [{ "name": "Disclosure", "color": 2 }],
+  "events": [
+    { "title": "Disclosure all day", "start": { "day": 0 }, "minutes": 1440, "allDay": true },
+    { "title": "Disclosure lunch", "start": { "day": 0, "time": "13:00" }, "minutes": 45 },
+    { "title": "Disclosure dinner", "start": { "day": 0, "time": "19:30" }, "minutes": 60 }
+  ],
+  "reminders": [
+    { "title": "Disclosure standup", "list": "Disclosure", "due": { "day": 0, "time": "09:00" }, "minutes": 15 },
+    { "title": "Disclosure review", "list": "Disclosure", "due": { "day": 0, "time": "15:00" }, "minutes": 25 },
+    { "title": "Gym", "list": "Disclosure", "due": { "day": 0, "time": "18:30" }, "minutes": 60 },
+    { "title": "Disclosure read", "list": "Disclosure", "due": { "day": 0, "time": "21:00" }, "minutes": 30 },
+    { "title": "Disclosure anytime", "list": "Disclosure", "due": { "day": 0 } }
+  ],
+  "alarms": [],
+  "chats": []
+}
