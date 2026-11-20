@@ -268,6 +268,14 @@
       .environment(presentation)
       .environment(\.calendarCityDatabase, composition.world.database)
       .environment(\.askAbout, { openAsk(nil, subject: $0) })
+      // Pulling a calendar surface down past its top starts a new chat, like tapping the bottom field.
+      .environment(
+        \.pullToAsk,
+        {
+          guard !askVisible, !drawer.isOpen, !keyboardUp else { return }
+          openAsk(nil)
+        }
+      )
       .defaultAppStorage(session.defaults)
       .environment(\.calendar, session.runtime.calendar)
       .environment(\.locale, session.runtime.locale)

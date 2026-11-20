@@ -766,6 +766,7 @@
       .animation(.snappy, value: items.map(\.id))
       .entryDeleteDialog($pendingDelete)
       .accessibilityIdentifier("calendar.dayList")
+      .pullToAsk()
     }
   }
 
@@ -1525,6 +1526,7 @@
           }
       )
       .accessibilityIdentifier("calendar.dayGrid")
+      .pullToAsk()
     }
 
     private func gapBands(_ axis: CalendarGapLayout) -> some View {
