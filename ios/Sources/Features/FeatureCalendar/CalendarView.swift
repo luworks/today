@@ -89,9 +89,14 @@
               calendar: calendar, day: $day, onVisibleDays: onVisibleDays, open: open, edit: edit,
               create: create, openDay: openDay)
           case .month:
-            MonthView(
-              calendar: calendar, day: $day, onVisibleDays: onVisibleDays, open: open, edit: edit,
-              openDay: openDay)
+            MonthCalendar(
+              calendar: calendar, day: $day, foldKey: "today.calendar.monthWeekMode",
+              startsFolded: false, onVisibleDays: onVisibleDays, openDay: openDay
+            ) { items in
+              MonthAgendaList(
+                calendar: calendar, day: $day, events: items.events, tasks: items.tasks,
+                alarms: items.alarms, signature: items.signature, open: open, edit: edit)
+            }
           case .year:
             YearView(
               day: $day, calendar: calendar, marks: yearMarks,
@@ -325,16 +330,30 @@
     let pager: Pager
     let strip: Strip
     let agenda: Agenda
-    @SceneStorage("today.calendar.monthWeekMode") private var collapsed = false
+    @SceneStorage private var collapsed: Bool
     @State private var progress: Double?
+
+    init(
+      row: Int, rowHeight: CGFloat, monthHeight: CGFloat, foldKey: String, startsFolded: Bool,
+      pager: Pager, strip: Strip, agenda: Agenda
+    ) {
+      self.row = row
+      self.rowHeight = rowHeight
+      self.monthHeight = monthHeight
+      self.pager = pager
+      self.strip = strip
+      self.agenda = agenda
+      _collapsed = SceneStorage(wrappedValue: startsFolded, foldKey)
+    }
 
     var body: some View {
       let p = CGFloat(progress ?? (collapsed ? 1 : 0))
       let showsStrip = collapsed && progress == nil
       VStack(spacing: 0) {
         ZStack(alignment: .top) {
+          let lift = -CGFloat(row) * rowHeight * p
           pager
-            .offset(y: -CGFloat(row) * rowHeight * p)
+            .visualEffect { content, _ in content.offset(y: lift) }
             .frame(height: rowHeight, alignment: .top)
             .clipShape(FoldClip(height: monthHeight - (monthHeight - rowHeight) * p))
             .modifier(FoldLayer(isShown: !showsStrip))
@@ -343,11 +362,12 @@
         }
         .frame(height: rowHeight, alignment: .top)
         .zIndex(1)
+        let drop = (monthHeight - rowHeight) * (1 - p)
         VStack(spacing: 0) {
           handle
           agenda
         }
-        .offset(y: (monthHeight - rowHeight) * (1 - p))
+        .visualEffect { content, _ in content.offset(y: drop) }
       }
       .animation(.snappy, value: monthHeight)
       .clipped()
@@ -395,14 +415,36 @@
     }
   }
 
-  private struct MonthView: View {
+  package struct MonthItems {
+    package let signature: Int
+    package let events: [OneEvent]
+    package let tasks: [OneTask]
+    package let alarms: [OneAlarm]
+  }
+
+  package struct MonthCalendar<Agenda: View>: View {
     let calendar: any CalendarService
     @Environment(PlannerPresentation.self) private var presentation
     @Binding var day: Date
+    let foldKey: String
+    let startsFolded: Bool
     var onVisibleDays: @MainActor (ClosedRange<Date>) -> Void
-    var open: (CalEntry) -> Void
-    var edit: (CalEntry) -> Void
-    var openDay: (Date) -> Void
+    var openDay: ((Date) -> Void)?
+    let agenda: (MonthItems) -> Agenda
+
+    package init(
+      calendar: any CalendarService, day: Binding<Date>, foldKey: String, startsFolded: Bool,
+      onVisibleDays: @escaping @MainActor (ClosedRange<Date>) -> Void = { _ in },
+      openDay: ((Date) -> Void)? = nil, @ViewBuilder agenda: @escaping (MonthItems) -> Agenda
+    ) {
+      self.calendar = calendar
+      _day = day
+      self.foldKey = foldKey
+      self.startsFolded = startsFolded
+      self.onVisibleDays = onVisibleDays
+      self.openDay = openDay
+      self.agenda = agenda
+    }
 
     @Query(sort: \OneEvent.start) private var events: [OneEvent]
     @Query private var tasks: [OneTask]
@@ -437,7 +479,7 @@
     /// Alarms follow Settings → "Show alarms in the day", like the Today timeline.
     private var alarms: [OneAlarm] { showsAlarms ? allAlarms : [] }
 
-    var body: some View {
+    package var body: some View {
       let signature = signature
       let weeks = CalendarMath.monthWeeks(of: month(current), calendar: cal)
       VStack(spacing: 0) {
@@ -446,10 +488,10 @@
         MonthFold(
           row: MonthWeekStrip.row(of: day, inMonthWeeks: weeks, calendar: cal),
           rowHeight: rowHeight, monthHeight: CGFloat(weeks.count) * rowHeight,
+          foldKey: foldKey, startsFolded: startsFolded,
           pager: pager(signature: signature), strip: weekStrip(signature: signature),
-          agenda: MonthAgendaList(
-            calendar: calendar, day: $day, events: events, tasks: tasks, alarms: alarms,
-            signature: signature, open: open, edit: edit))
+          agenda: agenda(
+            MonthItems(signature: signature, events: events, tasks: tasks, alarms: alarms)))
       }
       .onChange(of: day) { _, new in
         let target = CalendarMath.monthOffset(of: new, from: base, calendar: cal)
@@ -506,7 +548,7 @@
                   identifier: CalendarIDs.day(d, calendar: cal)
                 ) { picked in
                   if cal.isDate(picked, inSameDayAs: selectedDay.wrappedValue) {
-                    openDay(picked)
+                    openDay?(picked)
                   } else {
                     selectedDay.wrappedValue = cal.startOfDay(for: picked)
                   }
@@ -557,7 +599,7 @@
       .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
     }
 
-    static let weekNumberWidth: CGFloat = 26
+    static var weekNumberWidth: CGFloat { 26 }
 
     /// Settings > Calendar > "Show week numbers": the week of the year at the start of each row of the visible month.
     private func weekNumberColumn(for offset: Int) -> some View {
@@ -707,7 +749,7 @@
                 page: marks.pages[month(offset)]
               ) { picked in
                 if cal.isDate(picked, inSameDayAs: selectedDay.wrappedValue) {
-                  openDay(picked)
+                  openDay?(picked)
                 } else {
                   selectedDay.wrappedValue = cal.startOfDay(for: picked)
                 }
@@ -737,6 +779,7 @@
           inMonthOf: month(page), today: presentation.now, calendar: cal)
       }
       .scrollBounceBehavior(.basedOnSize)
+      .id(pageHeight)
       // Never resize the scroll coordinate space when the committed month changes.
       // Crop only its presentation so the agenda still follows the month's last week.
       .frame(height: pageHeight)

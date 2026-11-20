@@ -23,7 +23,7 @@
 
 | 场景 | 当前源码行为 | 改进方向 |
 | --- | --- | --- |
-| Today · 周条与点选日期 | 识别后横移至 36 pt 即提交 ±7 天，220 ms 自动走完余下的整页。出场动画期间挡住后续拖动。换周时有选择触感，点选日期直接更新。 [WeekStrip][week] | 首个试点。采用下文轻棘轮，松手决定是否换周，保留同一星期，一次只过一周。点天即时选中。 |
+| Today · 周条与点选日期 | 与 Calendar → Month 折叠后的周条是同一组件（`MonthCalendar`）：横向分页一次一周，抓手下拉展开为月网格、上推折回，点天即时选中。 [MonthFold][week] | 首个试点。采用下文轻棘轮，松手决定是否换周，保留同一星期，一次只过一周。点天即时选中。 |
 | Today · 纵向滚动与回到 Now | 有自动定位、人工触碰抢占和拖移时冻结快照，普通手势和行操作共用紧凑时间线。 [DayAgenda][agenda] | 回到 Now 是明确动作。查看、完成、Settle、删除或 Undo 后尽可能锚定当前行和屏幕位置。特别验证密集列表、跨 Morning／Afternoon、回到已在看的日期。 |
 | Today · 长按移时、行侧滑与完成 | 自定义长按区分滚动、菜单与抬起后拖动。抬起和过槽都可给触感。完成行监听 `task.isDone`。取消、保存与撤销有各自的路径。 [TimelineHoldDrag][hold] · [共用任务行][rows] | 一次抬起、实际换槽才轻点。拖动时只预览时间，落位和数据提交用各自的状态；成功触感绑定真实写入来源。邻行移动时保持时间标签和身份可追踪。 |
 | Calendar · 2 Day、Month、Year | 2 Day 的横滑限制为相邻一天，Month 垂直浏览相邻一个月并在 idle 提交。Year 是连续纵向浏览。2 Day 主时间轴与两日横向滚动并存。 [CalendarView][calendar] | 以现有原生物理为基础。日、月分页最多一页，年视图连续静音。统一标题、日期高亮、外层日程的提交时点。验证四／五／六行月份、跨年和竖向时间位置。 |
@@ -101,7 +101,7 @@
 
 第一批迁移让两个真实调用方开始复用同一个定义。先收拢最小的语义公共层，逐步移除重复的 View 级触发。原生分页与自定义滚轮各用适合自己的物理和识别方式。
 
-首批由 [`InteractionFeedback`](../../ios/Sources/TodayDesignSystem/InteractionFeedback.swift) 统一日期选中、过齿和翻周落位反馈，WeekStrip 和 PillStyle 共用选择定义。周条在拖动中预览、松手时提交相邻周，使用 170 ms 落位、150 ms 取消收尾和 55 ms 刻度间隔作为初始参数。
+首批由 [`InteractionFeedback`](../../ios/Sources/TodayDesignSystem/InteractionFeedback.swift) 统一日期选中、过齿和翻周落位反馈，PillStyle 使用选择定义。Today 的周条已改用 Calendar → Month 的折叠周条，与 Month 共用原生分页。
 
 ## 到 10 分的路径
 
@@ -125,7 +125,7 @@
 [perfprotocol]: https://github.com/luworks/today/blob/a9208a9f11a2d47d172e901f5abdb0f76a34d46d/docs/performance/protocol.md
 [qa]: https://github.com/luworks/today/blob/a9208a9f11a2d47d172e901f5abdb0f76a34d46d/tests/qa/README.md
 [principles]: https://github.com/luworks/today/blob/a9208a9f11a2d47d172e901f5abdb0f76a34d46d/CLAUDE.md#product-principles-do-not-break-these
-[week]: https://github.com/luworks/today/blob/a9208a9f11a2d47d172e901f5abdb0f76a34d46d/ios/Sources/TodayDesignSystem/WeekStrip.swift#L53-L98
+[week]: ../../ios/Sources/Features/FeatureCalendar/CalendarView.swift
 [agenda]: https://github.com/luworks/today/blob/a9208a9f11a2d47d172e901f5abdb0f76a34d46d/ios/Sources/Features/FeatureToday/DayAgenda.swift
 [hold]: https://github.com/luworks/today/blob/a9208a9f11a2d47d172e901f5abdb0f76a34d46d/ios/Sources/Features/FeatureToday/TimelineHoldDrag.swift
 [rows]: https://github.com/luworks/today/blob/a9208a9f11a2d47d172e901f5abdb0f76a34d46d/ios/Sources/TodayPlannerUI/Rows.swift#L211-L230

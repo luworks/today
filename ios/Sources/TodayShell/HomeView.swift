@@ -485,16 +485,21 @@
         Group {
           switch tab {
           case .today:
-            DayAgenda(
-              day: $todayDay, showsWeekStrip: false, nowRequest: todayNowRequest,
-              openTask: { editor = .task($0) },
-              openEvent: { editor = .local($0) }, openAlarm: { editor = .alarm($0) },
-              openTimer: {
-                clockSection = .timer
-                tab = .clock
-              }, actions: session.actions, calendar: session.calendar, timers: session.timers,
-              reminders: session.reminders, ledger: session.ledger, travel: session.travel,
-              presentation: presentation, openTidy: { tidying = TidyRoute(overdue: $0) })
+            MonthCalendar(
+              calendar: session.calendar, day: $todayDay, foldKey: "today.today.monthWeekMode",
+              startsFolded: true
+            ) { _ in
+              DayAgenda(
+                day: $todayDay, nowRequest: todayNowRequest,
+                openTask: { editor = .task($0) },
+                openEvent: { editor = .local($0) }, openAlarm: { editor = .alarm($0) },
+                openTimer: {
+                  clockSection = .timer
+                  tab = .clock
+                }, actions: session.actions, calendar: session.calendar, timers: session.timers,
+                reminders: session.reminders, ledger: session.ledger, travel: session.travel,
+                presentation: presentation, openTidy: { tidying = TidyRoute(overdue: $0) })
+            }
           case .calendar:
             CalendarView(
               day: $calendarDay, visibleDay: calendarShown.lowerBound,
