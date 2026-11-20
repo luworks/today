@@ -204,6 +204,8 @@ AgentRunner ─ModelClient─ Worker ─ Luna  │
 | prompt caching（固定前缀） | 系统提示、工具、skills 放在最前面，保持不变 |
 | `reasoning.effort: low` | 已定（§4.7） |
 
+**Persona（2026-11-20）**：整个 AI 只有一种声音：英式大宅的首席管家，沉稳、温和、低调、谨慎，对当天的每个细节了如指掌，只说要紧的。先说事实、简短、英文用英式拼写，不卖萌、不用 emoji、不用感叹号、不用敬称、不模仿任何虚构角色。唯一来源是 `backend/luna/agent-v1.mjs` 的 `persona` 常量，拼进系统提示的 Reply 段；它只管语气，不改工具、参数或“卡片已备好、从不说已完成”的规则，所以原地修改、不升 `tools_version`（`worker.test.mjs` 断言系统提示含 `persona`）。规则兜底时 App 自己说的话（`AgentReply`）和空对话的问候（`ButlerGreeting`，#398）用同一种语气；按钮、卡片说明和系统界面不变。改了 Worker 以后要 `wrangler deploy` 才生效。
+
 新旧对比：
 
 | 项目 | strict JSON 模式（P4 已删除，仅作对比） | agent 模式（v3，已实现） |

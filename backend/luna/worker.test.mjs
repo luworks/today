@@ -46,7 +46,7 @@ test('D1-backed sessions, isolation, revocation, limits and unknown-charge reser
 
 // Agent mode (tools_version present): docs/engineering/ai-agent-architecture.md §4.4.
 import { prepareAgent, cost } from './worker.mjs';
-import { tools as toolsV1 } from './agent-v1.mjs';
+import { tools as toolsV1, persona } from './agent-v1.mjs';
 const user = text => ({role:'user',content:text});
 const agentBody = (extra={}) => ({tools_version:'v1',run_id:'run-'+crypto.randomUUID(),input:[user('[QA] remind me to buy milk')],...extra});
 async function setup(outbound) {
@@ -69,7 +69,7 @@ test('agent mode injects the fixed prompt, 12 strict tools and settings',()=>{
  const body=prepareAgent(agentBody({input:items,stream:true}));
  assert.equal(body.model,'gpt-6-luna');assert.deepEqual(body.reasoning,{effort:'low'});assert.equal(body.store,false);
  assert.equal(body.parallel_tool_calls,true);assert.deepEqual(body.include,['reasoning.encrypted_content']);assert.equal(body.text,undefined);
- assert.equal(body.stream,true);assert.deepEqual(body.input,items);assert.equal(body.run_id,undefined);assert.match(body.instructions,/never write anything yourself/);assert.match(body.instructions,/same day as the item just before it/);
+ assert.equal(body.stream,true);assert.deepEqual(body.input,items);assert.equal(body.run_id,undefined);assert.match(body.instructions,/never write anything yourself/);assert.match(body.instructions,/same day as the item just before it/);assert.ok(body.instructions.includes(persona));assert.match(persona,/head butler/);
  assert.deepEqual(body.tools.map(t=>t.name),['get_agenda','find_items','get_item','free_time','list_lists','get_activity','propose_create','propose_edit','propose_delete','propose_undo','revise_proposal','propose_tidy']);
  const strict=s=>{if(s.type==='object'||s.properties){assert.equal(s.additionalProperties,false);assert.deepEqual(s.required,Object.keys(s.properties));Object.values(s.properties).forEach(strict);}if(s.items)strict(s.items);};
  for(const t of toolsV1){assert.equal(t.strict,true);strict(t.parameters);}

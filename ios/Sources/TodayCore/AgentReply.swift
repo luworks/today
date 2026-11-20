@@ -36,15 +36,13 @@ public enum AgentReply {
     return text
   }
 
-  /// Cards that still wait for the user's tap: they reach other people, change a whole series, or the
-  /// message was a question rather than a request.
   public static func cardsReady(_ n: Int, chinese: Bool) -> String {
     if chinese {
       return n == 1 ? "这张卡片需要你确认后才会生效。" : "这 \(n) 张卡片需要你确认后才会生效。"
     }
     return n == 1
-      ? "This card needs your tap before anything changes."
-      : "These \(n) cards need your tap before anything changes."
+      ? "This card awaits your tap; nothing changes until then."
+      : "These \(n) cards await your tap; nothing changes until then."
   }
 
   /// What was really written this turn, from the cards' own results (never from the model's words).
@@ -101,13 +99,13 @@ public enum AgentReply {
           : "Changed " + r.changed.joined(separator: sep) + ".")
     }
     if !r.added.isEmpty || !r.changed.isEmpty {
-      parts.append(zh ? "不需要的话点撤销。" : "Tap Undo if you don't want it.")
+      parts.append(zh ? "不需要的话点撤销。" : "Undo is on the card, should you change your mind.")
     }
     for title in r.failed {
       parts.append(
         zh
           ? "“\(title)”没有保存成功，草稿还在卡片上，可以重试。"
-          : "Couldn't save “\(title)”. The draft is still on its card to retry.")
+          : "I was unable to save “\(title)”; the draft remains on its card to try again.")
     }
     if r.waiting > 0 { parts.append(cardsReady(r.waiting, chinese: zh)) }
     return parts.joined(separator: zh ? "" : " ")
@@ -118,14 +116,13 @@ public enum AgentReply {
   }
 
   public static func stoppedEarly(chinese: Bool) -> String {
-    chinese ? "还没做完，先停在这里。" : "I couldn't finish this in time."
+    chinese ? "还没做完，先停在这里。" : "I was unable to finish this in time."
   }
 
-  /// The run hit the step cap or the deadline: say so, and keep the cards it made.
   public static func unfinished(cards: Int, chinese: Bool) -> String {
     let head = stoppedEarly(chinese: chinese)
     guard cards > 0 else {
-      return head + (chinese ? " 请换个说法再试一次。" : " Try again or rephrase it.")
+      return head + (chinese ? " 请换个说法再试一次。" : " Please try again, or put it another way.")
     }
     return head + " " + cardsReady(cards, chinese: chinese)
   }

@@ -54,7 +54,8 @@ Phase P0 of `docs/engineering/ai-agent-architecture.md`. A body containing
   `reasoning.effort: low`, `store: false`, `include: [reasoning.encrypted_content]`,
   `parallel_tool_calls: true`, `tool_choice: auto` and 4096 output tokens. No `text.format`:
   the final reply is plain text and proposals come only from tool calls.
-  `agent-v1.mjs` is the cacheable prefix; change it only as a new `tools_version`.
+  `agent-v1.mjs` is the cacheable prefix; a change to the tools or their arguments needs a new
+  `tools_version`. Tone-only prompt lines (the head-butler `persona`) are edited in place.
 - `run_id` (8–64 of `[A-Za-z0-9_-]`, one per user message) is counted in the D1 `runs`
   table: at most 6 steps per run (`run_step_limit`), 40 new runs per user per UTC day
   (`run_quota`; an unfinished run may still finish), a run belongs to its creator (409).
