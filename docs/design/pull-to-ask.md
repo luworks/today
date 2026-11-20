@@ -72,3 +72,44 @@ action, which `HomeView` wires to `openAsk(nil)`.
 Threshold feel (64 pt of damped overscroll is a longer finger travel) is a
 starting value in the pull-to-refresh range. Simulator drags cannot prove
 the real rubber-band feel; the owner confirms it on the phone.
+
+## Composer retirement path (proposal, awaiting owner approval)
+
+The bottom bar is one `HStack` in `HomeView.bottomButtons`: the
+"Ask AI or add anything" field filling the width, then the Today capsule
+and the + circle on the right, at the same height. The bar around them
+also carries the Undo toast and is a `TabSwipe` surface. The two neighbors
+have jobs unrelated to AI entry: Today always returns to the actual
+current day (and resets Calendar's browsed day to match), and + opens the
+structured create menu (New alarm / New reminder / New event, plus
+Add city on World Clock). Nothing below moves or resizes them; only the
+field's stages are up for approval.
+
+- **Stage 0 — now (shipped in #389).** The whole bar is unchanged. The
+  field is the fallback for every case the gesture does not cover and the
+  VoiceOver entry (label "Chat"). Gate for any next stage: the owner
+  confirms the pull feel on the phone and uses it as the default entry.
+- **Stage 1 — shrink (proposed, reversible).** The text field collapses to
+  a round sparkles "Ask AI" button, the same height and 44 pt hit target
+  as +, keeping the "Chat" accessibility label and the existing
+  automation identifier. Today and + stay in their exact places, order
+  and sizes; the freed width is empty bar, and the bar keeps its Undo
+  toast and full-width tab swipe. This tests whether the words
+  "Ask AI or add anything" are still doing discoverability work while a
+  one-tap, VoiceOver-visible entry remains.
+- **Stage 2 — retire (proposed end state).** The Ask button leaves the
+  bar. Today and + remain a right-side cluster, unchanged; the bar itself
+  stays for the Undo toast and tab swipe, with quiet empty space on the
+  left (slimming the bar is a separate visual decision). Non-gesture
+  chat entries that already exist become the documented equivalents: the
+  sidebar's New chat (menu button or left-edge swipe) and Ask AI in item
+  long-press menus. If the owner still wants a same-thumb entry at that
+  point, the + menu can gain an "Ask AI" row — decided then, not now.
+  Stage 2 also retires the "Ask AI or add anything" automation
+  identifier, so its tests migrate to the surviving entries in the same
+  change.
+
+Open questions for the owner before Stage 1: whether a one-time hint
+should ever teach the pull (today the pill only appears while pulling),
+and whether the empty bar at Stage 2 should visually slim or keep its
+current height as swipe surface. No stage beyond 0 is implemented.
