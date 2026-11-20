@@ -14,7 +14,6 @@ public struct PullToAsk: Equatable, Sendable {
   public static let disarmBelow: CGFloat = 56
 
   public enum Event: Equatable, Sendable {
-    /// The pull crossed into armed; play one detent haptic.
     case armed
     /// The finger released while armed; open chat.
     case open
@@ -47,5 +46,32 @@ public struct PullToAsk: Equatable, Sendable {
     }
     wasTracking = isTracking
     return events
+  }
+}
+
+extension PullToAsk {
+  public var glow: CGFloat {
+    let p = progress
+    return p * p * (3 - 2 * p)
+  }
+
+  public var orbScale: CGFloat { 0.55 + 0.45 * progress }
+}
+
+public enum PullToAskWelcome {
+  public struct Beat: Equatable, Sendable {
+    public let delay: Duration
+    public let intensity: Double
+  }
+
+  public static let sweep: TimeInterval = 0.7
+  public static let armIntensity = 0.6
+  public static let beats = [
+    Beat(delay: .zero, intensity: 0.6), Beat(delay: .milliseconds(120), intensity: 0.35),
+  ]
+
+  public static func edgeOpacity(at phase: Double) -> Double {
+    let t = min(1, max(0, phase))
+    return t < 0.2 ? t / 0.2 : (1 - t) / 0.8
   }
 }

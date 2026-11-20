@@ -46,19 +46,35 @@ there. That is the trigger this change uses.
   before release, cancels: the list rubber-bands back and nothing opens.
   Overscroll that only appears while decelerating (a fast flick bouncing
   at the top) never arms, because arming requires finger tracking.
-- **Feedback while pulling.** A quiet pill follows the pull at the top:
-  "Pull to ask AI" brightens with progress and switches to
-  "Release to ask AI" when armed. Crossing into armed fires one
-  `InteractionFeedback.detent` haptic, the same selection tick the week
-  strip uses for crossing a tooth. No other haptics.
+- **Feedback while pulling.** The page should feel like coming home to a
+  trusted head butler already waiting: warm, calm, confident, not playful
+  (owner, 2026-11-20). A small warm orb (`sparkles`, orange to amber, both
+  adaptive system colours) grows with the pull from 55 % to full size and
+  tracks the finger with no animation lag. A soft warm glow bleeds in from
+  the top edge of the surface, eased (smoothstep) so it stays faint early and
+  is full at the threshold. Nothing is drawn at rest. The label reads
+  "Pull to ask AI" and cross-fades to "Release, I'm here" when armed.
+- **Armed.** The orb breathes (`symbolEffect(.breathe)`), and crossing into
+  armed fires one `InteractionFeedback.arm`: a soft impact at 0.6
+  intensity, replacing the selection detent.
+- **Release.** `openAsk` runs first, unchanged, so the editor is focused and
+  the keyboard rises at once. Then the shell plays a one-shot welcome:
+  a warm glow sweeps once around the screen edge (stroked continuous
+  rounded rect with a turning angular gradient, blurred, 0.7 s, fades out,
+  never loops) and two soft beats (0.6, then 0.35 after 120 ms,
+  `InteractionFeedback.welcome`). Only the pull plays it; ✦ and the sidebar
+  open Chat quietly. The Chat panel does not grow out of the orb: it is a
+  prebuilt page revealed with animations disabled, and morphing it would
+  delay the keyboard.
 - **Return.** Chat's existing Close button (and its left-edge swipe to the
   sidebar) behave as before. The calendar page stayed mounted underneath,
   so closing lands back at the top the pull started from; the viewed day
   is untouched.
-- **Reduce Motion.** The pill only fades (no travel), and opening uses the
-  existing no-animation transaction, as a bottom-field tap already does.
+- **Reduce Motion.** No travel, growth, breathing or sweep: the orb, glow
+  and label only fade, the edge glow fades in and out without turning, and
+  the haptics stay. Opening uses the existing no-animation transaction.
 - **VoiceOver.** The retained bottom field is the equivalent entry (label
-  "Chat", hint "Starts a new chat"). The pull pill is decoration and is
+  "Chat", hint "Starts a new chat"). The pull indicator is decoration and is
   hidden from accessibility; the gesture adds no rotor or action burden.
 - **Suppressed while** chat is already open, the sidebar is open, or the
   keyboard is up for inline editing. Hold-drag timeline moves do not
@@ -67,9 +83,11 @@ there. That is the trigger this change uses.
 The decision logic is pure and unit-tested (`PullToAsk` in TodayCore):
 tracking samples in, `.armed` / `.open` events out. The SwiftUI modifier
 (`pullToAsk()` in TodayDesignSystem) only feeds scroll geometry and phase
-into it, draws the pill, and calls the shell's `\.pullToAsk` environment
+into it, draws the orb and glow, and calls the shell's `\.pullToAsk` environment
 action, which `HomeView` wires to `openAsk(nil)`.
 
 Threshold feel (64 pt of damped overscroll is a longer finger travel) is a
 starting value in the pull-to-refresh range. Simulator drags cannot prove
-the real rubber-band feel; the owner confirms it on the phone.
+the real rubber-band feel or haptic strength; the owner confirms both on the
+phone. The orb, glow and welcome curves are pure and unit-tested
+(`PullToAsk.glow`, `orbScale`, `PullToAskWelcome`).

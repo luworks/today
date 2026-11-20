@@ -2,9 +2,6 @@
   import SwiftUI
   import TodayCore
 
-  /// Opens a new AI chat when a calendar surface is pulled down past its top.
-  /// The shell provides the action; it is nil where no chat can open
-  /// (previews, tests) and the pull then does nothing at all.
   package typealias PullToAskAction = @MainActor () -> Void
 
   private struct PullToAskKey: EnvironmentKey {
@@ -19,12 +16,14 @@
   }
 
   extension View {
-    /// Pulling this scrollable surface down past its top offers AI chat:
-    /// release past the threshold opens it with the editor focused.
-    /// See docs/design/pull-to-ask.md.
     package func pullToAsk() -> some View {
       modifier(PullToAskModifier())
     }
+  }
+
+  enum PullToAskPalette {
+    static let ember = Color.orange
+    static let amber = Color.orange.mix(with: .yellow, by: 0.45)
   }
 
   private struct PullToAskModifier: ViewModifier {
@@ -52,8 +51,10 @@
             } action: { _, overscroll in
               apply(pull.update(pullDistance: overscroll, isTracking: isTracking))
             }
-            .overlay(alignment: .top) { indicator }
-            .sensoryFeedback(InteractionFeedback.detent, trigger: armHaptics)
+            .overlay(alignment: .top) {
+              if pull.pull > 0 { indicator }
+            }
+            .sensoryFeedback(InteractionFeedback.arm, trigger: armHaptics)
         }
       }
     }
@@ -68,21 +69,122 @@
     }
 
     private var indicator: some View {
-      Label(
-        pull.isArmed ? "Release to ask AI" : "Pull to ask AI",
-        systemImage: "sparkles"
-      )
-      .font(.footnote.weight(.medium))
-      .foregroundStyle(pull.isArmed ? Color.primary : Color.secondary)
-      .padding(.horizontal, 12)
-      .padding(.vertical, 7)
-      .background(Color(.secondarySystemBackground), in: Capsule())
-      .padding(.top, 8)
-      .offset(y: reduceMotion ? 0 : min(24, pull.pull * 0.3))
-      .opacity(pull.pull >= 8 ? Double(pull.progress) : 0)
+      ZStack(alignment: .top) {
+        EllipticalGradient(
+          colors: [
+            PullToAskPalette.amber.opacity(0.45), PullToAskPalette.ember.opacity(0.12), .clear,
+          ],
+          center: .top, startRadiusFraction: 0, endRadiusFraction: 0.55
+        )
+        .frame(height: 180)
+        .opacity(Double(pull.glow))
+
+        VStack(spacing: 6) {
+          orb
+          Text(pull.isArmed ? "Release, I'm here" : "Pull to ask AI")
+            .font(.footnote.weight(.medium))
+            .foregroundStyle(pull.isArmed ? Color.primary : Color.secondary)
+            .contentTransition(.opacity)
+            .animation(.easeOut(duration: 0.2), value: pull.isArmed)
+        }
+        .padding(.top, 10)
+        .offset(y: reduceMotion ? 0 : min(20, pull.pull * 0.25))
+        .opacity(pull.pull >= 8 ? Double(pull.progress) : 0)
+      }
       .allowsHitTesting(false)
       .accessibilityHidden(true)
       .accessibilityIdentifier("pullToAsk.indicator")
+    }
+
+    private var orb: some View {
+      ZStack {
+        Circle()
+          .fill(
+            RadialGradient(
+              colors: [PullToAskPalette.amber.opacity(0.55), .clear],
+              center: .center, startRadius: 0, endRadius: 22)
+          )
+          .frame(width: 44, height: 44)
+        Image(systemName: "sparkles")
+          .font(.title3.weight(.semibold))
+          .foregroundStyle(
+            LinearGradient(
+              colors: [PullToAskPalette.amber, PullToAskPalette.ember],
+              startPoint: .top, endPoint: .bottom)
+          )
+          .symbolEffect(.breathe, isActive: pull.isArmed && !reduceMotion)
+      }
+      .scaleEffect(reduceMotion ? 1 : pull.orbScale)
+    }
+  }
+
+  package struct PullToAskWelcomeEdge: View {
+    private let trigger: Int
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var run: Int?
+    @State private var secondBeat = 0
+
+    package init(trigger: Int) { self.trigger = trigger }
+
+    package var body: some View {
+      ZStack {
+        if let run {
+          EdgeSweepRun(turning: !reduceMotion) {
+            if self.run == run { self.run = nil }
+          }
+          .id(run)
+        }
+      }
+      .ignoresSafeArea()
+      .allowsHitTesting(false)
+      .accessibilityHidden(true)
+      .sensoryFeedback(InteractionFeedback.welcome[0], trigger: trigger)
+      .sensoryFeedback(InteractionFeedback.welcome[1], trigger: secondBeat)
+      .onChange(of: trigger) { _, new in run = new }
+      .task(id: trigger) {
+        guard trigger > 0 else { return }
+        try? await Task.sleep(for: PullToAskWelcome.beats[1].delay)
+        secondBeat += 1
+      }
+    }
+  }
+
+  private struct EdgeSweepRun: View {
+    let turning: Bool
+    let done: () -> Void
+    @State private var phase = 0.0
+
+    var body: some View {
+      EdgeSweep(phase: phase, turning: turning)
+        .onAppear {
+          withAnimation(.easeOut(duration: PullToAskWelcome.sweep)) {
+            phase = 1
+          } completion: {
+            done()
+          }
+        }
+    }
+  }
+
+  private struct EdgeSweep: View, Animatable {
+    var phase: Double
+    let turning: Bool
+
+    nonisolated var animatableData: Double {
+      get { phase }
+      set { phase = newValue }
+    }
+
+    var body: some View {
+      RoundedRectangle(cornerRadius: 52, style: .continuous)
+        .strokeBorder(
+          AngularGradient(
+            colors: [.clear, PullToAskPalette.amber, PullToAskPalette.ember, .clear, .clear],
+            center: .center, angle: .degrees((turning ? phase * 360 : 0) - 90)),
+          lineWidth: 5
+        )
+        .blur(radius: 6)
+        .opacity(PullToAskWelcome.edgeOpacity(at: phase))
     }
   }
 #endif
