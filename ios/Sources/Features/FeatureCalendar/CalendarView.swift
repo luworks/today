@@ -333,9 +333,9 @@
         weekdayHeader
         Rectangle().fill(Color(.separator)).frame(height: 0.5)
         pager
-        DayAgendaList(
-          calendar: calendar, day: day, events: events, tasks: tasks, alarms: alarms, open: open,
-          edit: edit)
+        MonthAgendaList(
+          calendar: calendar, day: $day, events: events, tasks: tasks, alarms: alarms,
+          signature: signature, open: open, edit: edit)
       }
       .onChange(of: day) { _, new in
         let target = CalendarMath.monthOffset(of: new, from: base, calendar: cal)
@@ -716,136 +716,334 @@
     }
   }
 
-  /// The selected day's events under the month grid: all-day first, then by time, like Apple's list layout.
-  private struct DayAgendaList: View {
+  private struct AgendaSection: Identifiable {
+    let day: Date
+    let entries: [CalEntry]
+    var id: Date { day }
+  }
+
+  @MainActor
+  private final class AgendaTracker {
+    var rows: [String: MonthAgendaRowFrame] = [:]
+    var listTop: Double = 0
+    var isUserScrolling = false
+    var suppressed = false
+    var followed: Date?
+  }
+
+  /// Days under the month grid as one continuous agenda (like Fantastical): scrolling it selects the day at its top,
+  /// and a day picked in the grid scrolls it there.
+  private struct MonthAgendaList: View {
     let calendar: any CalendarService
     @Environment(PlannerPresentation.self) private var presentation
-    let day: Date
+    @Binding var day: Date
     let events: [OneEvent]
     let tasks: [OneTask]
     let alarms: [OneAlarm]
+    let signature: Int
     var open: (CalEntry) -> Void
     var edit: (CalEntry) -> Void
+    @State private var window: [Date] = []
+    @State private var sections: [AgendaSection] = []
+    @State private var pending: Date?
     @State private var pendingDelete: CalEntry?
+    @State private var tracker = AgendaTracker()
+    private var cal: Calendar {
+      Preferences.firstWeekdayChoice(presentation.defaults).calendar(base: presentation.calendar)
+    }
+    private static let before = 30
+    private static let after = 60
+    private static let step = 45
+
+    private struct LoadKey: Hashable {
+      let signature: Int
+      let first: Date?
+      let count: Int
+    }
+
+    var body: some View {
+      ScrollViewReader { proxy in
+        List {
+          ForEach(sections) { section in
+            AgendaDayHeader(day: section.day, isFirst: section.day == sections.first?.day)
+              .modifier(track(Self.headerID(section.day), day: section.day))
+              .modifier(rowStyle)
+              .id(Self.headerID(section.day))
+            if section.entries.isEmpty {
+              Text("No events")
+                .font(.footnote)
+                .foregroundStyle(Color(.tertiaryLabel))
+                .padding(.horizontal, 20)
+                .padding(.bottom, 6)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .modifier(track("e\(section.day.timeIntervalSince1970)", day: section.day))
+                .modifier(rowStyle)
+            }
+            ForEach(section.entries, id: \.id) { entry in
+              let id = "\(section.day.timeIntervalSince1970)|\(entry.id)"
+              AgendaRow(entry: entry, day: section.day)
+                .onTapGesture { open(entry) }
+                .entryActions(
+                  entry, pendingDelete: $pendingDelete, open: open, edit: edit, calendar: calendar
+                )
+                .modifier(track(id, day: section.day))
+                .modifier(rowStyle)
+                .id(id)
+            }
+          }
+        }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+        .environment(\.defaultMinListRowHeight, 0)
+        .onGeometryChange(for: Double.self) {
+          Double($0.frame(in: .global).minY)
+        } action: {
+          tracker.listTop = $0
+        }
+        .onScrollPhaseChange { _, phase in
+          let touching = phase == .tracking || phase == .interacting
+          if touching { tracker.suppressed = false }
+          tracker.isUserScrolling = touching || phase == .decelerating
+          if phase == .idle { extendBackwardIfNeeded() }
+        }
+        .task(id: LoadKey(signature: signature, first: window.first, count: window.count)) {
+          await load()
+          await settlePending(proxy)
+        }
+        .onChange(of: day) { _, new in
+          if let followed = tracker.followed, cal.isDate(new, inSameDayAs: followed) { return }
+          jump(to: new, proxy: proxy)
+        }
+        .onAppear {
+          if window.isEmpty || !MonthAgenda.contains(day, in: window, calendar: cal) {
+            window = MonthAgenda.days(
+              around: day, before: Self.before, after: Self.after, calendar: cal)
+          }
+          pending = cal.startOfDay(for: day)
+          tracker.followed = nil
+        }
+      }
+      .entryDeleteDialog($pendingDelete)
+      .accessibilityIdentifier("calendar.dayList")
+    }
+
+    private var rowStyle: AgendaRowStyle { AgendaRowStyle() }
+
+    private func track(_ id: String, day: Date) -> AgendaRowTracking {
+      AgendaRowTracking(id: id, day: day, tracker: tracker) { report() }
+    }
+
+    private static func headerID(_ day: Date) -> String { "h\(day.timeIntervalSince1970)" }
+
+    private func report() {
+      guard tracker.isUserScrolling, !tracker.suppressed,
+        let top = MonthAgenda.topDay(rows: Array(tracker.rows.values), top: tracker.listTop + 1)
+      else { return }
+      if let last = window.last,
+        let limit = cal.date(byAdding: .day, value: -21, to: last), top > limit
+      {
+        window = MonthAgenda.appending(Self.step, to: window, calendar: cal)
+      }
+      guard !cal.isDate(top, inSameDayAs: day) else { return }
+      tracker.followed = top
+      day = top
+    }
+
+    private func extendBackwardIfNeeded() {
+      let top = cal.startOfDay(for: tracker.followed ?? day)
+      guard let first = window.first, let limit = cal.date(byAdding: .day, value: 7, to: first),
+        top < limit
+      else { return }
+      pending = top
+      window = MonthAgenda.prepending(Self.step, to: window, calendar: cal)
+    }
+
+    private func jump(to target: Date, proxy: ScrollViewProxy) {
+      let start = cal.startOfDay(for: target)
+      tracker.followed = nil
+      tracker.suppressed = true
+      if !MonthAgenda.contains(start, in: window, calendar: cal) {
+        pending = start
+        window = MonthAgenda.days(
+          around: start, before: Self.before, after: Self.after, calendar: cal)
+      } else if sections.contains(where: { $0.day == start }) {
+        proxy.scrollTo(Self.headerID(start), anchor: .top)
+      } else {
+        pending = start
+      }
+    }
+
+    private func settlePending(_ proxy: ScrollViewProxy) async {
+      guard let target = pending, sections.contains(where: { $0.day == target }) else { return }
+      try? await Task.sleep(for: .milliseconds(60))
+      guard !Task.isCancelled else { return }
+      proxy.scrollTo(Self.headerID(target), anchor: .top)
+      pending = nil
+    }
+
+    private func load() async {
+      guard let first = window.first, let last = window.last,
+        let end = cal.date(byAdding: .day, value: 1, to: last)
+      else { return }
+      let days = window
+      let c = cal
+      let interval = DateInterval(start: first, end: end)
+      let system = await calendar.loadEvents(
+        in: interval,
+        excluding: calendar.usesSystemEventSnapshots ? [] : Set(events.compactMap(\.externalID)))
+      guard !Task.isCancelled else { return }
+      let entries = CalendarEntries.make(
+        in: interval, events: events, tasks: tasks, alarms: alarms, calendarService: calendar,
+        now: presentation.now, calendar: c, systemEvents: system)
+      let buckets = MonthAgenda.sections(
+        days: days,
+        items: entries.map {
+          MonthAgendaItem(start: $0.start, end: $0.end, isAllDay: $0.isAllDay, title: $0.title)
+        }, calendar: c)
+      sections = zip(days, buckets).map { d, indices in
+        AgendaSection(day: d, entries: indices.map { entries[$0] })
+      }
+    }
+  }
+
+  private struct AgendaRowStyle: ViewModifier {
+    func body(content: Content) -> some View {
+      content
+        .listRowInsets(EdgeInsets())
+        .listRowSeparator(.hidden)
+        .listRowBackground(Color.clear)
+    }
+  }
+
+  private struct AgendaRowTracking: ViewModifier {
+    let id: String
+    let day: Date
+    let tracker: AgendaTracker
+    let changed: () -> Void
+
+    func body(content: Content) -> some View {
+      content
+        .onGeometryChange(for: CGRect.self) {
+          $0.frame(in: .global)
+        } action: { frame in
+          tracker.rows[id] = MonthAgendaRowFrame(
+            day: day, minY: Double(frame.minY), maxY: Double(frame.maxY))
+          changed()
+        }
+        .onDisappear { tracker.rows[id] = nil }
+    }
+  }
+
+  /// "TODAY 11/20/26": a quiet day title over each day of the Month agenda.
+  private struct AgendaDayHeader: View {
+    @Environment(PlannerPresentation.self) private var presentation
+    @Environment(\.displayScale) private var scale
+    let day: Date
+    let isFirst: Bool
     private var cal: Calendar {
       Preferences.firstWeekdayChoice(presentation.defaults).calendar(base: presentation.calendar)
     }
 
     var body: some View {
-      let interval =
-        cal.dateInterval(of: .day, for: day) ?? DateInterval(start: day, duration: 86400)
-      let items = CalendarEntries.on(
-        day,
-        in: CalendarEntries.make(
-          in: interval, events: events, tasks: tasks, alarms: alarms, calendarService: calendar,
-          now: presentation.now, calendar: cal), calendar: cal)
-      List {
-        ForEach(items) { entry in
-          AgendaRow(entry: entry, day: day)
-            .onTapGesture { open(entry) }
-            .entryActions(
-              entry, pendingDelete: $pendingDelete, open: open, edit: edit, calendar: calendar
-            )
-            .listRowInsets(EdgeInsets())
-            .listRowSeparator(.hidden)
-            .listRowBackground(Color.clear)
+      let relative = MonthAgenda.relative(day, today: presentation.now, calendar: cal)
+      let name: String =
+        switch relative {
+        case .yesterday: "Yesterday"
+        case .today: "Today"
+        case .tomorrow: "Tomorrow"
+        case nil: day.plannerFormatted(.dateTime.weekday(.wide), runtime: presentation.runtime)
         }
+      let date = day.plannerFormatted(
+        .dateTime.year(.twoDigits).month(.defaultDigits).day(), runtime: presentation.runtime)
+      HStack(alignment: .firstTextBaseline, spacing: 6) {
+        Text(name.uppercased(with: presentation.runtime.locale))
+          .font(.subheadline.weight(.bold))
+          .foregroundStyle(relative == .today ? Color.red : Color(.label))
+        Text(date)
+          .font(.subheadline)
+          .foregroundStyle(Color(.secondaryLabel))
+        Spacer(minLength: 0)
       }
-      .listStyle(.plain)
-      .scrollContentBackground(.hidden)
-      .overlay {
-        if items.isEmpty {
-          Text("No Events")
-            .font(.title3)
-            .foregroundStyle(.secondary)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-            .padding(.top, 40)
-            .allowsHitTesting(false)
-        }
+      .padding(.horizontal, 20)
+      .padding(.top, 12)
+      .padding(.bottom, 4)
+      .overlay(alignment: .top) {
+        if !isFirst { Rectangle().fill(Color(.separator)).frame(height: 1 / scale) }
       }
-      .animation(.snappy, value: items.map(\.id))
-      .entryDeleteDialog($pendingDelete)
-      .accessibilityIdentifier("calendar.dayList")
-      .pullToAsk()
+      .accessibilityElement(children: .combine)
+      .accessibilityAddTraits(.isHeader)
+      .accessibilityIdentifier("agenda." + CalendarIDs.day(day, calendar: cal))
     }
   }
 
-  /// One line of Apple's event list: calendar-colored bar, bold title, location, start and end time on the right.
-  /// All-day events lead with a calendar glyph and say "all-day".
+  /// One compact item of the Month agenda: a calendar-colored marker (dot for an event, square for a reminder, the alarm
+  /// symbol for an alarm), the time over the title, and the location as a quiet caption.
   private struct AgendaRow: View {
     @Environment(PlannerPresentation.self) private var presentation
-    @Environment(\.colorScheme) private var colorScheme
     let entry: CalEntry
     let day: Date
-    @Environment(\.displayScale) private var scale
     @AppStorage(Preferences.dimPastDaysKey) private var dimsPast = Preferences.dimPastDays
+    @ScaledMetric(relativeTo: .subheadline) private var markerSize: CGFloat = 10
     private var cal: Calendar {
       Preferences.firstWeekdayChoice(presentation.defaults).calendar(base: presentation.calendar)
+    }
+
+    private var symbol: String {
+      if entry.isAlarm { return "alarm" }
+      if entry.isTask { return "square" }
+      if entry.isBirthday { return "gift.fill" }
+      return "circle.fill"
     }
 
     var body: some View {
       let span = entry.span(on: day, calendar: cal)
-      // Events that are over fade, like Apple's (Settings > Calendar > "Dim past days").
       let over =
         dimsPast
         && (span.allDay
           ? cal.startOfDay(for: day) < cal.startOfDay(for: presentation.now)
           : span.end <= presentation.now)
-      let titleColor: Color = over ? Color(.secondaryLabel) : Color(.label)
-      HStack(alignment: .top, spacing: 12) {
-        if entry.isAlarm {
-          // The bell Today's timeline uses for an alarm, in the accent color.
-          Image(systemName: "alarm").font(.system(size: 17)).foregroundStyle(entry.color).frame(
-            width: 22, height: 22)
-        } else if entry.isTask {
-          Image(systemName: "circle").font(.title3).foregroundStyle(entry.color).frame(
-            width: 22, height: 22)
-        } else if span.allDay {
-          Image(systemName: "calendar")
-            .font(.system(size: 13, weight: .semibold))
-            .foregroundStyle(entry.color.contrastForeground(for: colorScheme))
-            .frame(width: 28, height: 28)
-            .background(entry.color, in: Circle())
-        } else {
-          RoundedRectangle(cornerRadius: 2).fill(entry.color).frame(width: 4).padding(.vertical, 1)
-        }
-        VStack(alignment: .leading, spacing: 2) {
+      let time: String? =
+        span.allDay && !entry.isTask
+        ? nil
+        : {
+          let start = span.start.plannerFormatted(
+            date: .omitted, time: .shortened, runtime: presentation.runtime)
+          guard !entry.isTask, !entry.isAlarm, span.end > span.start else { return start }
+          let end = span.end.plannerFormatted(
+            date: .omitted, time: .shortened, runtime: presentation.runtime)
+          return "\(start) – \(end)"
+        }()
+      HStack(alignment: .firstTextBaseline, spacing: 10) {
+        Image(systemName: symbol)
+          .font(
+            .system(
+              size: entry.isTask || entry.isAlarm ? markerSize * 1.25 : markerSize,
+              weight: entry.isTask ? .semibold : .regular)
+          )
+          .foregroundStyle(entry.color)
+          .frame(width: markerSize * 1.6)
+          .opacity(over ? 0.5 : 1)
+        VStack(alignment: .leading, spacing: 1) {
+          if let time {
+            Text(time)
+              .font(.subheadline.monospacedDigit())
+              .foregroundStyle(Color(over ? .tertiaryLabel : .secondaryLabel))
+          }
           Text(entry.title)
-            .font(.body.weight(.semibold))
-            .foregroundStyle(span.allDay && !over ? Color(.label) : titleColor)
+            .font(.body)
+            .foregroundStyle(over ? Color(.secondaryLabel) : Color(.label))
+            .lineLimit(2)
           if !entry.location.isEmpty {
-            Label(entry.location, systemImage: "location.circle")
-              .font(.subheadline)
-              .foregroundStyle(over ? Color(.tertiaryLabel) : Color(.secondaryLabel))
+            Text(entry.location)
+              .font(.footnote)
+              .foregroundStyle(Color(over ? .tertiaryLabel : .secondaryLabel))
               .lineLimit(1)
           }
         }
-        Spacer(minLength: 8)
-        if span.allDay && !entry.isTask {
-          Text("all-day").font(.body).foregroundStyle(over ? Color(.secondaryLabel) : Color(.label))
-        } else {
-          VStack(alignment: .trailing, spacing: 2) {
-            Text(
-              span.start.plannerFormatted(
-                date: .omitted, time: .shortened, runtime: presentation.runtime)
-            )
-            .foregroundStyle(over ? Color(.secondaryLabel) : Color(.label))
-            if !entry.isTask, !entry.isAlarm {
-              Text(
-                span.end.plannerFormatted(
-                  date: .omitted, time: .shortened, runtime: presentation.runtime)
-              ).foregroundStyle(Color(.tertiaryLabel))
-            }
-          }
-          .font(.body.monospacedDigit())
-        }
+        Spacer(minLength: 0)
       }
       .padding(.horizontal, 20)
-      .padding(.vertical, span.allDay || entry.isTask || entry.isAlarm ? 10 : 9)
-      .frame(minHeight: span.allDay || entry.isTask || entry.isAlarm ? 48 : 60, alignment: .top)
-      .overlay(alignment: .bottom) {
-        Rectangle().fill(Color(.separator)).frame(height: 1 / scale).padding(.horizontal, 12)
-      }
+      .padding(.vertical, 5)
       .contentShape(Rectangle())
       .accessibilityElement(children: .ignore)
       .accessibilityLabel(plannerEntrySpeech(entry, runtime: presentation.runtime))
