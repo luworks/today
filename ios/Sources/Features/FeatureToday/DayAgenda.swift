@@ -475,8 +475,8 @@
         return
       }
       let above = markerY - listTop + box.offset
-      let value = max(0, box.container - box.top - box.bottom - above - 4)
-      if abs((available ?? -100) - value) > 1 { available = value }
+      let value = max(0, box.container - box.top - box.bottom - above - 4).rounded()
+      if available != value { available = value }
     }
 
     private func sample(_ kind: RowKind, _ height: CGFloat) {
