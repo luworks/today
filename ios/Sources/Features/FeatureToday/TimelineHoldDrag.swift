@@ -314,9 +314,8 @@
 
     func setFrame(_ frame: CGRect?, for id: AnyHashable) { frames[id] = frame }
 
-    /// Timeline rows only: the labels share the dictionary but are never held.
     func rowID(at point: CGPoint) -> AnyHashable? {
-      frames.first { !isLabel($0.key) && $0.value.contains(point) }?.key
+      frames.first { $0.value.contains(point) }?.key
     }
 
     func lift(at point: CGPoint) {
@@ -365,14 +364,10 @@
       }
     }
 
-    /// What separates a place from the one before it: the next card's label, or the anchor between them.
     private func boundary(_ session: Session, above index: Int) -> CGFloat? {
       let lower = session.stops[index]
-      let id =
-        lower.part != session.stops[index - 1].part
-        ? DayPartRow<TimelineItem>.label(lower.part).id
-        : session.anchors[lower.index - 1].id
-      return frames[id]?.midY
+      guard lower.index > 0 else { return nil }
+      return frames[session.anchors[lower.index - 1].id]?.midY
     }
 
     private func go(to index: Int) {
@@ -411,10 +406,6 @@
       released = false
       isCancelling = false
       stopIndex = 0
-    }
-
-    private func isLabel(_ id: AnyHashable) -> Bool {
-      DayPart.allCases.contains { DayPartRow<TimelineItem>.label($0).id == id }
     }
   }
 
