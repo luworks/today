@@ -29,7 +29,7 @@ class ScopeTests(unittest.TestCase):
 
 
 class LogicScopeTests(unittest.TestCase):
-    VIEW = 'ios/Sources/Features/FeatureToday/DayPartCards.swift'
+    VIEW = 'ios/Sources/Features/FeatureToday/DayAgenda.swift'
 
     def test_view_edits_skip_logic_but_not_the_app(self):
         self.assertTrue(app_changed([self.VIEW]))
