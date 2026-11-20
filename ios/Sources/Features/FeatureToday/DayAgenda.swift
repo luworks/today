@@ -484,11 +484,13 @@
         .listRowSeparator(.hidden)
         .listRowBackground(Color.clear)
         .accessibilityHidden(true)
-        .onGeometryChange(for: CGFloat.self) {
-          $0.frame(in: .global).minY
-        } action: { y in
-          markerY = y
-          updateAvailable()
+        .background {
+          Color.clear.onGeometryChange(for: CGFloat.self) {
+            $0.frame(in: .global).minY
+          } action: { y in
+            markerY = y
+            updateAvailable()
+          }
         }
     }
 
@@ -530,10 +532,12 @@
         }
         ForEach(timelineRows(plan), id: \.id) { item in
           dayItemRow(item)
-            .onGeometryChange(for: CGFloat.self) {
-              $0.size.height
-            } action: {
-              sample(RowKind(item), $0)
+            .background {
+              Color.clear.onGeometryChange(for: CGFloat.self) {
+                $0.size.height
+              } action: {
+                sample(RowKind(item), $0)
+              }
             }
         }
       }
