@@ -840,23 +840,10 @@
 
     private var bottomBar: some View {
       VStack(spacing: 8) {
-        // While the sidebar is open it shows its own toast: never two Undo buttons at once.
         if !drawer.isOpen { UndoToastView() }
         bottomButtons
           .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
-          .contentShape(Rectangle())
           .modifier(TabSwipe(isEnabled: !drawer.isOpen, move: switchTab))
-      }
-      // Scroll content can extend beneath the safe-area inset. Keep it out of the controls.
-      .background(Color(.systemBackground))
-      .overlay(alignment: .top) {
-        LinearGradient(
-          colors: [Color(.systemBackground).opacity(0), Color(.systemBackground)],
-          startPoint: .top, endPoint: .bottom
-        )
-        .frame(height: 24)
-        .offset(y: -24)
-        .allowsHitTesting(false)
       }
     }
 
@@ -880,49 +867,57 @@
     /// On World Clock, + adds a city.
     private var plusAddsCity: Bool { tab == .clock && clockSection == .worldClock }
 
-    /// A chat field that fills the bar, then Today and + on the right.
+    private var showsTodayButton: Bool {
+      tab != .today || askVisible
+        || todayDay != session.runtime.calendar.startOfDay(for: session.runtime.now())
+    }
+
     private var bottomButtons: some View {
       HStack(spacing: 10) {
+        Spacer(minLength: 0)
+        if showsTodayButton {
+          Button {
+            traceTabAction(to: .today)
+            todayNowRequest += 1
+            todayDay = session.runtime.calendar.startOfDay(for: session.runtime.now())
+            calendarDay = todayDay
+            calendarShown = todayDay...todayDay
+            tab = .today
+          } label: {
+            todayLabel
+          }
+          .buttonStyle(PressScale())
+          .accessibilityLabel("Today")
+          .transition(.scale(scale: 0.8).combined(with: .opacity))
+        }
         Button {
           openAsk(nil)
         } label: {
-          Text("Ask AI or add anything")
-            .font(.body)
-            .foregroundStyle(.secondary)
-            .lineLimit(1)
-            .frame(
-              maxWidth: .infinity, minHeight: ButtonConfiguration.minimumHitSize,
-              alignment: .leading
-            )
-            .padding(.horizontal, 16)
-            .background(ButtonConfiguration.Icon.background, in: Capsule())
-            .overlay { Capsule().strokeBorder(Color(.separator).opacity(0.35), lineWidth: 0.5) }
-            .contentShape(Capsule())
+          floatingCircle(Image(systemName: "sparkles"))
         }
         .buttonStyle(PressScale())
         .accessibilityLabel("Chat")
-        // Keep the existing automation entry while giving VoiceOver the visible control's name.
         .accessibilityIdentifier("Ask AI or add anything")
-        .accessibilityHint("Starts a new chat. Past chats are in the menu.")
-        // Always today itself: from another tab, and from another day on the Today tab.
-        Button {
-          traceTabAction(to: .today)
-          todayNowRequest += 1
-          todayDay = session.runtime.calendar.startOfDay(for: session.runtime.now())
-          calendarDay = todayDay
-          calendarShown = todayDay...todayDay
-          tab = .today
-        } label: {
-          todayLabel(selected: tab == .today && !askVisible)
-        }
-        .buttonStyle(PressScale())
-        .accessibilityLabel("Today")
-        .accessibilityAddTraits(tab == .today && !askVisible ? .isSelected : [])
+        .accessibilityHint("Starts a new chat. You can also pull down on Today or Calendar.")
         plusButton
       }
+      .animation(reduceMotion ? nil : PillStyle.selectionAnimation, value: showsTodayButton)
       .padding(.horizontal, 16)
       .padding(.top, 6)
       .padding(.bottom, 4)
+    }
+
+    private func floatingCircle(_ image: Image) -> some View {
+      image
+        .font(ButtonConfiguration.Icon.font)
+        .foregroundStyle(.primary)
+        .frame(
+          width: ButtonConfiguration.minimumHitSize, height: ButtonConfiguration.minimumHitSize
+        )
+        .background(ButtonConfiguration.Icon.background, in: Circle())
+        .overlay { Circle().strokeBorder(Color(.separator).opacity(0.35), lineWidth: 0.5) }
+        .shadow(color: .black.opacity(0.18), radius: 8, y: 2)
+        .contentShape(Circle())
     }
 
     /// The word "Today", like Apple Calendar's button: a capsule as tall as +.
@@ -930,7 +925,7 @@
       .stored
     @Environment(\.colorScheme) private var identityColorScheme
 
-    private func todayLabel(selected: Bool) -> some View {
+    private var todayLabel: some View {
       let fill = TodayButtonColor(stored: todayButtonColor).color
       return
         Text("Today")
@@ -948,7 +943,7 @@
           in: Capsule()
         )
         .overlay { Capsule().strokeBorder(Color(.separator).opacity(0.35), lineWidth: 0.5) }
-        .animation(reduceMotion ? nil : PillStyle.selectionAnimation, value: selected)
+        .shadow(color: .black.opacity(0.18), radius: 8, y: 2)
         .contentShape(Capsule())
     }
 
@@ -978,15 +973,7 @@
     }
 
     private var plusLabel: some View {
-      Image(systemName: "plus")
-        .font(ButtonConfiguration.Icon.font)
-        .foregroundStyle(.primary)
-        .frame(
-          width: ButtonConfiguration.minimumHitSize, height: ButtonConfiguration.minimumHitSize
-        )
-        .background(ButtonConfiguration.Icon.background, in: Circle())
-        .overlay { Circle().strokeBorder(Color(.separator).opacity(0.35), lineWidth: 0.5) }
-        .contentShape(Circle())
+      floatingCircle(Image(systemName: "plus"))
     }
 
     private var creationChoices: some View {
