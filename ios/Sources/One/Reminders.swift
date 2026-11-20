@@ -206,11 +206,9 @@
       let content = UNMutableNotificationContent()
       content.title = title
       content.body = body
-      if let tone = alert.flatMap({ AlarmSound.named($0.sound) }) {
-        content.sound = UNNotificationSound(named: UNNotificationSoundName(tone.file + ".caf"))
-      } else {
-        content.sound = .default
-      }
+      let name = Preferences.notificationSoundName(
+        isEvent: category == Self.eventCategory, own: alert?.sound, defaults)
+      content.sound = AlarmSound.named(name)?.notificationSound ?? .default
       content.categoryIdentifier = category
       content.threadIdentifier = key
       content.userInfo = ["key": key]

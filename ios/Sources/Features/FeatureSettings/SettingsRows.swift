@@ -146,13 +146,17 @@
     /// Writable Apple calendars for "New events go to"; empty when Calendar access is off (the row is hidden).
     package init(
       calendars: [SystemCalendar] = [],
-      settingChanged: @escaping @MainActor (String, String) -> Void = { _, _ in }
+      settingChanged: @escaping @MainActor (String, String) -> Void = { _, _ in },
+      soundChosen: @escaping @MainActor (String, String) -> Void = { _, _ in }
     ) {
       self.calendars = calendars.filter { $0.allowsContentModifications }
       self.settingChanged = settingChanged
+      self.soundChosen = soundChosen
     }
     private let calendars: [SystemCalendar]
     private let settingChanged: @MainActor (String, String) -> Void
+    private let soundChosen: @MainActor (String, String) -> Void
+    @AppStorage(Preferences.eventSoundKey) private var eventSound = Preferences.eventSound
     @AppStorage(Preferences.newEventMinutesKey) private var newEventMinutes =
       Preferences.newEventMinutes
     @AppStorage(Preferences.newEventCalendarKey) private var newEventCalendar = Preferences
@@ -238,6 +242,9 @@
         .onChange(of: newEventMinutes) { _, value in
           settingChanged(Preferences.newEventMinutesKey, String(value))
         }
+        SoundChoiceRow(
+          title: "Event sound", sound: $eventSound, tones: AlarmSound.events,
+          key: Preferences.eventSoundKey, identifier: "settings.eventSound", chosen: soundChosen)
       } header: {
         Text("Calendar")
       }
@@ -250,13 +257,17 @@
   package struct RemindersSettingsSection: View {
     package init(
       settingChanged: @escaping @MainActor (String, String) -> Void = { _, _ in },
-      interruptionChanged: @escaping @MainActor (String) -> Void = { _ in }
+      interruptionChanged: @escaping @MainActor (String) -> Void = { _ in },
+      soundChosen: @escaping @MainActor (String, String) -> Void = { _, _ in }
     ) {
       self.settingChanged = settingChanged
       self.interruptionChanged = interruptionChanged
+      self.soundChosen = soundChosen
     }
     private let settingChanged: @MainActor (String, String) -> Void
     private let interruptionChanged: @MainActor (String) -> Void
+    private let soundChosen: @MainActor (String, String) -> Void
+    @AppStorage(Preferences.reminderSoundKey) private var reminderSound = Preferences.reminderSound
     @AppStorage(Preferences.newReminderListKey) private var chosen = Preferences.newReminderList
     @AppStorage(Preferences.reminderInterruptionKey) private var interruption =
       Preferences.reminderInterruption
@@ -288,6 +299,10 @@
             "Notifications", value: Preferences.reminderInterruption(stored: interruption).title)
         }
         .accessibilityIdentifier("settings.reminderInterruption")
+        SoundChoiceRow(
+          title: "Reminder sound", sound: $reminderSound, tones: AlarmSound.reminders,
+          key: Preferences.reminderSoundKey, identifier: "settings.reminderSound",
+          chosen: soundChosen)
       } header: {
         Text("Reminders")
       }
@@ -420,7 +435,10 @@
 
   /// Settings > Alarms: what a new alarm starts with. Alarms you already have keep their own.
   package struct AlarmsSettingsSection: View {
-    package init() {}
+    package init(soundChosen: @escaping @MainActor (String, String) -> Void = { _, _ in }) {
+      self.soundChosen = soundChosen
+    }
+    private let soundChosen: @MainActor (String, String) -> Void
     @AppStorage(Preferences.newAlarmSnoozeKey) private var snooze = Preferences.newAlarmSnooze
     @AppStorage(Preferences.newAlarmSoundKey) private var sound = Preferences.newAlarmSound
 
@@ -434,18 +452,42 @@
         ) {
           ForEach(AlarmPlan.snoozeChoices, id: \.self) { Text("\($0) min").tag($0) }
         }
-        MenuChoiceRow(
-          title: "Sound", selection: $sound, caption: nil, identifier: "settings.newAlarmSound"
-        ) {
-          Text("Default").tag("")
-          ForEach(AlarmSound.all) { Text($0.name).tag($0.name) }
-        }
+        SoundChoiceRow(
+          title: "Sound", sound: $sound, tones: AlarmSound.alarms,
+          key: Preferences.newAlarmSoundKey, identifier: "settings.newAlarmSound",
+          chosen: soundChosen)
       } header: {
         Text("Alarms")
       } footer: {
         Text(
           "What a new alarm starts with. The sound follows the last one you chose for an alarm, and alarms you already have keep theirs."
         )
+      }
+    }
+  }
+
+  /// A Default + tones menu that plays the tone the user picks.
+  struct SoundChoiceRow: View {
+    let title: String
+    @Binding var sound: String
+    let tones: [AlarmSound]
+    let key: String
+    let identifier: String
+    let chosen: @MainActor (String, String) -> Void
+
+    var body: some View {
+      MenuChoiceRow(
+        title: title,
+        selection: Binding(
+          get: { sound },
+          set: {
+            sound = $0
+            chosen(key, $0)
+          }),
+        caption: nil, identifier: identifier
+      ) {
+        Text("Default").tag("")
+        ForEach(tones) { Text($0.name).tag($0.name) }
       }
     }
   }
