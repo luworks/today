@@ -289,6 +289,112 @@
     @ObservationIgnored var loading: [Date: Int] = [:]
   }
 
+  private struct FoldClip: Shape {
+    var height: CGFloat
+    var animatableData: CGFloat {
+      get { height }
+      set { height = newValue }
+    }
+    func path(in rect: CGRect) -> Path {
+      Path(CGRect(x: rect.minX, y: rect.minY, width: rect.width, height: height))
+    }
+  }
+
+  private struct FoldLayer: ViewModifier {
+    let isShown: Bool
+    func body(content: Content) -> some View {
+      content
+        .opacity(isShown ? 1 : 0)
+        .allowsHitTesting(isShown)
+        .accessibilityHidden(!isShown)
+        .environment(\.monthFoldHidden, !isShown)
+    }
+  }
+
+  private struct FoldHidden: ViewModifier {
+    @Environment(\.monthFoldHidden) private var hidden
+    func body(content: Content) -> some View {
+      content.accessibilityHidden(hidden)
+    }
+  }
+
+  private struct MonthFold<Pager: View, Strip: View, Agenda: View>: View {
+    let row: Int
+    let rowHeight: CGFloat
+    let monthHeight: CGFloat
+    let pager: Pager
+    let strip: Strip
+    let agenda: Agenda
+    @SceneStorage("today.calendar.monthWeekMode") private var collapsed = false
+    @State private var progress: Double?
+
+    var body: some View {
+      let p = CGFloat(progress ?? (collapsed ? 1 : 0))
+      let showsStrip = collapsed && progress == nil
+      VStack(spacing: 0) {
+        ZStack(alignment: .top) {
+          pager
+            .offset(y: -CGFloat(row) * rowHeight * p)
+            .frame(height: rowHeight, alignment: .top)
+            .clipShape(FoldClip(height: monthHeight - (monthHeight - rowHeight) * p))
+            .modifier(FoldLayer(isShown: !showsStrip))
+          strip
+            .modifier(FoldLayer(isShown: showsStrip))
+        }
+        .frame(height: rowHeight, alignment: .top)
+        .zIndex(1)
+        VStack(spacing: 0) {
+          handle
+          agenda
+        }
+        .offset(y: (monthHeight - rowHeight) * (1 - p))
+      }
+      .animation(.snappy, value: monthHeight)
+      .clipped()
+    }
+
+    private var handle: some View {
+      let distance = Double(monthHeight - rowHeight)
+      return Capsule()
+        .fill(Color(.tertiaryLabel))
+        .frame(width: 36, height: 5)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 6)
+        .contentShape(Rectangle())
+        .gesture(
+          DragGesture(minimumDistance: 4, coordinateSpace: .global)
+            .onChanged { value in
+              progress = MonthWeekStrip.progress(
+                collapsed: collapsed, translation: Double(value.translation.height),
+                distance: distance)
+            }
+            .onEnded { value in
+              settle(
+                MonthWeekStrip.settlesCollapsed(
+                  progress: progress ?? (collapsed ? 1 : 0),
+                  predictedTranslation: Double(value.predictedEndTranslation.height),
+                  distance: distance))
+            }
+        )
+        .onTapGesture { settle(!collapsed) }
+        .accessibilityElement()
+        .accessibilityLabel(collapsed ? "Show Month" : "Show Week")
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction { settle(!collapsed) }
+        .accessibilityIdentifier("calendar.monthHandle")
+    }
+
+    private func settle(_ toCollapsed: Bool) {
+      if progress == nil { progress = collapsed ? 1 : 0 }
+      withAnimation(.spring(response: 0.35, dampingFraction: 0.86)) {
+        progress = toCollapsed ? 1 : 0
+      } completion: {
+        collapsed = toCollapsed
+        progress = nil
+      }
+    }
+  }
+
   private struct MonthView: View {
     let calendar: any CalendarService
     @Environment(PlannerPresentation.self) private var presentation
@@ -313,8 +419,6 @@
     @State private var isUserPaging = false
     @State private var clockRevision = 0
     @State private var marks = MonthMarksCache()
-    @SceneStorage("today.calendar.monthWeekMode") private var collapsed = false
-    @State private var dragProgress: Double?
     @State private var weekPos: Int? = 0
     @State private var weekSettled = 0
     @ScaledMetric(relativeTo: .body) private var rowHeight: CGFloat = 51
@@ -334,14 +438,18 @@
     private var alarms: [OneAlarm] { showsAlarms ? allAlarms : [] }
 
     var body: some View {
+      let signature = signature
+      let weeks = CalendarMath.monthWeeks(of: month(current), calendar: cal)
       VStack(spacing: 0) {
         weekdayHeader
         Rectangle().fill(Color(.separator)).frame(height: 0.5)
-        grid
-        handle
-        MonthAgendaList(
-          calendar: calendar, day: $day, events: events, tasks: tasks, alarms: alarms,
-          signature: signature, open: open, edit: edit)
+        MonthFold(
+          row: MonthWeekStrip.row(of: day, inMonthWeeks: weeks, calendar: cal),
+          rowHeight: rowHeight, monthHeight: CGFloat(weeks.count) * rowHeight,
+          pager: pager(signature: signature), strip: weekStrip(signature: signature),
+          agenda: MonthAgendaList(
+            calendar: calendar, day: $day, events: events, tasks: tasks, alarms: alarms,
+            signature: signature, open: open, edit: edit))
       }
       .onChange(of: day) { _, new in
         let target = CalendarMath.monthOffset(of: new, from: base, calendar: cal)
@@ -369,70 +477,7 @@
       }
     }
 
-    private var progress: Double { dragProgress ?? (collapsed ? 1 : 0) }
-
-    private var monthHeight: CGFloat {
-      CGFloat(CalendarMath.monthWeeks(of: month(current), calendar: cal).count) * rowHeight
-    }
-
-    @ViewBuilder private var grid: some View {
-      if collapsed && dragProgress == nil {
-        weekStrip
-      } else {
-        let row = MonthWeekStrip.row(
-          of: day, inMonthWeeks: CalendarMath.monthWeeks(of: month(current), calendar: cal),
-          calendar: cal)
-        let p = CGFloat(progress)
-        pager
-          .offset(y: -CGFloat(row) * rowHeight * p)
-          .frame(height: monthHeight - (monthHeight - rowHeight) * p, alignment: .top)
-          .clipped()
-      }
-    }
-
-    private var handle: some View {
-      let distance = Double(monthHeight - rowHeight)
-      return Capsule()
-        .fill(Color(.tertiaryLabel))
-        .frame(width: 36, height: 5)
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 6)
-        .contentShape(Rectangle())
-        .gesture(
-          DragGesture(minimumDistance: 4, coordinateSpace: .global)
-            .onChanged { value in
-              dragProgress = MonthWeekStrip.progress(
-                collapsed: collapsed, translation: Double(value.translation.height),
-                distance: distance)
-            }
-            .onEnded { value in
-              settle(
-                MonthWeekStrip.settlesCollapsed(
-                  progress: progress,
-                  predictedTranslation: Double(value.predictedEndTranslation.height),
-                  distance: distance))
-            }
-        )
-        .onTapGesture { settle(!collapsed) }
-        .accessibilityElement()
-        .accessibilityLabel(collapsed ? "Show Month" : "Show Week")
-        .accessibilityAddTraits(.isButton)
-        .accessibilityAction { settle(!collapsed) }
-        .accessibilityIdentifier("calendar.monthHandle")
-    }
-
-    private func settle(_ toCollapsed: Bool) {
-      if dragProgress == nil { dragProgress = collapsed ? 1 : 0 }
-      withAnimation(.spring(response: 0.35, dampingFraction: 0.86)) {
-        dragProgress = toCollapsed ? 1 : 0
-      } completion: {
-        collapsed = toCollapsed
-        dragProgress = nil
-      }
-    }
-
-    private var weekStrip: some View {
-      let signature = signature
+    private func weekStrip(signature: Int) -> some View {
       let selectedDay = $day
       return ScrollView(.horizontal, showsIndicators: false) {
         LazyHStack(spacing: 0) {
@@ -482,6 +527,7 @@
           }
         }
         .scrollTargetLayout()
+        .modifier(FoldHidden())
       }
       .scrollTargetBehavior(.paging)
       .scrollPosition(id: $weekPos)
@@ -648,8 +694,7 @@
         tints: tints)
     }
 
-    private var pager: some View {
-      let signature = signature
+    private func pager(signature: Int) -> some View {
       let selectedDay = $day
       let pageHeight = CGFloat(CalendarPaging.monthPageHeight(rowHeight: Double(rowHeight)))
       return ScrollView(.vertical, showsIndicators: false) {
@@ -680,6 +725,7 @@
           }
         }
         .scrollTargetLayout()
+        .modifier(FoldHidden())
       }
       .scrollTargetBehavior(OneMonthPaging(limitsToAdjacent: isUserPaging))
       .scrollPosition(id: $pos, anchor: .top)
@@ -2487,6 +2533,10 @@
       let c = calendar.dateComponents([.year, .month], from: d)
       return String(format: "miniMonth.%04d-%02d", c.year ?? 0, c.month ?? 0)
     }
+  }
+
+  extension EnvironmentValues {
+    @Entry fileprivate var monthFoldHidden = false
   }
 
 #endif
