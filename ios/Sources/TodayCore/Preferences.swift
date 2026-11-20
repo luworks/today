@@ -22,6 +22,8 @@ public enum Preferences {
   public static let newEventAlertKey = "today.setting.newEventAlert"
   public static let newAlarmSnoozeKey = "today.setting.newAlarmSnooze"
   public static let newAlarmSoundKey = "today.setting.newAlarmSound"
+  public static let eventSoundKey = "today.setting.eventSound"
+  public static let reminderSoundKey = "today.setting.reminderSound"
   public static let weatherSummaryKey = "today.setting.weatherSummary"
   public static let upNextLiveActivityKey = "today.setting.upNextLiveActivity"
   public static let afternoonStartKey = "today.setting.afternoonStart"
@@ -41,7 +43,8 @@ public enum Preferences {
     CalendarTimeZone.enabledKey, CalendarTimeZone.cityKey,
     compressEmptyHoursKey, dimPastDaysKey, firstWeekdayKey, weekNumbersKey, calendarStartKey,
     showFreeTimeKey, newReminderListKey, newEventCalendarKey, newEventAlertKey,
-    newAlarmSnoozeKey, newAlarmSoundKey, showSettleKey, weatherSummaryKey,
+    newAlarmSnoozeKey, newAlarmSoundKey, eventSoundKey, reminderSoundKey, showSettleKey,
+    weatherSummaryKey,
     upNextLiveActivityKey, afternoonStartKey, eveningStartKey, freeRowMinutesKey,
     newEventMinutesKey, quickPresetsKey, reminderInterruptionKey, aiChangesKey,
     upNextWindowHoursKey, upNextMaxItemsKey, upNextEventsKey,
@@ -62,6 +65,9 @@ public enum Preferences {
   public static let newAlarmSnooze = AlarmPlan.defaultSnoozeMinutes
   /// "" = the system alarm sound.
   public static let newAlarmSound = ""
+  /// "" = the system notification sound.
+  public static let eventSound = ""
+  public static let reminderSound = ""
   /// Calendar identifier for new events; "" = Auto (the calendar the request names, else the system default).
   public static let newEventCalendar = ""
   /// Minutes before a new event Today makes (Ask, the local editor); `noEventAlert` = none. Today always added 10.
@@ -207,6 +213,23 @@ public enum Preferences {
 
   public static func newAlarmSoundName(_ defaults: UserDefaults = .standard) -> String {
     defaults.string(forKey: newAlarmSoundKey) ?? newAlarmSound
+  }
+
+  public static func eventSoundName(_ defaults: UserDefaults = .standard) -> String {
+    defaults.string(forKey: eventSoundKey) ?? eventSound
+  }
+
+  public static func reminderSoundName(_ defaults: UserDefaults = .standard) -> String {
+    defaults.string(forKey: reminderSoundKey) ?? reminderSound
+  }
+
+  /// The tone a notification plays: an event's from Settings; a reminder's own, else the one from Settings.
+  public static func notificationSoundName(
+    isEvent: Bool, own: String?, _ defaults: UserDefaults = .standard
+  ) -> String {
+    if isEvent { return eventSoundName(defaults) }
+    if let own, !own.isEmpty { return own }
+    return reminderSoundName(defaults)
   }
 
   public static func upNextLiveActivityEnabled(_ defaults: UserDefaults = .standard) -> Bool {

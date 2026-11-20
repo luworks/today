@@ -101,6 +101,7 @@ public enum LaunchTestConfiguration {
     Preferences.showFreeTimeKey, Preferences.newReminderListKey,
     Preferences.newEventCalendarKey, Preferences.newEventAlertKey,
     Preferences.newAlarmSnoozeKey, Preferences.newAlarmSoundKey,
+    Preferences.eventSoundKey, Preferences.reminderSoundKey,
     Preferences.weatherSummaryKey, Preferences.upNextLiveActivityKey,
     CalendarLayout.savedHourHeightKey,
     Preferences.afternoonStartKey, Preferences.eveningStartKey, Preferences.freeRowMinutesKey,

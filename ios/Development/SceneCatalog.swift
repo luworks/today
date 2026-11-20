@@ -708,7 +708,7 @@
         selection: selection, calendar: session.services.calendar,
         reminders: session.services.reminders,
         notifications: session.services.notifications, alarms: session.services.alarms,
-        ledger: session.services.ledger,
+        soundPreview: session.services.soundPreview, ledger: session.services.ledger,
         openSettings: session.openSettings, rewriteWidgets: session.rewriteWidgets,
         diagnostics: session.diagnostics,
         exportDiagnostics: {

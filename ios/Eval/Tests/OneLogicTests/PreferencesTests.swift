@@ -36,6 +36,8 @@ final class PreferencesTests: XCTestCase {
     XCTAssertEqual(Preferences.newReminderList, "", "Auto: nothing was filed by a chosen list")
     XCTAssertEqual(Preferences.newAlarmSnooze, 9, "Clock's nine minutes")
     XCTAssertEqual(Preferences.newAlarmSound, "", "the system alarm sound")
+    XCTAssertEqual(Preferences.eventSound, "", "the system notification sound")
+    XCTAssertEqual(Preferences.reminderSound, "", "the system notification sound")
     XCTAssertFalse(Preferences.weatherSummary)
   }
 
@@ -93,6 +95,8 @@ final class PreferencesTests: XCTestCase {
     XCTAssertNil(Preferences.newReminderList(existing: ["Inbox", "Work"], d))
     XCTAssertEqual(Preferences.newAlarmSnoozeMinutes(d), 9)
     XCTAssertEqual(Preferences.newAlarmSoundName(d), "")
+    XCTAssertEqual(Preferences.eventSoundName(d), "")
+    XCTAssertEqual(Preferences.reminderSoundName(d), "")
   }
 
   func testFocusVisibilityDefaultsAndExplicitPreferencesSurviveRelaunch() {
@@ -209,6 +213,18 @@ final class PreferencesTests: XCTestCase {
     XCTAssertEqual(
       Preferences.newAlarmSnoozeMinutes(d), 15,
       "a length that is not offered snaps to the nearest one")
+  }
+
+  func testNotificationSoundFollowsKindThenOwnThenSettings() {
+    let d = freshDefaults()
+    XCTAssertEqual(Preferences.notificationSoundName(isEvent: true, own: nil, d), "")
+    XCTAssertEqual(Preferences.notificationSoundName(isEvent: false, own: nil, d), "")
+    d.set("Heads Up", forKey: Preferences.eventSoundKey)
+    d.set("Ping", forKey: Preferences.reminderSoundKey)
+    XCTAssertEqual(Preferences.notificationSoundName(isEvent: true, own: "Pluck", d), "Heads Up")
+    XCTAssertEqual(Preferences.notificationSoundName(isEvent: false, own: nil, d), "Ping")
+    XCTAssertEqual(Preferences.notificationSoundName(isEvent: false, own: "", d), "Ping")
+    XCTAssertEqual(Preferences.notificationSoundName(isEvent: false, own: "Pluck", d), "Pluck")
   }
 
   // MARK: UI test launch

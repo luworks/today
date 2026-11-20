@@ -60,7 +60,8 @@
     package var body: some View {
       SettingsView(
         selection: selection, calendar: session.calendar, reminders: session.reminders,
-        notifications: session.notifications, alarms: session.alarms, ledger: session.ledger,
+        notifications: session.notifications, alarms: session.alarms,
+        soundPreview: session.soundPreview, ledger: session.ledger,
         openSettings: composition.openSettings, rewriteWidgets: session.widget.rewriteFromStore,
         diagnostics: diagnostics,
         exportDiagnostics: {

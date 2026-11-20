@@ -549,7 +549,7 @@
           row(title: "Default", value: "", subtitle: "The standard alarm sound")
         }
         Section("Tones") {
-          ForEach(AlarmSound.all) { tone in
+          ForEach(AlarmSound.alarms) { tone in
             row(title: tone.name, value: tone.name, subtitle: nil)
           }
         }

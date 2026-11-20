@@ -25,6 +25,7 @@
     private let reminders: any ReminderService
     private let notifications: any NotificationService
     private let alarms: any AlarmService
+    private let soundPreview: any SoundPreviewing
     private let ledger: Ledger
     private let openSettings: @MainActor () -> Void
     private let rewriteWidgets: @MainActor () -> Void
@@ -42,7 +43,7 @@
       selection: Selection = .all,
       calendar: any CalendarService, reminders: any ReminderService,
       notifications: any NotificationService,
-      alarms: any AlarmService, ledger: Ledger,
+      alarms: any AlarmService, soundPreview: any SoundPreviewing, ledger: Ledger,
       openSettings: @escaping @MainActor () -> Void,
       rewriteWidgets: @escaping @MainActor () -> Void,
       diagnostics: LocalDiagnostics,
@@ -55,6 +56,7 @@
       wheelLab: (@MainActor () -> AnyView)? = nil
     ) {
       self.alarms = alarms
+      self.soundPreview = soundPreview
       self.ledger = ledger
       self.openSettings = openSettings
       self.rewriteWidgets = rewriteWidgets
@@ -110,7 +112,9 @@
           if includes(.apple) { appleSection }
           if includes(.today) { todaySection }
           if includes(.calendar) {
-            CalendarSettingsSection(calendars: calendar.calendars(), settingChanged: recordSetting)
+            CalendarSettingsSection(
+              calendars: calendar.calendars(), settingChanged: recordSetting,
+              soundChosen: soundChosen)
           }
           if includes(.reminders) {
             RemindersSettingsSection(
@@ -118,10 +122,10 @@
               interruptionChanged: { value in
                 recordSetting(Preferences.reminderInterruptionKey, value)
                 Task { await notifications.resync() }
-              })
+              }, soundChosen: soundChosen)
           }
           if includes(.smartLists) { smartListsSection }
-          if includes(.alarms) { AlarmsSettingsSection() }
+          if includes(.alarms) { AlarmsSettingsSection(soundChosen: soundChosen) }
           if includes(.holidays) { holidaysSection }
           if includes(.ai) { aiSection }
           if includes(.activity) { activitySection }
@@ -200,11 +204,18 @@
         systemAppearanceObservation = (scene, registration)
       }
       .onDisappear {
+        soundPreview.stop()
         if let (scene, registration) = systemAppearanceObservation {
           scene.unregisterForTraitChanges(registration)
           systemAppearanceObservation = nil
         }
       }
+    }
+
+    private func soundChosen(_ key: String, _ name: String) {
+      recordSetting(key, name.isEmpty ? "default" : name)
+      if let tone = AlarmSound.named(name) { soundPreview.play(tone) } else { soundPreview.stop() }
+      if key != Preferences.newAlarmSoundKey { Task { await notifications.resync() } }
     }
 
     private func recordSetting(_ key: String, _ value: String) {

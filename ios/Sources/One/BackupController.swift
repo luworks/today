@@ -77,6 +77,7 @@
       "today.setting.showFreeTime", "today.setting.newReminderList",
       "today.setting.newEventCalendar",
       "today.setting.newEventAlert", "today.setting.newAlarmSnooze", "today.setting.newAlarmSound",
+      "today.setting.eventSound", "today.setting.reminderSound",
       "today.setting.afternoonStart", "today.setting.eveningStart",
       "today.setting.freeRowMinutes", "today.setting.newEventMinutes",
       "today.setting.quickPresets",
@@ -330,6 +331,7 @@
         "today.setting.calendarSecondZoneCity",
         "today.appearance", "today.setting.newReminderList", "today.setting.newEventCalendar",
         "today.setting.newAlarmSound", "today.setting.calendarStart", "today.setting.firstWeekday",
+        "today.setting.eventSound", "today.setting.reminderSound",
         "activity.setting.retention", "reminders.smartOrder", "reminders.smartHidden",
       ]
       let integers: Set<String> = [

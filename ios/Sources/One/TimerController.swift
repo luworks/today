@@ -29,7 +29,7 @@
     package private(set) var log: PomodoroLog
     /// The Recents under the picker: what was started, newest first (UserDefaults; `TimerRecents`).
     package private(set) var recents: [RecentTimer]
-    /// The tone new timers ring with: a name from `AlarmSound.all`, empty for the system alarm sound.
+    /// The tone new timers ring with: a name from `AlarmSound.alarms`, empty for the system alarm sound.
     package var sound: String { didSet { defaults.set(sound, forKey: Self.soundKey) } }
     /// A short line under the controls, e.g. when alarms are not allowed.
     package var message: String?
