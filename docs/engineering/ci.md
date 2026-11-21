@@ -25,7 +25,8 @@ different cache and builds cold. `xcodebuild` runs in a minimal environment (`HO
 cache (saved with DerivedData) and the link tasks.
 
 `checks` does the same for the logic tests: it restores the SwiftPM build (`ios/.build`) of the
-newest green `main` and `swift test` recompiles only what changed. Pushes to `main` save it; a
+newest green `main` and recompiles only what changed, in the background while format, lint and the
+helper tests run, so `./dev test unit` mostly just runs the tests. Pushes to `main` save the build; a
 change to `ios/Package.swift`, the Xcode version or the runner image builds cold.
 
 Pushes to `main` and merge groups also upload `TodayMock-sim-<sha>` (7 days): the arm64 simulator `TodayMock.app`,
