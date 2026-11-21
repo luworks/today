@@ -22,6 +22,11 @@ different cache and builds cold. `xcodebuild` runs in a minimal environment (`HO
 `DEVELOPER_DIR`) because per-job runner variables would otherwise invalidate SwiftPM's manifest
 cache (saved with DerivedData) and the link tasks.
 
+On a pull request `checks` does the same for the logic tests: it restores the SwiftPM build
+(`ios/.build`) of the newest green `main` and `swift test` recompiles only what changed. Pushes to
+`main` compile clean and save it; a change to `ios/Package.swift`, the Xcode version or the runner
+image builds cold.
+
 Pushes to `main` and merge groups also upload `TodayMock-sim-<sha>` (7 days): the arm64 simulator `TodayMock.app`,
 zipped. Simulator only (never a phone, never next to `One.app`); launch it with `-uiTesting -dataset <path>`.
 
