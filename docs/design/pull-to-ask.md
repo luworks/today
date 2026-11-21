@@ -5,7 +5,9 @@ point should not refresh; it should open AI chat with the input already
 focused, so typing can start without tapping the bottom field. Follow-up
 (2026-11-20): the full-width "Ask AI or add anything" field was replaced by
 a floating ✦ Chat button beside Today (shown only off today) and +; ✦ is the
-fallback and VoiceOver-equivalent entry.
+fallback and VoiceOver-equivalent entry. V3 (2026-11-21): the top bar is gone
+and one docked bottom row holds the four tabs and an "Ask anything" field with
++; the field is now that entry.
 
 ## Gesture map before this change
 
@@ -18,7 +20,7 @@ fallback and VoiceOver-equivalent entry.
 | Calendar Month | Vertical paging one month per swipe; below the grid a continuous multi-day agenda `List` (`DayAgendaList` until November 2026). | `OneMonthPaging`, `MonthAgendaList` |
 | Calendar Year | Continuous vertical scrolling. | `CalendarView` |
 | Any page | Rightward swipe from the left edge (24 pt strip) opens the sidebar with past chats; the same swipe on the Chat page returns to the sidebar. | `DrawerDrag`, Chat overlay in `HomeView` |
-| Top/bottom bars | Horizontal swipe switches tabs. | `TabSwipe` |
+| Bottom bar | Horizontal swipe switches tabs. | `TabSwipe` |
 | Bottom field | Tap reveals the prebuilt full-screen Chat; an empty new chat focuses its editor on the next frame and the keyboard is warmed at launch. Close (top right) returns to the page underneath, which stayed mounted with its scroll position. | `openAsk` / `closeAsk` in `HomeView`, `AskView` |
 
 Direction check: the owner's words also mention swiping sideways. In the

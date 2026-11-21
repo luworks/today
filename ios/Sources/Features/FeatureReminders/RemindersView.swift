@@ -16,7 +16,7 @@
   }
 
   /// The Reminders tab: small pills above the List (smart lists, then pinned lists), My Lists, Add List. Everything
-  /// else is pushed inside this stack, below the app's own top bar.
+  /// else is pushed inside this stack.
   /// No Edit button and no edit mode: editing works as everywhere else in the app. Press and hold a list for Rename,
   /// Color & Icon, Pin and Delete; press, hold and drag a row to reorder; swipe a row from the right for Delete, Info
   /// and Pin (`RowAction`). Which smart lists show, and in what order, is in Settings (or Hide in a pill's menu).
@@ -133,7 +133,7 @@
           .environment(\.editMode, .constant(.inactive))
         }
         .background(Color(.systemBackground))
-        // The app's own top bar is above; this is the title the pushed screen's back button shows.
+        // This is the title the pushed screen's back button shows.
         .navigationTitle("Lists")
         .toolbar(.hidden, for: .navigationBar)
         .navigationDestination(for: ReminderTarget.self) {

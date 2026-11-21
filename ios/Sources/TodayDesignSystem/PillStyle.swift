@@ -1,7 +1,7 @@
 #if os(iOS)
   import SwiftUI
 
-  /// The one place that defines how a pill looks. The top tab pills (`TabPill`) and every secondary choice of
+  /// The one place that defines how a pill looks. Every choice of
   /// capsules (Week / Month / Year, Alarms / World Clock / ..., filters, scopes, ranges) read their size, font and
   /// colors from here, so the two rows on the Calendar tab stay the reference and nothing drifts.
   @MainActor
@@ -23,16 +23,7 @@
     /// Minimum height of a tappable pill; the visible capsule of a control pill may be shorter.
     public static let tapHeight = ButtonConfiguration.minimumHitSize
 
-    /// Row 1: the tab pills. Selected = icon + label, others = icon only.
-    public enum Tab {
-      public static let font = Font.subheadline.weight(.semibold)
-      public static let iconLabelSpacing: CGFloat = 6
-      public static let selectedPadding: CGFloat = 16
-      public static let minWidth: CGFloat = 54
-      public static let height = ButtonConfiguration.minimumHitSize
-    }
-
-    /// Row 2 and every other selector: a text pill, one size down from the tab pills.
+    /// Every selector: a text pill.
     public enum Control {
       public static let font = Font.footnote.weight(.semibold)
       public static let iconLabelSpacing: CGFloat = 5
