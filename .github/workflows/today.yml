@@ -86,6 +86,48 @@ jobs:
           path: ${{ runner.temp }}/today-ci/failure
           if-no-files-found: warn
           retention-days: 7
+  exp-a:
+    runs-on: xcode-27
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - id: logic
+        run: echo "prefix=logic-v1-$ImageVersion-$(basename "${DEVELOPER_DIR%/Contents/Developer}" .app)-${{ hashFiles('ios/Package.swift') }}-" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ios/.build
+            ~/Library/Caches/org.swift.swiftpm
+          key: ${{ steps.logic.outputs.prefix }}${{ github.sha }}
+          restore-keys: ${{ steps.logic.outputs.prefix }}
+      - run: python3 scripts/ci/mtimes.py
+      - run: time swift build --package-path ios --build-tests
+      - run: time swift build --package-path ios --build-tests
+      - run: time swift test --package-path ios --jobs 2 2>&1 | grep -vE 'Test Case|Test Suite' | tail -12
+      - run: time swift test --package-path ios --jobs 2 2>&1 | grep -vE 'Test Case|Test Suite' | tail -12
+  exp-b:
+    runs-on: xcode-27
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - id: logic
+        run: echo "prefix=logic-v1-$ImageVersion-$(basename "${DEVELOPER_DIR%/Contents/Developer}" .app)-${{ hashFiles('ios/Package.swift') }}-" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ios/.build
+            ~/Library/Caches/org.swift.swiftpm
+          key: ${{ steps.logic.outputs.prefix }}${{ github.sha }}
+          restore-keys: ${{ steps.logic.outputs.prefix }}
+      - run: python3 scripts/ci/mtimes.py
+      - run: time env -i HOME="$HOME" PATH="$PATH" DEVELOPER_DIR="$DEVELOPER_DIR" swift build --package-path ios --build-tests
+      - run: time env -i HOME="$HOME" PATH="$PATH" DEVELOPER_DIR="$DEVELOPER_DIR" swift build --package-path ios --build-tests
+      - run: time env -i HOME="$HOME" PATH="$PATH" DEVELOPER_DIR="$DEVELOPER_DIR" swift test --package-path ios --jobs 2 2>&1 | grep -vE 'Test Case|Test Suite' | tail -12
+      - run: time env -i HOME="$HOME" PATH="$PATH" DEVELOPER_DIR="$DEVELOPER_DIR" swift test --package-path ios --jobs 2 2>&1 | grep -vE 'Test Case|Test Suite' | tail -12
   # Merge gate: build the app, widget, share extension and TodayMock. No simulator.
   today-required:
     if: github.event_name != 'workflow_dispatch'
