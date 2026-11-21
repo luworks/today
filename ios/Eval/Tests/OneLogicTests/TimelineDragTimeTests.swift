@@ -57,15 +57,14 @@ struct TimelineDropPlanTests {
 
   func stops(
     _ anchors: [TimelineDropAnchor], duration: TimeInterval = 0, earliest: Date? = nil,
-    latest: Date? = nil, until end: Date? = nil
+    latest: Date? = nil
   ) throws -> [TimelineDropStop] {
     let timing = try #require(
       TimelineDragTime(
         original: at(23, 50), day: day, duration: duration, calendar: calendar,
         minimumStart: earliest ?? midnight.addingTimeInterval(60), maximumStart: latest))
     return TimelineDropPlan.stops(
-      anchors: anchors, originalIndex: -1, timing: timing, day: day, calendar: calendar,
-      until: end)
+      anchors: anchors, originalIndex: -1, timing: timing, day: day, calendar: calendar)
   }
 
   func target(_ stops: [TimelineDropStop], index: Int) -> Date? {
@@ -130,13 +129,6 @@ struct TimelineDropPlanTests {
   @Test func afterAnEventCountsFromItsEnd() throws {
     let plan = try stops([anchor(at(11), ends: at(13))])
     #expect(target(plan, index: 1) == at(13, 30))
-  }
-
-  @Test func theWindowEndCapsTheLastPlace() throws {
-    let open = try stops([anchor(at(10)), anchor(at(11))], until: at(12))
-    #expect(target(open, index: 2) == at(11, 30))
-    let tight = try stops([anchor(at(10)), anchor(at(11))], until: at(11, 20))
-    #expect(target(tight, index: 2) == at(11, 10))
   }
 
   @Test func anEventThatFitsIsCentred() throws {

@@ -61,7 +61,6 @@
     @Entry package var agendaTimeEdit: (@MainActor () -> Void)?
     /// Set on the row being dragged: the time it would land at, shown as an accent pill.
     @Entry package var agendaDragTime: Date?
-    @Entry package var monthFoldOpen = false
   }
 
   /// A subordinate line in the existing agenda time column, shared by events, Now and free time.

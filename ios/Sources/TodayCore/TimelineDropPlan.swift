@@ -22,11 +22,9 @@ public enum TimelineDropPlan {
 
   public static func stops(
     anchors unrounded: [TimelineDropAnchor], originalIndex: Int, timing: TimelineDragTime,
-    day: Date, calendar: Calendar, until end: Date? = nil
+    day: Date, calendar: Calendar
   ) -> [TimelineDropStop] {
-    guard let interval = calendar.dateInterval(of: .day, for: day) else { return [] }
-    let bounds = DateInterval(
-      start: interval.start, end: max(interval.start, min(interval.end, end ?? interval.end)))
+    guard let bounds = calendar.dateInterval(of: .day, for: day) else { return [] }
     let anchors = unrounded.map {
       TimelineDropAnchor(start: wholeMinute($0.start), end: wholeMinute($0.end))
     }

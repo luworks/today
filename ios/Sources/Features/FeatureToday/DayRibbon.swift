@@ -7,7 +7,7 @@
     struct Mark: Equatable {
       let start: Date
       let end: Date?
-      let kind: TodayWindow.Kind
+      let kind: TodayTimeline.Kind
       let repeats: Bool
       let faded: Bool
       let late: Bool
@@ -17,42 +17,40 @@
     let range: DateInterval
     let calendar: Calendar
     let now: Date?
-    let start: Date
-    let end: Date
-    let targets: [Date]
-    let laterCount: Int
+    let viewport: DateInterval?
     let label: (Date) -> String
-    let scrub: (Date) -> Void
-    let jump: (Date) -> Void
+    let pick: (Date, Bool) -> Bool
+    let showNow: () -> Void
 
     static let height: CGFloat = 46
 
     @Environment(\.colorScheme) private var colorScheme
     @GestureState private var touching = false
     @State private var axis: Axis?
-    @State private var origin: Date?
-    @State private var live: Date?
-    @State private var tracker = TodayRibbonScrub()
     @State private var detents = 0
     @State private var settles = 0
 
     private enum Axis { case horizontal, ignored }
 
-    private var isAtNow: Bool { now.map { abs(start.timeIntervalSince($0)) < 60 } ?? true }
+    private var showsNow: Bool {
+      guard let now, range.contains(now) else { return false }
+      return !(viewport?.contains(now) ?? false)
+    }
 
     var body: some View {
       GeometryReader { geometry in
-        let width = geometry.size.width
+        let frame = geometry.frame(in: .global)
         Canvas { context, size in draw(in: &context, size: size) }
           .contentShape(Rectangle())
           .highPriorityGesture(
             DragGesture(minimumDistance: 8, coordinateSpace: .global)
               .updating($touching) { _, state, _ in state = true }
-              .onChanged { changed($0, width: width) }
+              .onChanged { changed($0, frame: frame) }
               .onEnded { _ in finish() }
           )
           .onTapGesture(coordinateSpace: .local) { point in
-            tap(at: point.x, width: width)
+            _ = pick(date(at: point.x, width: frame.width), true)
+            settles += 1
           }
           .onChange(of: touching) { _, active in
             if !active, axis != nil { finish() }
@@ -61,9 +59,9 @@
       .frame(height: Self.height)
       .drawerSwipeExcluded()
       .overlay(alignment: .topTrailing) {
-        if let now, !isAtNow, live == nil {
+        if showsNow, axis == nil {
           Button {
-            jump(now)
+            showNow()
             settles += 1
           } label: {
             Text("Now")
@@ -77,24 +75,25 @@
           .buttonStyle(.plain)
           .offset(y: -8)
           .accessibilityIdentifier("today.ribbon.now")
-          .accessibilityLabel("Back to now")
+          .accessibilityLabel("Show now")
         }
       }
       .sensoryFeedback(InteractionFeedback.detent, trigger: detents)
       .sensoryFeedback(InteractionFeedback.settle, trigger: settles)
       .accessibilityElement()
-      .accessibilityLabel("Time window")
+      .accessibilityLabel("Day overview")
       .accessibilityValue(spokenValue)
       .accessibilityAdjustableAction { direction in
-        let step = direction == .increment ? 1 : -1
-        if let next = TodayWindow.step(from: start, by: step, in: targets) { jump(next) }
+        let from = viewport?.start ?? range.start
+        let step: TimeInterval = direction == .increment ? 3600 : -3600
+        _ = pick(from.addingTimeInterval(step), true)
       }
       .accessibilityIdentifier("today.ribbon")
     }
 
     private var spokenValue: String {
-      let shown = "Showing \(label(start)) to \(label(end))"
-      return laterCount > 0 ? shown + ", \(laterCount) more later" : shown
+      guard let viewport else { return "\(marks.count) items" }
+      return "Showing \(label(viewport.start)) to \(label(viewport.end))"
     }
 
     private func x(_ date: Date, width: CGFloat) -> CGFloat {
@@ -104,44 +103,25 @@
 
     private func date(at x: CGFloat, width: CGFloat) -> Date {
       guard width > 0 else { return range.start }
-      return range.start.addingTimeInterval(TimeInterval(x / width) * range.duration)
+      return TodayTimeline.date(at: Double(x / width), in: range)
     }
 
-    private func changed(_ value: DragGesture.Value, width: CGFloat) {
-      let dx = value.translation.width
-      let dy = value.translation.height
+    private func changed(_ value: DragGesture.Value, frame: CGRect) {
       if axis == nil {
+        let dx = value.translation.width
+        let dy = value.translation.height
         let opensDrawer = dx > 0 && value.startLocation.x <= DrawerLayout.edgeSwipeWidth
         axis = abs(dx) > abs(dy) && !opensDrawer ? .horizontal : .ignored
-        origin = start
       }
-      guard axis == .horizontal, let origin, width > 0 else { return }
-      let moved = origin.addingTimeInterval(TimeInterval(dx / width) * range.duration)
-      let position = TodayWindow.clamp(moved, in: range)
-      live = position
-      if tracker.move(to: position, targets: targets, at: CACurrentMediaTime()) { detents += 1 }
-      if let snapped = TodayWindow.nearest(position, in: targets), snapped != start {
-        scrub(snapped)
+      guard axis == .horizontal else { return }
+      if pick(date(at: value.location.x - frame.minX, width: frame.width), false) {
+        detents += 1
       }
     }
 
     private func finish() {
-      defer {
-        axis = nil
-        origin = nil
-        live = nil
-      }
-      guard axis == .horizontal, let position = live else { return }
-      if let snapped = TodayWindow.nearest(position, in: targets) { scrub(snapped) }
-      if tracker.release(at: CACurrentMediaTime()) { settles += 1 }
-    }
-
-    private func tap(at x: CGFloat, width: CGFloat) {
-      guard let target = TodayWindow.nearest(date(at: x, width: width), in: targets),
-        target != start
-      else { return }
-      jump(target)
-      settles += 1
+      if axis == .horizontal { settles += 1 }
+      axis = nil
     }
 
     private func draw(in context: inout GraphicsContext, size: CGSize) {
@@ -155,15 +135,14 @@
           Path(CGRect(x: x(now, width: width) - 1, y: 4, width: 2, height: 30)),
           with: .color(.red))
       }
-      let shownStart = live ?? start
-      let span = max(end.timeIntervalSince(start), 0)
-      let left = max(0, x(shownStart, width: width))
-      let right = min(width, x(shownStart.addingTimeInterval(span), width: width))
-      let frame = CGRect(x: left, y: 5, width: max(right - left, 12), height: 28)
-      let window = Path(roundedRect: frame, cornerRadius: 9)
+      guard let viewport else { return }
+      let left = max(0, x(viewport.start, width: width))
+      let right = min(width, x(viewport.end, width: width))
+      let frame = CGRect(x: min(left, width - 12), y: 5, width: max(right - left, 12), height: 28)
+      let box = Path(roundedRect: frame, cornerRadius: 9)
       context.fill(
-        window, with: .color(Color.accentColor.opacity(colorScheme == .dark ? 0.22 : 0.14)))
-      context.stroke(window, with: .color(Color.accentColor.opacity(0.9)), lineWidth: 1.5)
+        box, with: .color(Color.accentColor.opacity(colorScheme == .dark ? 0.22 : 0.14)))
+      context.stroke(box, with: .color(Color.accentColor.opacity(0.9)), lineWidth: 1.5)
     }
 
     private func drawHours(in context: inout GraphicsContext, width: CGFloat) {
