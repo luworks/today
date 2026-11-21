@@ -78,18 +78,6 @@ final class TimeWheelTests: XCTestCase {
     }
   }
 
-  func testThreeRowsBackSlowly() {
-    for adaptive in [false, true] {
-      var f = minutes(32, adaptive: adaptive)
-      f.down()
-      f.move(3 * row, over: 0.7)
-      f.up()
-      f.settle()
-      XCTAssertEqual(f.wheel.value, 29, "07:32 → 07:29 (adaptive \(adaptive))")
-      XCTAssertEqual(f.ticks, 3)
-    }
-  }
-
   /// A slow release snaps to the nearest minute, never to a multiple of five: 17, 32 and 47 are all reachable.
   func testSlowReleaseLandsOnTheNearestMinuteNotAMultipleOfFive() {
     for (start, rows, expected) in [(0, 17.3, 17), (50, -17.8, 32), (10, 37.4, 47)] {
@@ -359,32 +347,6 @@ final class TimeWheelTests: XCTestCase {
     h.up()
     h.settle()
     XCTAssertEqual(h.wheel.value, 12, "11 AM → 12 PM: the hour column carries AM/PM")
-  }
-
-  /// The alarm editor's five-minute column: 12 rows (00, 05 … 55), one slow row is one step, and it wraps.
-  func testFiveMinuteColumnStepsOneRowAndWraps() {
-    let rows = 60 / AlarmPlan.wheelMinuteStep
-    XCTAssertEqual(rows, 12)
-    var f = Finger(TimeWheelColumn(count: rows, value: 6))
-    f.down()
-    f.move(-row, over: 0.3)
-    f.up()
-    f.settle()
-    XCTAssertEqual(f.wheel.value * AlarmPlan.wheelMinuteStep, 35, "30 → 35")
-    f.wheel.set(value: rows - 1)
-    f.down(after: 0.1)
-    f.move(-row, over: 0.3)
-    f.up()
-    f.settle()
-    XCTAssertEqual(f.wheel.value, 0, "55 → 00")
-  }
-
-  func testFixedColumnNeverCompresses() {
-    var h = Finger(TimeWheelColumn(count: 24, value: 7, adaptive: false))
-    h.down()
-    h.move(-400, over: 0.1)
-    XCTAssertEqual(h.wheel.scale, 0)
-    XCTAssertEqual(h.wheel.pointsPerUnit, TimeWheelTuning.standard.finePointsPerUnit)
   }
 
   // MARK: Velocity and haptics

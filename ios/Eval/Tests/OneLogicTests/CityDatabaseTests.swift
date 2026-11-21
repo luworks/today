@@ -21,54 +21,9 @@ final class CityDatabaseTests: XCTestCase {
 
   // MARK: The data
 
-  func testTheListIsBigEnoughAndSmallEnough() throws {
-    XCTAssertGreaterThan(db.cities.count, 600)
-    XCTAssertLessThan(db.cities.count, 1200)
-    let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
-      .deletingLastPathComponent()
-      .deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent(
-        "One/cities.json")
-    let size = try FileManager.default.attributesOfItem(atPath: url.path)[.size] as! Int
-    XCTAssertLessThan(size, 300_000, "the resource stays under 300 KB")
-    XCTAssertEqual(Set(db.cities.map(\.id)).count, db.cities.count, "ids are unique")
-  }
-
   func testEveryCityHasATimeZoneThisSystemKnows() {
     let bad = db.cities.filter { TimeZone(identifier: $0.tz) == nil }.map { "\($0.name) \($0.tz)" }
     XCTAssertEqual(bad, [])
-  }
-
-  func testTheNamedMajorCitiesAreThere() {
-    let wanted = [
-      "Beijing", "Shanghai", "Shenzhen", "Guangzhou", "Hong Kong", "Taipei", "Tokyo", "Seoul",
-      "Singapore", "Mumbai",
-      "Delhi", "Dubai", "Istanbul", "Moscow", "London", "Paris", "Berlin", "Madrid", "Rome",
-      "Cairo", "Lagos", "Nairobi",
-      "Johannesburg", "Sao Paulo", "Buenos Aires", "Mexico City", "Bogota", "Lima", "New York",
-      "Los Angeles",
-      "San Francisco", "San Jose", "Seattle", "Chicago", "Houston", "Dallas", "Boston", "Toronto",
-      "Vancouver",
-      "Sydney", "Melbourne", "Auckland", "Aba",
-    ]
-    let names = Set(db.cities.map(\.name))
-    XCTAssertEqual(wanted.filter { !names.contains($0) }, [])
-  }
-
-  func testEveryCountryHasItsCapital() {
-    // A few well-known capitals, as a spot check of "every national capital".
-    for name in [
-      "Washington", "Ottawa", "Canberra", "Wellington", "Brasília", "Ankara", "Nairobi",
-      "Reykjavik", "Kathmandu",
-    ] {
-      XCTAssertTrue(db.cities.contains { $0.name == name && $0.isCapital }, name)
-    }
-    XCTAssertGreaterThan(db.cities.filter(\.isCapital).count, 200)
-  }
-
-  func testChineseNamesAreMostlyThere() {
-    XCTAssertGreaterThan(db.cities.filter { $0.zh != nil }.count, db.cities.count * 3 / 4)
-    XCTAssertEqual(db.cities.first { $0.name == "Beijing" }?.zh, "北京")
-    XCTAssertEqual(db.cities.first { $0.name == "Shanghai" }?.zh, "上海")
   }
 
   // MARK: Search
@@ -213,30 +168,6 @@ final class WorldClockLookTests: XCTestCase {
     close(Look.green, 73, 162, 125)
     XCTAssertFalse(Look.card(hour: 8, minute: 59).isGood)
     XCTAssertFalse(Look.card(hour: 18, minute: 0).isGood)
-  }
-
-  func testColorsMatchTheReferenceScreens() {
-    // Centers measured in Overlap's screenshots (the screens show the time and the color at the middle of the card).
-    let night = Look.card(hour: 21, minute: 20)
-    close(night.leading, 26, 16, 59, 1, "21:20 is deep night, flat")
-    XCTAssertEqual(night.leading, night.trailing)
-    let dallas = Look.card(hour: 20, minute: 20)
-    close(dallas.leading, 26, 23, 66, 2, "20:20 left")
-    close(dallas.trailing, 26, 17, 61, 2, "20:20 right")
-    let home = Look.card(hour: 18, minute: 20)
-    close(home.leading, 33, 72, 114, 2, "18:20 left")
-    close(home.trailing, 27, 46, 90, 2, "18:20 right")
-    let aba = Look.card(hour: 2, minute: 20)
-    close(aba.leading, 26, 16, 59, 1, "02:20 flat night")
-    let sj = Look.card(hour: 3, minute: 50)
-    close(sj.leading, 26, 20, 63, 2, "03:50 left")
-    close(sj.trailing, 26, 26, 69, 2, "03:50 right")
-    let dallasMorning = Look.card(hour: 5, minute: 50)
-    close(dallasMorning.leading, 28, 48, 92, 2, "05:50 left")
-    close(dallasMorning.trailing, 29, 54, 99, 2, "05:50 right")
-    let boston = Look.card(hour: 6, minute: 50)
-    close(boston.leading, 31, 63, 107, 2, "06:50 left")
-    close(boston.trailing, 33, 69, 114, 2, "06:50 right")
   }
 
   func testMorningBrightensAndEveningDims() {

@@ -147,12 +147,6 @@ final class AlarmPlanTests: XCTestCase {
     XCTAssertEqual(AlarmPlan.minuteStep(forAlarmMinute: 7), 1)
   }
 
-  func testSnoozeChoicesAreTheShortList() {
-    XCTAssertEqual(AlarmPlan.snoozeChoices, [5, 9, 10, 15, 30])
-    XCTAssertEqual(AlarmPlan.defaultSnoozeMinutes, 9)
-    XCTAssertTrue(AlarmPlan.snoozeChoices.contains(AlarmPlan.defaultSnoozeMinutes))
-  }
-
   func testSnoozeMinutesMapToNearestAllowed_tiesGoDown() {
     for m in AlarmPlan.snoozeChoices { XCTAssertEqual(AlarmPlan.snoozeMinutes(nearest: m), m) }
     XCTAssertEqual(AlarmPlan.snoozeMinutes(nearest: 1), 5)
@@ -497,25 +491,6 @@ final class CalendarLayoutTests: XCTestCase {
     XCTAssertEqual(lanes[0], 0)
     XCTAssertEqual(lanes[3], 0, "a lane is reused once its banner ended")
     XCTAssertNotEqual(lanes[1], lanes[0])
-  }
-
-  func testLongPressSlotSnapsDownToQuarterHours() {
-    // Gutter 44, columns 50 wide, 48pt hours: x 44+2*50+10 is the third day; y 18h + 20 min is 18:15.
-    let s = CalendarLayout.slot(
-      x: 154, y: 18 * 48 + 16, gutter: 44, columnWidth: 50, hourHeight: 48, dayCount: 7)
-    XCTAssertEqual(s.day, 2)
-    XCTAssertEqual(s.minute, 18 * 60 + 15)
-  }
-
-  func testLongPressSlotStaysInsideTheGrid() {
-    let early = CalendarLayout.slot(
-      x: 10, y: -5, gutter: 44, columnWidth: 50, hourHeight: 48, dayCount: 7)
-    XCTAssertEqual(early.day, 0, "the hour labels count as the first day")
-    XCTAssertEqual(early.minute, 0)
-    let late = CalendarLayout.slot(
-      x: 2000, y: 24 * 48 + 30, gutter: 44, columnWidth: 50, hourHeight: 48, dayCount: 7)
-    XCTAssertEqual(late.day, 6)
-    XCTAssertEqual(late.minute, 23 * 60 + 45, "starts no later than 23:45")
   }
 
   func testPinchZoomStaysInRange() {

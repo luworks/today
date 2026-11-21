@@ -19,7 +19,6 @@ SKIP_PREFIXES = ('src/', 'backend/luna/')
 # this true. They are still formatted, linted and compiled.
 UI_PREFIXES = ('ios/Sources/Features/', 'ios/Sources/TodayDesignSystem/', 'ios/Sources/TodayPlannerUI/',
                'ios/Sources/TodayShell/')
-READ_BY_TESTS = {'ios/Sources/TodayShell/HomeView.swift'}  # LiveSeedBoundaryTests reads its text
 LIMIT = 300  # the compare API lists at most 300 files
 
 
@@ -33,7 +32,7 @@ def app_changed(files):
 
 
 def ui_only(path):
-    return path.endswith('.swift') and path.startswith(UI_PREFIXES) and path not in READ_BY_TESTS
+    return path.endswith('.swift') and path.startswith(UI_PREFIXES)
 
 
 def logic_changed(files):

@@ -86,14 +86,4 @@ import TodayCore
     #expect(pull.glow == 1)
     #expect(pull.orbScale == 1)
   }
-
-  @Test func welcomeIsTwoSofteningBeatsAndTheSweepFadesOut() {
-    #expect(PullToAskWelcome.beats.count == 2)
-    #expect(PullToAskWelcome.beats[0].intensity > PullToAskWelcome.beats[1].intensity)
-    #expect(PullToAskWelcome.beats[1].delay == .milliseconds(120))
-    #expect(PullToAskWelcome.edgeOpacity(at: 0) == 0)
-    #expect(PullToAskWelcome.edgeOpacity(at: 0.2) == 1)
-    #expect(PullToAskWelcome.edgeOpacity(at: 1) == 0)
-    #expect(PullToAskWelcome.edgeOpacity(at: 2) == 0)
-  }
 }

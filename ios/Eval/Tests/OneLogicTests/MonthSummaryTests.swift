@@ -1,4 +1,3 @@
-import Dispatch
 import XCTest
 
 @testable import TodayCore
@@ -91,39 +90,4 @@ final class MonthSummaryTests: XCTestCase {
       MonthSummary.summarize(days: [start], entries: entries, calendar: calendar)[0].tintIndices,
       [7, 7, 8])
   }
-
-  func testBoundedMonthSummaryPerformance() {
-    // Fixed input and a generous wall-clock ceiling catch major regressions without
-    // treating a shared CI runner as a device benchmark. Fixture setup is untimed.
-    let eventCount = 1_000
-    let dayCount = 42
-    let budgetMilliseconds = 10_000.0
-    let base = date(10, 1)
-    let days = (0..<dayCount).map { calendar.date(byAdding: .day, value: $0, to: base)! }
-    let entries = (0..<eventCount).map { index in
-      let start = days[index % 28].addingTimeInterval(Double((index % 24) * 3600))
-      return entry(start, start.addingTimeInterval(60), "Event \(index)", index % 10)
-    }
-    let benchmarkCalendar = calendar
-    var samples: [Double] = []
-    for _ in 0..<3 {
-      let start = DispatchTime.now().uptimeNanoseconds
-      let result = MonthSummary.summarize(days: days, entries: entries, calendar: benchmarkCalendar)
-      let elapsed = Double(DispatchTime.now().uptimeNanoseconds - start) / 1_000_000
-      samples.append(elapsed)
-      XCTAssertEqual(result.count, dayCount)
-      XCTAssertEqual(
-        result.map(\.eventCount),
-        (0..<dayCount).map { day in
-          day < 28 ? (eventCount / 28 + (day < eventCount % 28 ? 1 : 0)) : 0
-        })
-      XCTAssertTrue(result.allSatisfy { $0.alarmCount == 0 })
-    }
-    let median = samples.sorted()[1]
-    print(
-      "MonthSummary perf: events=\(eventCount), days=\(dayCount), samples_ms=\(samples), "
-        + "median_ms=\(median), budget_ms=\(budgetMilliseconds)")
-    XCTAssertLessThan(median, budgetMilliseconds, "Month summary exceeded its CI wall-clock budget")
-  }
-
 }

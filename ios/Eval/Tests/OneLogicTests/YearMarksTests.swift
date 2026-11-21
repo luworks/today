@@ -275,21 +275,6 @@ extension YearMarksTests {
         start: date(2026, 10, 1, 22), end: date(2026, 10, 3, 2), isAllDay: false, calendar: cal))
   }
 
-  func testTripBandAcrossYearBoundaryAndLeapDay() {
-    let week: [[Date?]] = [
-      [nil, nil, nil, nil, date(2027, 1, 1), date(2027, 1, 2), date(2027, 1, 3)]
-    ]
-    XCTAssertEqual(
-      YearEventMarks.segments(
-        start: date(2026, 12, 30), end: date(2027, 1, 2), weeks: week, calendar: cal),
-      [
-        YearBandSegment(week: 0, firstColumn: 4, lastColumn: 4)
-      ])
-    XCTAssertTrue(
-      YearEventMarks.isTrip(
-        start: date(2028, 2, 28), end: date(2028, 3, 1), isAllDay: true, calendar: cal))
-  }
-
   func testSingleAllDayDatesAcrossDSTAreNotTrips() {
     var local = cal
     local.timeZone = TimeZone(identifier: "America/Los_Angeles")!

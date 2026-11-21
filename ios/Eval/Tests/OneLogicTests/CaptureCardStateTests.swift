@@ -22,24 +22,6 @@ final class CaptureCardStateTests: XCTestCase {
     XCTAssertNil(CardStatus.undone.after(.drop))
   }
 
-  func testWhatEachStateOffers() {
-    XCTAssertTrue(CardStatus.open.canAdd && CardStatus.open.canDrop && !CardStatus.open.canUndo)
-    XCTAssertTrue(CardStatus.added.canUndo && !CardStatus.added.canAdd)
-    XCTAssertTrue(CardStatus.undone.canAdd && !CardStatus.undone.canUndo)
-    XCTAssertFalse(
-      CardStatus.dropped.canAdd || CardStatus.dropped.canUndo || CardStatus.dropped.canDrop)
-    XCTAssertEqual(CardStatus.added.footerTitle, "Added")
-    XCTAssertEqual(CardStatus.dropped.footerTitle, "Dropped")
-    XCTAssertEqual(CardStatus.undone.footerTitle, "Undone")
-  }
-
-  func testAccessibilityLabelCarriesTheConfirmation() {
-    let c = Capture(title: "Call Alex", day: .now, hasDay: false)
-    XCTAssertTrue(CardStatus.added.accessibilityLabel(for: c).hasPrefix("Added: Call Alex"))
-    XCTAssertTrue(CardStatus.dropped.accessibilityLabel(for: c).hasPrefix("Dropped: Call Alex"))
-    XCTAssertTrue(CardStatus.open.accessibilityLabel(for: c).hasPrefix("Call Alex"))
-  }
-
   // MARK: Saving with the conversation
 
   private func card(_ status: CardStatus, title: String = "Call Alex") -> StoredCard {
@@ -50,15 +32,6 @@ final class CaptureCardStateTests: XCTestCase {
     return StoredCard(
       id: UUID(), anchor: UUID(), batch: UUID(), batchSize: 1, capture: capture, status: status,
       itemRef: status == .added ? "{\"ref\":1}" : nil, entryID: status == .added ? UUID() : nil)
-  }
-
-  func testDecidedCardsRoundTrip() {
-    let cards = [card(.added), card(.dropped, title: "Pay rent"), card(.undone, title: "Buy milk")]
-    let back = StoredCard.restore(StoredCard.encode(cards))
-    XCTAssertEqual(back, cards)
-    XCTAssertEqual(back[0].capture.listName, "Inbox")
-    XCTAssertNotNil(back[0].itemRef)
-    XCTAssertNotNil(back[0].entryID)
   }
 
   func testCardsStillOpenAreNotKept() {

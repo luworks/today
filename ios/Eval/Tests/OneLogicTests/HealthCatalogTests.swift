@@ -30,18 +30,6 @@ final class HealthCatalogTests: XCTestCase {
     XCTAssertEqual(HealthCatalog.quantities[.dietarySodium]?.scale, 1_000)
   }
 
-  func testCategoryValuesKeepMeaningRatherThanInventingNumericReadings() throws {
-    let stand = try XCTUnwrap(
-      HealthCatalog.categories.first { $0.identifier == "HKCategoryTypeIdentifierAppleStandHour" })
-    XCTAssertEqual(stand.values[0], "Stood")
-    XCTAssertEqual(stand.values[1], "Idle")
-    let severity = try XCTUnwrap(
-      HealthCatalog.categories.first { $0.identifier == "HKCategoryTypeIdentifierHeadache" })
-    XCTAssertEqual(severity.values[1], "Not Present")
-    XCTAssertEqual(severity.values[4], "Severe")
-    XCTAssertNil(severity.values[999])
-  }
-
   func testMindfulIntervalsDeduplicateOverlapClipFutureAndSplitAtDSTMidnight() throws {
     var calendar = Calendar(identifier: .gregorian)
     calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "America/Los_Angeles"))

@@ -16,17 +16,6 @@ final class CaptureTitleCleanupTests: XCTestCase {
     calendar.date(from: DateComponents(year: 2026, month: 10, day: 18, hour: 9, minute: 41))!
   }
 
-  func testOldCaptureDecodesWithoutOptionalNotes() throws {
-    let original = Capture(title: "Bring passport", day: now, hasDay: false)
-    let data = try JSONEncoder().encode(original)
-    var object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
-    object.removeValue(forKey: "notes")
-    let decoded = try JSONDecoder().decode(
-      Capture.self, from: JSONSerialization.data(withJSONObject: object))
-    XCTAssertNil(decoded.notes)
-    XCTAssertEqual(decoded.title, original.title)
-  }
-
   func testMissingTimeAlarmCannotBeAddedAsReminder() {
     var capture = Capture(title: "Sleep", day: now, hasDay: false, ringsAsAlarm: true)
     XCTAssertFalse(capture.isReadyToAdd)

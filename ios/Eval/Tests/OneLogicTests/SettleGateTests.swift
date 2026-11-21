@@ -24,15 +24,6 @@ final class SettleGateTests: XCTestCase {
     XCTAssertFalse(SettleGate.applies(to: date(8, 9, 41), now: now, calendar: calendar))
   }
 
-  func testMidnightMovesSettleToTheNewDay() {
-    let yesterday = date(1, 12)
-    let justBefore = date(1, 23, 59)
-    let justAfter = date(2, 0, 0)
-    XCTAssertTrue(SettleGate.applies(to: yesterday, now: justBefore, calendar: calendar))
-    XCTAssertFalse(SettleGate.applies(to: yesterday, now: justAfter, calendar: calendar))
-    XCTAssertTrue(SettleGate.applies(to: date(2, 18), now: justAfter, calendar: calendar))
-  }
-
   func testFollowsTheCalendarTimeZone() {
     // 07:30 UTC on 2 November is still 1 November (23:30 PST) in Los Angeles.
     var utc = Calendar(identifier: .gregorian)

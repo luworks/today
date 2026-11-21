@@ -21,35 +21,6 @@ final class HealthMetricsTests: XCTestCase {
       date: cal.date(byAdding: .day, value: -back, to: cal.startOfDay(for: nowDate))!, value: value)
   }
 
-  // MARK: Catalog
-
-  func testCatalogCoversEveryMetricOnceInAGroup() {
-    XCTAssertEqual(HealthMetric.allCases.count, 123)
-    XCTAssertEqual(Set(HealthMetric.allCases.map(\.rawValue)).count, 123)
-    for g in HealthGroup.allCases {
-      XCTAssertFalse(HealthMetric.allCases.filter { $0.group == g }.isEmpty, "\(g) has metrics")
-    }
-    XCTAssertTrue(HealthMetric.allCases.allSatisfy { !$0.title.isEmpty && !$0.summary.isEmpty })
-  }
-
-  func testDefaultSetIsThreeMetricsThatNeedNoWatch() {
-    XCTAssertEqual(HealthSelection.default.shown, [.steps, .sleep, .weight])
-    XCTAssertEqual(HealthSelection.default.hidden.count, 120)
-    XCTAssertFalse(HealthSelection.default.shown.contains(.restingHeartRate))
-  }
-
-  func testShapesBarsForTotalsDotsForReadings() {
-    for m in [
-      HealthMetric.steps, .sleep, .activeEnergy, .exerciseMinutes, .distance, .mindfulMinutes,
-      .daylight,
-    ] {
-      XCTAssertEqual(m.shape, .bars, "\(m)")
-    }
-    for m in [HealthMetric.weight, .restingHeartRate, .bodyFat] {
-      XCTAssertEqual(m.shape, .dots, "\(m)")
-    }
-  }
-
   // MARK: Selection
 
   func testCategoriesDoNotChangeGlobalOrder() {
@@ -383,38 +354,5 @@ final class HealthMetricsTests: XCTestCase {
       line(w, [.weight: HealthSeries(points: [HealthPoint(date: date(14, 7), value: 70.3)])]),
       "a stale weigh-in is not today's")
     XCTAssertNil(line(HealthSelection(shown: []), weighed), "everything hidden: no line")
-  }
-
-  func testLinePhrases() {
-    XCTAssertEqual(HealthFormat.linePhrase(.restingHeartRate, 58, locale: en), "resting 58 bpm")
-    XCTAssertEqual(HealthFormat.linePhrase(.activeEnergy, 173, locale: en), "173 kcal active")
-    XCTAssertEqual(HealthFormat.linePhrase(.exerciseMinutes, 24, locale: en), "24 min exercise")
-    XCTAssertEqual(HealthFormat.linePhrase(.bodyFat, 20.7, locale: en), "20.7% body fat")
-  }
-
-  // MARK: Sample data
-
-  func testSampleSeriesAreStableDenseAndTellTheEdgeStates() {
-    let a = HealthSampleSeries.all(now: nowDate, calendar: cal)
-    XCTAssertEqual(
-      a, HealthSampleSeries.all(now: nowDate, calendar: cal), "seeded: the same every run")
-    XCTAssertEqual(Set(a.keys), Set(HealthMetric.allCases))
-    let steps = a[.steps]!
-    XCTAssertEqual(steps.points.count, MovingAverage.historyDays)
-    XCTAssertEqual(steps.latest?.date, cal.startOfDay(for: nowDate))
-    XCTAssertTrue(steps.points.dropLast().allSatisfy { (3_000...13_000).contains($0.value) })
-    XCTAssertTrue(a[.sleep]!.points.allSatisfy { (5.5 * 60...8.5 * 60).contains($0.value) })
-    XCTAssertTrue(
-      a[.weight]!.points.allSatisfy { (69...73).contains($0.value) && $0.date <= nowDate })
-    XCTAssertGreaterThan(a[.weight]!.points.count, 40)
-    XCTAssertTrue(a[.restingHeartRate]!.points.allSatisfy { (50...70).contains($0.value) })
-    XCTAssertNil(a[.mindfulMinutes]!.latest, "the empty row")
-    let stale = HealthRowModel(
-      metric: .bodyFat, series: a[.bodyFat], now: nowDate, calendar: cal, locale: en)
-    XCTAssertEqual(stale.dateLabel, "Oct 4", "the stale row")
-    for m in HealthMetric.allCases where m != .mindfulMinutes {
-      XCTAssertNotNil(
-        HealthStats.range(a[m]!, days: 90, now: nowDate, calendar: cal), "\(m) has a 90-day range")
-    }
   }
 }

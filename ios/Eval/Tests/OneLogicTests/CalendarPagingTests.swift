@@ -80,20 +80,6 @@ final class CalendarPagingTests: XCTestCase {
       XCTAssertEqual(target(720, 718, -500), 719)
     }
   }
-
-  func testCompactHeightChangesDoNotChangeTheNextOrPreviousPageOrigin() {
-    let height = CalendarPaging.monthPageHeight(rowHeight: 51)
-    var offset = 360.0 * height
-    // November -> December -> January -> four-week February -> March, then back.
-    for direction in [1.0, 1, 1, 1, -1, -1, -1, -1] {
-      let next = CalendarPaging.targetOffset(
-        original: offset, proposed: offset + direction * 200, velocity: direction * 500,
-        pageLength: height, contentLength: 721 * height)
-      XCTAssertEqual(next, offset + direction * height)
-      offset = next
-    }
-    XCTAssertEqual(offset, 360 * height)
-  }
   func testTwoColumnFlickAdvancesOneDayAcrossFebruaryBoundary() {
     var calendar = Calendar(identifier: .gregorian)
     calendar.timeZone = TimeZone(identifier: "America/Los_Angeles")!

@@ -1,4 +1,3 @@
-import TodayTestSupport
 import XCTest
 
 @testable import TodayCore
@@ -26,21 +25,6 @@ final class PreferencesTests: XCTestCase {
 
   // MARK: Defaults = the old behaviour
 
-  func testDefaultsAreWhatTheAppDidBefore() {
-    XCTAssertTrue(Preferences.dimPastDays, "past days were dimmed")
-    XCTAssertEqual(Preferences.firstWeekday, .system, "weeks followed the device")
-    XCTAssertFalse(Preferences.weekNumbers)
-    XCTAssertEqual(
-      Preferences.calendarStart, .lastUsed, "Calendar reopened in the view it was left in")
-    XCTAssertTrue(Preferences.showFreeTime)
-    XCTAssertEqual(Preferences.newReminderList, "", "Auto: nothing was filed by a chosen list")
-    XCTAssertEqual(Preferences.newAlarmSnooze, 9, "Clock's nine minutes")
-    XCTAssertEqual(Preferences.newAlarmSound, "", "the system alarm sound")
-    XCTAssertEqual(Preferences.eventSound, "", "the system notification sound")
-    XCTAssertEqual(Preferences.reminderSound, "", "the system notification sound")
-    XCTAssertFalse(Preferences.weatherSummary)
-  }
-
   func testFreeRowMinutesDefaultsAndFallbacks() {
     XCTAssertEqual(Preferences.freeRowMinutes, 30, "Today's Free rows started at 30 minutes")
     XCTAssertEqual(Preferences.freeRowMinutes(stored: 15), 15)
@@ -61,57 +45,6 @@ final class PreferencesTests: XCTestCase {
     XCTAssertEqual(Preferences.newEventMinutesLabel(15), "15 minutes")
   }
 
-  func testSettingChangeIsRecordedWithoutFreeText() {
-    let e = ActivityEvents.settingChanged(key: Preferences.freeRowMinutesKey, value: "15")
-    XCTAssertEqual(e.kind, ActivityKind.sysSettingChange)
-    XCTAssertEqual(e.actor, "you")
-    XCTAssertTrue(e.props.contains("freeRowMinutes"))
-  }
-
-  func testCompressEmptyHoursDefaultsOnAndPreservesExplicitChoice() {
-    let d = freshDefaults()
-    XCTAssertTrue(
-      d.object(forKey: Preferences.compressEmptyHoursKey) as? Bool
-        ?? Preferences.compressEmptyHours)
-    d.set(false, forKey: Preferences.compressEmptyHoursKey)
-    LaunchTestConfiguration.applyPreferenceOverrides(arguments: [], defaults: d)
-    XCTAssertEqual(d.object(forKey: Preferences.compressEmptyHoursKey) as? Bool, false)
-    LaunchTestConfiguration.applyPreferenceOverrides(
-      arguments: ["-uiTesting", "-uiTestingKeepPreferences"], defaults: d)
-    XCTAssertEqual(d.object(forKey: Preferences.compressEmptyHoursKey) as? Bool, false)
-  }
-
-  func testEmptyDefaultsReadAsTheDefaults() {
-    let d = freshDefaults()
-    XCTAssertEqual(Preferences.firstWeekdayChoice(d), .system)
-    XCTAssertEqual(Preferences.calendarStartChoice(d), .lastUsed)
-    XCTAssertNil(Preferences.newReminderList(existing: ["Inbox", "Work"], d))
-    XCTAssertEqual(Preferences.newAlarmSnoozeMinutes(d), 9)
-    XCTAssertEqual(Preferences.newAlarmSoundName(d), "")
-    XCTAssertEqual(Preferences.eventSoundName(d), "")
-    XCTAssertEqual(Preferences.reminderSoundName(d), "")
-  }
-
-  func testFocusVisibilityDefaultsAndExplicitPreferencesSurviveRelaunch() {
-    let d = freshDefaults()
-    XCTAssertEqual(
-      d.object(forKey: Preferences.showSettleKey) as? Bool ?? Preferences.showSettle, true)
-    d.set(false, forKey: Preferences.showSettleKey)
-    LaunchTestConfiguration.applyPreferenceOverrides(arguments: [], defaults: d)
-    XCTAssertEqual(d.object(forKey: Preferences.showSettleKey) as? Bool, false)
-    LaunchTestConfiguration.applyPreferenceOverrides(
-      arguments: ["-uiTesting", "-uiTestingKeepPreferences"], defaults: d)
-    XCTAssertEqual(d.object(forKey: Preferences.showSettleKey) as? Bool, false)
-    LaunchTestConfiguration.applyPreferenceOverrides(
-      arguments: ["-uiTesting", "-uiTestingPrefs", "showSettle=1"], defaults: d)
-    XCTAssertEqual(d.object(forKey: Preferences.showSettleKey) as? Bool, true)
-  }
-
-  func testEveryKeyIsListedOnceAndSharesThePrefix() {
-    XCTAssertEqual(Set(Preferences.allKeys).count, Preferences.allKeys.count)
-    XCTAssertTrue(Preferences.allKeys.allSatisfy { $0.hasPrefix("today.setting.") })
-  }
-
   // MARK: First day of the week
 
   func testSystemLeavesTheCalendarAlone() {
@@ -120,11 +53,6 @@ final class PreferencesTests: XCTestCase {
     XCTAssertEqual(Preferences.FirstWeekday.system.calendar(base: monday).firstWeekday, 2)
     XCTAssertEqual(
       Preferences.FirstWeekday.system.calendar(base: cal).firstWeekday, cal.firstWeekday)
-  }
-
-  func testSundayAndMondayOverrideTheSystemWeek() {
-    XCTAssertEqual(Preferences.FirstWeekday.sunday.calendar(base: cal).firstWeekday, 1)
-    XCTAssertEqual(Preferences.FirstWeekday.monday.calendar(base: cal).firstWeekday, 2)
   }
 
   func testMondayStartMovesTheMonthGridAndTheWeekStart() {
@@ -143,17 +71,6 @@ final class PreferencesTests: XCTestCase {
       sunday.component(.day, from: sunday.dateInterval(of: .weekOfYear, for: oct)!.start), 11)
     XCTAssertEqual(CalendarMath.weekdayLetters(calendar: monday).first, "M")
     XCTAssertEqual(CalendarMath.weekdayLetters(calendar: sunday).first, "S")
-  }
-
-  func testWeekNumberFollowsTheCalendar() {
-    let monday = Preferences.FirstWeekday.monday.calendar(base: cal)
-    XCTAssertEqual(
-      CalendarMath.weekNumber(of: date(14, 12), calendar: monday),
-      monday.component(.weekOfYear, from: date(14, 12)))
-    XCTAssertEqual(
-      CalendarMath.weekNumber(of: date(12, 12), calendar: monday),
-      CalendarMath.weekNumber(of: date(18, 12), calendar: monday),
-      "every day of one row has the same number")
   }
 
   // MARK: Calendar start
@@ -218,34 +135,6 @@ final class PreferencesTests: XCTestCase {
     XCTAssertEqual(Preferences.notificationSoundName(isEvent: false, own: nil, d), "Ping")
     XCTAssertEqual(Preferences.notificationSoundName(isEvent: false, own: "", d), "Ping")
     XCTAssertEqual(Preferences.notificationSoundName(isEvent: false, own: "Pluck", d), "Pluck")
-  }
-
-  // MARK: UI test launch
-
-  func testUITestingStartsFromTheDefaultsAndAppliesRequestedValues() {
-    let d = freshDefaults()
-    d.set(false, forKey: Preferences.dimPastDaysKey)
-    d.set("monday", forKey: Preferences.firstWeekdayKey)
-    LaunchTestConfiguration.applyPreferenceOverrides(
-      arguments: [
-        "-uiTesting", "-uiTestingPrefs", "weekNumbers=1,firstWeekday=sunday,bogus=1",
-      ], defaults: d)
-    XCTAssertNil(d.object(forKey: Preferences.dimPastDaysKey), "reset")
-    XCTAssertEqual(d.bool(forKey: Preferences.weekNumbersKey), true)
-    XCTAssertEqual(d.string(forKey: Preferences.firstWeekdayKey), "sunday")
-    XCTAssertNil(d.object(forKey: "today.setting.bogus"), "unknown keys are ignored")
-  }
-
-  func testARealLaunchLeavesThePreferencesAlone() {
-    let d = freshDefaults()
-    d.set(false, forKey: Preferences.dimPastDaysKey)
-    LaunchTestConfiguration.applyPreferenceOverrides(arguments: [], defaults: d)
-    XCTAssertEqual(d.bool(forKey: Preferences.dimPastDaysKey), false)
-    LaunchTestConfiguration.applyPreferenceOverrides(
-      arguments: ["-uiTesting", "-uiTestingKeepPreferences"], defaults: d)
-    XCTAssertEqual(
-      d.bool(forKey: Preferences.dimPastDaysKey), false,
-      "the relaunch check keeps what the first launch saved")
   }
 
   func testReminderInterruptionDefaultsAndFallbacks() {

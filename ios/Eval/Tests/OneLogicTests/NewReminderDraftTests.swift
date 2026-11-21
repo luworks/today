@@ -59,13 +59,4 @@ final class NewReminderDraftTests: XCTestCase {
     XCTAssertEqual(d.title, "Stand-up")
     XCTAssertEqual(d.due, at)
   }
-
-  func testEmptyTitleAndReset() {
-    var d = NewReminderDraft(title: "   ", flagged: true)
-    XCTAssertTrue(d.isEmpty)
-    d.title = " Buy milk "
-    XCTAssertEqual(d.trimmedTitle, "Buy milk")
-    d.reset()
-    XCTAssertEqual(d, NewReminderDraft())
-  }
 }

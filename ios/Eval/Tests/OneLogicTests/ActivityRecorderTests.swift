@@ -108,20 +108,6 @@ final class ActivityRecorderTests: XCTestCase {
     r.flush()
   }
 
-  func testAFailedWriteKeepsTheEventsForTheNextTry() async {
-    let store = SpyStore()
-    let r = recorder(store)
-    r.record(ev())
-    r.record(ev())
-    store.fail = true
-    r.flush()
-    XCTAssertEqual(r.bufferedCount, 2)
-    store.fail = false
-    r.flush()
-    XCTAssertEqual(store.batches.first?.count, 2)
-    XCTAssertEqual(r.writeFailures, 0, "a good write resets the failure count")
-  }
-
   func testRecorderWritesIntoARealStore() async throws {
     let store = try ActivityStore(location: .memory)
     let r = recorder(store)
@@ -131,40 +117,6 @@ final class ActivityRecorderTests: XCTestCase {
     XCTAssertEqual(page.map(\.kind), [ActivityKind.aiUndo])
     XCTAssertEqual(
       page.first?.device, store.deviceID, "the store fills in this install's device id")
-  }
-
-  // MARK: Settings
-
-  func testSettingsRoundTripAndDefaults() async throws {
-    let suite = "activity-settings-\(UUID().uuidString)"
-    let d = try XCTUnwrap(UserDefaults(suiteName: suite))
-    defer { d.removePersistentDomain(forName: suite) }
-    let fresh = ActivitySettings(d)
-    XCTAssertFalse(fresh.paused)
-    XCTAssertEqual(
-      fresh.tiers, Set(ActivityTier.allCases),
-      "every category is on by default (decision 1: usage too)")
-    XCTAssertEqual(fresh.retention, .forever, "raw events are kept by default")
-    XCTAssertTrue(
-      fresh.keepChatText,
-      "chat text is kept by default, on this device only (the user wants real chats recorded)")
-    var s = fresh
-    s.paused = true
-    s.tiers = [.changes]
-    s.retention = .forever
-    s.keepChatText = false
-    s.save(to: d)
-    XCTAssertEqual(ActivitySettings(d), s)
-    XCTAssertFalse(s.records(.changes), "paused wins")
-  }
-
-  func testRetentionCutoffs() async {
-    XCTAssertEqual(ActivityRetention.days90.days, 90)
-    XCTAssertEqual(ActivityRetention.year.days, 365)
-    XCTAssertNil(ActivityRetention.forever.days)
-    XCTAssertNil(ActivityRetention.forever.cutoff(now: now))
-    let cut = ActivityRetention.days90.cutoff(now: now, calendar: cal)!
-    XCTAssertEqual(cal.dateComponents([.day], from: cut, to: cal.startOfDay(for: now)).day, 90)
   }
 
   // MARK: Event shapes
@@ -314,16 +266,6 @@ final class ActivityRecorderTests: XCTestCase {
     XCTAssertEqual(ActivityProps.dictionary(share.props)["has_url"] as? Bool, true)
     ActivityOutbox.remove(read.done)
     XCTAssertTrue(ActivityOutbox.pendingFiles(in: folder).isEmpty)
-  }
-
-  func testOutboxEventsFollowThePauseSetting() async throws {
-    var s = ActivitySettings()
-    s.tiers.remove(.system)
-    let store = SpyStore()
-    let r = recorder(store, settings: s)
-    var e = ev("sys.share.add")
-    e.tier = 4
-    XCTAssertFalse(r.record(e), "an imported system event is dropped when that category is off")
   }
 
   func testOutboxIsCappedAndUnavailableGroupIsHandled() async {

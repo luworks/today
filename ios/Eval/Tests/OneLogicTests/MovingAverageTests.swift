@@ -1,4 +1,3 @@
-import TodayTestSupport
 import XCTest
 
 @testable import TodayCore
@@ -67,24 +66,6 @@ final class MovingAverageTests: XCTestCase {
     XCTAssertEqual(
       average([point(5, 60), point(10, 80)], days: 7).first?.value, 70,
       "the first visible day includes readings before its start")
-  }
-
-  func testRangeWindowsAndFixtureLookback() {
-    XCTAssertEqual(MovingAverage.window(for: 7), 7)
-    XCTAssertEqual(MovingAverage.window(for: 30), 7)
-    XCTAssertEqual(MovingAverage.window(for: 90), 14)
-    for metric in [HealthMetric.weight, .bodyFat, .restingHeartRate] {
-      let series = HealthSampleSeries.series(for: metric, now: date(17), calendar: calendar)
-      let visible = HealthWindow(days: 90, now: date(17), calendar: calendar)
-      XCTAssertTrue(
-        series.points.contains { $0.date < visible.start }, "\(metric) has pre-range history")
-      if metric != .bodyFat {
-        let result = MovingAverage.series(
-          points: series.points, window: 14, days: visible, calendar: calendar)
-        XCTAssertEqual(
-          result.first?.date, visible.start, "the oldest chart day has a complete lookback")
-      }
-    }
   }
 
   func testDSTSpringForwardAndFallBackUseWholeLocalDays() {

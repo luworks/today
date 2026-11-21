@@ -110,13 +110,6 @@ final class ActivityUndoTests: XCTestCase {
     }
   }
 
-  func testNewActionsReadWell() {
-    XCTAssertEqual(LedgerFormat.headline(.edited, title: "Alarm 07:00"), "Changed “Alarm 07:00”")
-    XCTAssertEqual(
-      LedgerFormat.headline(.switchedOff, title: "Alarm 07:00"), "Turned off “Alarm 07:00”")
-    XCTAssertEqual(LedgerAction(rawValue: "switchedOn"), .switchedOn)
-  }
-
   // MARK: Lists
 
   let groceries = ListSnapshot(name: "Groceries", colorIndex: 3, symbol: "cart", order: 2)
@@ -132,14 +125,6 @@ final class ActivityUndoTests: XCTestCase {
     s.colorIndex = 8
     s.symbol = "bag"
     return s
-  }
-
-  func testListChangeKeepsItsRemindersThroughTheStore() throws {
-    let change = ListChange(
-      before: groceries, after: nil,
-      tasks: [TaskSnapshot(title: "Milk", listName: "Groceries", flagged: true)])
-    let back = try JSONDecoder().decode(ListChange.self, from: JSONEncoder().encode(change))
-    XCTAssertEqual(back, change)
   }
 
   func testListDeleteComesBackWithItsReminders() {

@@ -44,18 +44,7 @@
       ]
     }
   },
-  "skip_rules": [
-    {
-      "test": "TodayTests/ActivityReadPerformanceTests/testWarmPageReads",
-      "category": "benchmark",
-      "reason": "^set ACTIVITY_READ_BENCH=1$"
-    },
-    {
-      "test": "TodayTests/ActivityStoreTests/testBenchmarkLarge",
-      "category": "benchmark",
-      "reason": "^set ACTIVITY_BENCH_ROWS$"
-    }
-  ],
+  "skip_rules": [],
   "migration": {
     "project": {
       "original": "One.xcodeproj",

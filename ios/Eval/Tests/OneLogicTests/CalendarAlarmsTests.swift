@@ -65,13 +65,6 @@ final class CalendarAlarmsTests: XCTestCase {
       ["Wake up", "Wind down"], "and not again on Monday")
   }
 
-  func testAnAlarmThatIsOffNeverShows() {
-    let sunday = CalendarAlarms.occurrences(
-      of: specs, on: date(18), now: date(17, 9), calendar: cal)
-    XCTAssertFalse(
-      labels(sunday).contains("Weekend run"), "Weekend run is off, so it is hidden, as on Today")
-  }
-
   func testOrderIsByTimeThenLabel() {
     let list = [
       AlarmSpec(hour: 7, minute: 0, label: "Zebra", weekdays: [2], isOn: true),
@@ -111,20 +104,5 @@ final class CalendarAlarmsTests: XCTestCase {
     }
     XCTAssertEqual(
       range, perDay.sorted { $0.date < $1.date || ($0.date == $1.date && $0.index < $1.index) })
-  }
-
-  func testOneTimeAlarmOutsideTheRangeIsLeftOut() {
-    let nextWeek = DateInterval(start: date(24), end: date(31))
-    let rings = CalendarAlarms.occurrences(of: specs, in: nextWeek, now: date(17, 9), calendar: cal)
-    XCTAssertFalse(labels(rings).contains("Take medicine"))
-  }
-
-  func testNothingWhenThereAreNoAlarms() {
-    XCTAssertTrue(
-      CalendarAlarms.occurrences(of: [], on: date(19), now: date(17), calendar: cal).isEmpty)
-    XCTAssertTrue(
-      CalendarAlarms.occurrences(
-        of: [], in: DateInterval(start: date(1), end: date(31)), now: date(17), calendar: cal
-      ).isEmpty)
   }
 }

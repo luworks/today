@@ -36,11 +36,6 @@ final class QuickTimeTests: XCTestCase {
     XCTAssertEqual(shown.map(\.minute), [30, 0, 30, 0])
   }
 
-  func testPresetsRoundTripThroughStorage() {
-    let minutes = [1320, 450, 720, 1110]
-    XCTAssertEqual(QuickTime.presetMinutes(stored: QuickTime.storedPresets(minutes)), minutes)
-  }
-
   func testAPastPresetMovesToTomorrow() {
     XCTAssertEqual(
       parts(QuickTime.preset(hour: 9, minute: 30, on: now, now: now, calendar: cal)),

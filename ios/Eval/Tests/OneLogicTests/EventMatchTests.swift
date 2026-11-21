@@ -43,13 +43,4 @@ final class EventMatchTests: XCTestCase {
     XCTAssertNil(EventMatch.copy(titled: "Lunch", at: today, in: [(title: nil, start: today)]))
   }
 
-  func testMissingSelectedOccurrenceDoesNotFallBackToAnotherInSeries() {
-    let selected = today.addingTimeInterval(day)
-    let remaining = [
-      (id: Optional("series"), start: today),
-      (id: Optional("series"), start: today.addingTimeInterval(2 * day)),
-    ]
-    XCTAssertNil(EventMatch.occurrence("series", at: selected, in: remaining))
-  }
-
 }

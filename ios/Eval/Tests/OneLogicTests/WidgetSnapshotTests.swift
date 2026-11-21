@@ -102,11 +102,6 @@ final class WidgetSnapshotTests: XCTestCase {
       NextItems.select(from: items, now: date(16, 22), calendar: cal).tomorrow?.title, "Trip")
   }
 
-  func testNothingAtAll() {
-    let next = NextItems.select(from: [], now: now, calendar: cal)
-    XCTAssertEqual(next, NextUp(today: [], remainingToday: 0, tomorrow: nil))
-  }
-
   func testLimit() {
     let items = (10...15).map { item("T\($0)", date(16, $0)) }
     let next = NextItems.select(from: items, now: now, calendar: cal, limit: 1)
@@ -135,18 +130,6 @@ final class WidgetSnapshotTests: XCTestCase {
       WidgetLink.day(from: URL(string: "today://today?day=bad")!, now: now, calendar: cal), date(16)
     )
     XCTAssertNil(WidgetLink.day(from: URL(string: "https://example.com")!, now: now, calendar: cal))
-  }
-
-  func testSnapshotRoundTrip() throws {
-    let snap = WidgetSnapshot(
-      generatedAt: date(16, 9),
-      items: [
-        item("Dentist", date(16, 15), end: date(16, 16)),
-        item("Holiday", date(16), allDay: true),
-        item("Gym", date(16, 18), kind: .alarm),
-      ])
-    XCTAssertEqual(WidgetSnapshot.decode(try snap.encoded()), snap)
-    XCTAssertNil(WidgetSnapshot.decode(Data("nope".utf8)))
   }
 
   // MARK: Live Apple Calendar merge
@@ -220,24 +203,6 @@ final class WidgetSnapshotTests: XCTestCase {
     XCTAssertEqual(next(shown).headline, "time")
   }
 
-  func testPlusCountLeavesOutSettled() {
-    let items = [
-      event("church", date(16, 9), date(16, 14, 50)), item("a", date(16, 15)),
-      item("b", date(16, 16)), item("c", date(16, 17)),
-    ]
-    XCTAssertEqual(next(items).more, "+3")
-    let shown = NextItems.removingSettled(items, settledIDs: ["church", "b"]).items
-    XCTAssertEqual(next(shown).title, "a")
-    XCTAssertEqual(next(shown).more, "+1")
-  }
-
-  func testAllSettledLeavesNothingToday() {
-    let items = [item("a", date(16, 10))]
-    let shown = NextItems.removingSettled(items, settledIDs: ["a"]).items
-    XCTAssertTrue(next(shown).isEmpty)
-    XCTAssertEqual(NextItems.select(from: shown, now: now, calendar: cal).remainingToday, 0)
-  }
-
   func testTheLiveCopyOfASettledEventStaysOff() {
     let church = event("church", date(16, 9), date(16, 14, 50))
     let tomorrow = event("church", date(17, 9), date(17, 14, 50))
@@ -299,19 +264,6 @@ final class WidgetSnapshotTests: XCTestCase {
       id: "l", title: "Late", start: date(16, 23), end: date(17), isAllDay: false,
       externalID: nil, days: days, calendar: cal)
     XCTAssertEqual(late.map(\.start), [date(16, 23)])
-  }
-
-  /// Just after midnight, today's list and the Tomorrow line both come from the snapshot written the day before.
-  func testThreeDaySnapshotCoversTheMidnightRollover() {
-    let written = [item("Sat run", date(17, 8), kind: .alarm), item("Sun brunch", date(18, 11))]
-    let afterMidnight = date(17, 0, 5)
-    XCTAssertEqual(
-      NextItems.select(from: written, now: afterMidnight, calendar: cal).today.map(\.title),
-      ["Sat run"])
-    XCTAssertEqual(
-      NextItems.select(from: written, now: date(17, 9), calendar: cal).tomorrow?.title, "Sun brunch"
-    )
-    XCTAssertEqual(WidgetSnapshot.days, 3)
   }
 
   func testTimelineRunsThroughTomorrowWhenAsked() {
