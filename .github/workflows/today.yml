@@ -44,12 +44,12 @@ jobs:
         run: python3 scripts/ci/job.py --command ./dev test helpers
       - if: steps.scope.outputs.logic != 'false'
         run: python3 scripts/ci/job.py --command ./dev test qa
-      # Pull requests compile the logic tests incrementally on the SwiftPM build of the newest green
-      # main; main compiles clean and saves it. Content-based mtimes make the restored build reusable.
+      # The logic tests compile incrementally on the SwiftPM build of the newest green main, which
+      # saves it. Content-based mtimes make the restored build reusable.
       - id: logic
         if: steps.scope.outputs.logic != 'false'
         run: echo "prefix=logic-v1-$ImageVersion-$(basename "${DEVELOPER_DIR%/Contents/Developer}" .app)-${{ hashFiles('ios/Package.swift') }}-" >> "$GITHUB_OUTPUT"
-      - if: github.event_name == 'pull_request' && steps.scope.outputs.logic != 'false'
+      - if: steps.scope.outputs.logic != 'false'
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
@@ -105,12 +105,12 @@ jobs:
       # Touch the tools in the background while the cache restores.
       - if: steps.scope.outputs.app != 'false'
         run: nohup sh -c '(xcrun simctl list devices; xcodebuild -showsdks) >/dev/null 2>&1 & (xcrun swift-frontend -version; xcrun clang --version; xcrun ld -v) >/dev/null 2>&1 & wait' >/dev/null 2>&1 &
-      # Pull requests build incrementally on the DerivedData of the newest green main. Everything
-      # else builds clean, so anything a warm cache could mask is caught on main.
+      # Every run builds incrementally on the DerivedData of the newest green main, which saves it.
+      # The Release workflow still compiles the app clean on every push to main.
       - id: dd
         if: steps.scope.outputs.app != 'false'
         run: echo "prefix=dd-v1-$ImageVersion-$(basename "${DEVELOPER_DIR%/Contents/Developer}" .app)-${{ hashFiles('ios/project.yml', 'ios/Config/**', 'ios/Package.swift', 'ios/Dependencies/Package.resolved') }}-" >> "$GITHUB_OUTPUT"
-      - if: github.event_name == 'pull_request' && steps.scope.outputs.app != 'false'
+      - if: steps.scope.outputs.app != 'false'
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
@@ -118,11 +118,6 @@ jobs:
             ~/Library/Caches/org.swift.swiftpm
           key: ${{ steps.dd.outputs.prefix }}${{ github.sha }}
           restore-keys: ${{ steps.dd.outputs.prefix }}
-      - if: github.event_name != 'pull_request'
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ${{ runner.temp }}/today-ci/dd/SourcePackages
-          key: spm-${{ hashFiles('ios/Dependencies/Package.resolved') }}
       - if: steps.scope.outputs.app != 'false'
         run: python3 scripts/ci/job.py --build
       - if: github.event_name == 'push'
