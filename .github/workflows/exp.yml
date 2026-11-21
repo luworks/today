@@ -1,0 +1,60 @@
+name: exp
+on:
+  pull_request:
+permissions:
+  contents: read
+env:
+  DEVELOPER_DIR: /Applications/Xcode_27.2.app/Contents/Developer
+jobs:
+  seed:
+    runs-on: xcode-27
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: python3 scripts/ci/mtimes.py
+      - run: time swift build --package-path ios --build-tests
+      - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ios/.build
+            ~/Library/Caches/org.swift.swiftpm
+          key: exp-spm-${{ github.run_id }}-${{ github.run_attempt }}
+  warm:
+    needs: seed
+    runs-on: xcode-27
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        change: [none, test, core]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ios/.build
+            ~/Library/Caches/org.swift.swiftpm
+          key: exp-spm-${{ github.run_id }}-${{ github.run_attempt }}
+      - if: matrix.change == 'test'
+        run: echo "" >> ios/Eval/Tests/OneLogicTests/LogicTests.swift
+      - if: matrix.change == 'core'
+        run: echo "" >> ios/Sources/TodayCore/Logic.swift
+      - run: python3 scripts/ci/mtimes.py
+      - run: time swift build --package-path ios --build-tests
+      - run: time swift test --package-path ios --skip-build
+  release:
+    runs-on: xcode-27
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        rep: [1, 2]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: python3 scripts/ci/job.py --release
