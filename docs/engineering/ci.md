@@ -11,7 +11,7 @@ Two parallel hosted jobs, no simulator:
 | Job | What it runs |
 | --- | --- |
 | `checks` | `./dev format --check`, `./dev lint`, `./dev test helpers`, `./dev test unit` (all logic tests on the macOS host) |
-| `today-required` | `python3 scripts/ci/job.py --build`: one `TodayCI` build-for-testing (App, Widget, Share, Mock and the iOS unit and snapshot test bundles) and an identity check of `One.app`, `TodayWidgets.appex` and `ShareExtension.appex` |
+| `today-required` | `python3 scripts/ci/job.py --build`: one `TodayCI` build (App, Widget, Share and Mock; the simulator-hosted test bundles compile only in `full`) and an identity check of `One.app`, `TodayWidgets.appex` and `ShareExtension.appex` |
 
 On a pull request `today-required` restores the DerivedData of the newest green `main` and builds
 incrementally (`scripts/ci/mtimes.py` makes each file's modification time a function of its

@@ -51,7 +51,7 @@ jobs:
           path: ${{ runner.temp }}/today-ci/failure
           if-no-files-found: warn
           retention-days: 7
-  # Merge gate: build the app, widget and share extension plus test bundles. No simulator.
+  # Merge gate: build the app, widget, share extension and TodayMock. No simulator.
   today-required:
     if: github.event_name != 'workflow_dispatch'
     runs-on: xcode-27

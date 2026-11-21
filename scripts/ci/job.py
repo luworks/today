@@ -2,7 +2,7 @@
 """Merge-gate CI steps with failure-only evidence.
 
 `--command <argv>...` runs one `./dev` step (the `checks` job). `--build` is `today-required`:
-one TodayCI build-for-testing and an identity check of the three production products. `--release`
+one TodayCI build and an identity check of the three production products. `--release`
 compiles the app, widget and share extension for a device in Release, unsigned.
 Standard library only; prints elapsed seconds per step for timing.
 """
@@ -68,10 +68,10 @@ def build():
     # and the link tasks' signatures: a stable environment skips 10 s of manifest parsing and 23 relinks.
     stable = [f'{name}={os.environ[name]}' for name in ('HOME', 'PATH', 'DEVELOPER_DIR')]
     # No separate debug dylib for Previews: one link and one signature fewer per app, same compile.
-    run('env', '-i', *stable, 'xcodebuild', 'build-for-testing', '-quiet', '-project', 'ios/Today.xcodeproj', '-scheme', 'TodayCI',
+    run('env', '-i', *stable, 'xcodebuild', 'build', '-quiet', '-project', 'ios/Today.xcodeproj', '-scheme', 'TodayCI',
         '-configuration', 'Debug', '-destination', 'generic/platform=iOS Simulator',
         'ARCHS=arm64', 'ENABLE_DEBUG_DYLIB=NO', *FLAGS)
-    step('built App, Widget, Share, Mock and test bundles')
+    step('built App, Widget, Share and Mock')
     products = DD / 'Build/Products/Debug-iphonesimulator'
     for path, identifier in PRODUCTS.items():
         info = plistlib.loads((products / path / 'Info.plist').read_bytes())
