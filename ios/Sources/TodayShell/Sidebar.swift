@@ -39,7 +39,7 @@
         header
         SidebarRow(icon: "clock.arrow.circlepath", title: "Activity", action: onActivity)
           .accessibilityIdentifier("sidebar.activity")
-          .modifier(DrawerDrag(model: drawer, width: width, kind: .close))
+          .modifier(DrawerDrag(model: drawer, width: width))
         if threads.isEmpty {
           emptyState
         } else {
@@ -84,7 +84,7 @@
       .padding(.bottom, 8)
       // Fixed-size round buttons, capped like the page's top and bottom bars so they never clip.
       .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
-      .modifier(DrawerDrag(model: drawer, width: width, kind: .close))
+      .modifier(DrawerDrag(model: drawer, width: width))
     }
 
     // MARK: Middle: conversations
@@ -97,7 +97,7 @@
         .padding(.horizontal, 40)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .contentShape(Rectangle())
-        .modifier(DrawerDrag(model: drawer, width: width, kind: .close))
+        .modifier(DrawerDrag(model: drawer, width: width))
     }
 
     private var activeThreads: [ChatThread] { threads.filter { !$0.archived } }
@@ -288,7 +288,7 @@
         .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
       }
       .background(Color(.systemBackground))
-      .modifier(DrawerDrag(model: drawer, width: width, kind: .close))
+      .modifier(DrawerDrag(model: drawer, width: width))
     }
   }
 

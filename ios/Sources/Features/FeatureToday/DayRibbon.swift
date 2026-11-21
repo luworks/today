@@ -59,6 +59,7 @@
           }
       }
       .frame(height: Self.height)
+      .drawerSwipeExcluded()
       .overlay(alignment: .topTrailing) {
         if let now, !isAtNow, live == nil {
           Button {
