@@ -69,7 +69,7 @@
       return saved.filter { preferenceKeys.contains($0.key) }
     }
     package static let preferenceKeys = [
-      "today.appearance", "today.setting.showAlarmsInToday", "today.setting.jumpToNow",
+      "today.appearance", "today.setting.showAlarmsInToday",
       "today.setting.autoArchiveChats", "today.setting.travelTime", "today.setting.healthSummary",
       "today.setting.calendarSecondZoneEnabled", "today.setting.calendarSecondZoneCity",
       "today.setting.compressEmptyHours", "today.setting.dimPastDays", "today.setting.firstWeekday",

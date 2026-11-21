@@ -30,12 +30,12 @@
         now: { .now }, nextID: { UUID() }, calendar: .current, locale: .current)
       let activity = ActivityCenter(store: history, defaults: defaults, runtime: runtime)
       defer { activity.dispose() }
-      defaults.register(defaults: ["today.setting.jumpToNow": true])
+      defaults.register(defaults: ["today.setting.showAlarmsInToday": true])
       if kind == "history" {
         try history.insert([ActivityEvent(kind: "change.completed", actor: "user")])
       }
       if kind == "list" { container.mainContext.insert(OneList(name: "Saved list")) }
-      if kind == "preferences" { defaults.set(false, forKey: "today.setting.jumpToNow") }
+      if kind == "preferences" { defaults.set(false, forKey: "today.setting.showAlarmsInToday") }
       let folder = root.appendingPathComponent("folder")
       try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
       func controller() -> BackupController {
@@ -109,9 +109,9 @@
           defaults: defaults, root: root, identity: { "test" }, testFolder: folder)
       }
       #expect(defaults.string(forKey: "backup.active") == active)
-      try BackupController.validatePreferences(["today.setting.jumpToNow": false])
+      try BackupController.validatePreferences(["today.setting.showAlarmsInToday": false])
       #expect(throws: (any Error).self) {
-        try BackupController.validatePreferences(["today.setting.jumpToNow": "false"])
+        try BackupController.validatePreferences(["today.setting.showAlarmsInToday": "false"])
       }
     }
     @Test func productDatabaseHistoryAndPreferencesSurviveTwoOpens() throws {
@@ -135,7 +135,7 @@
       let suite = "backup-test-" + UUID().uuidString
       let defaults = UserDefaults(suiteName: suite)!
       defer { defaults.removePersistentDomain(forName: suite) }
-      defaults.set(false, forKey: "today.setting.jumpToNow")
+      defaults.set(false, forKey: "today.setting.showAlarmsInToday")
       let files = try BackupController.payload(
         container: container, activityURL: historyURL, defaults: defaults, preferencesDomain: suite)
       let folder = root.appendingPathComponent("folder")
@@ -167,7 +167,7 @@
             try JSONSerialization.jsonObject(
               with: Data(contentsOf: restored.appendingPathComponent("preferences.json")))
             as? [String: Bool]
-          #expect(prefs?["today.setting.jumpToNow"] == false)
+          #expect(prefs?["today.setting.showAlarmsInToday"] == false)
         }
       }
       // Neither a fresh empty store nor an unacknowledged nonempty store may replace this head.

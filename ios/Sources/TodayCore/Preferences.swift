@@ -5,7 +5,7 @@ import Foundation
 /// choice existed, unless its own comment says otherwise. Screens read these through `@AppStorage`
 /// with the same key and default; the readers here are for code that is not a view.
 ///
-/// The older choices (overdue, alarms, scroll to now, travel time, Health summary, chat archive) keep their keys in
+/// The older choices (overdue, alarms, travel time, Health summary, chat archive) keep their keys in
 /// `SettingsKey`; Appearance has its own in `Appearance`.
 public enum Preferences {
   // MARK: Keys

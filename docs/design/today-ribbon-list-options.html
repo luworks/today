@@ -1,0 +1,459 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Today 时间轴方案</title>
+<style>
+:root{
+  --bg:#f2f2f7; --paper:#fff; --ink:#1c1c1e; --ink2:#6e6e73; --ink3:#aeaeb2; --hair:#e5e5ea; --fill:#f2f2f7;
+  --card:rgba(120,120,128,.07); --red:#ff3b30; --blue:#2f7cf6; --green:#5ac85a; --orange:#e8743b; --skel:#e5e5ea;
+  --win:rgba(232,116,59,.13); --winb:rgba(232,116,59,.9); --part:rgba(255,59,48,.08); --accent:#e8743b;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#000; --paper:#000; --ink:#f2f2f7; --ink2:#98989f; --ink3:#5c5c60; --hair:#2c2c2e; --fill:#1c1c1e;
+  --card:rgba(120,120,128,.16); --skel:#2c2c2e; --win:rgba(232,116,59,.22); --part:rgba(255,69,58,.16);
+}}
+:root[data-theme="dark"]{
+  --bg:#000; --paper:#000; --ink:#f2f2f7; --ink2:#98989f; --ink3:#5c5c60; --hair:#2c2c2e; --fill:#1c1c1e;
+  --card:rgba(120,120,128,.16); --skel:#2c2c2e; --win:rgba(232,116,59,.22); --part:rgba(255,69,58,.16);
+}
+*{box-sizing:border-box}
+body{margin:0;background:none;color:var(--ink);font:14px/1.55 -apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC",sans-serif}
+main{max-width:1440px;margin:0 auto;padding:8px 0 24px}
+h1{font-size:22px;margin:0 0 6px}
+h2{font-size:17px;margin:28px 0 8px}
+p{margin:6px 0}
+.lead{max-width:980px}
+.lead b{color:var(--accent)}
+.ctl{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;padding:10px 0;margin:8px 0 4px}
+.ctl .tm{display:flex;align-items:center;gap:8px;flex:1;min-width:240px;max-width:560px}
+.ctl input[type=range]{flex:1;accent-color:var(--accent)}
+.ctl output{font-weight:600;font-variant-numeric:tabular-nums;min-width:44px}
+.ctl button,.ctl select{font:inherit;border:1px solid var(--hair);background:var(--paper);color:var(--ink);border-radius:9px;padding:4px 12px;cursor:pointer}
+.hint{font-size:12.5px;color:var(--ink2);margin:0 0 12px;max-width:980px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:22px 18px;align-items:start}
+.vcol{display:flex;flex-direction:column;gap:8px;min-width:0}
+.vname{font-size:15px;font-weight:700}
+.vname small{font-weight:500;color:var(--ink2);font-size:12.5px;margin-left:6px}
+.vtag{display:inline-block;font-size:11.5px;font-weight:700;color:#fff;background:var(--accent);border-radius:6px;padding:0 6px;margin-right:6px;vertical-align:1px}
+.spec{font-size:13px;background:var(--paper);border:1px solid var(--hair);border-radius:12px;padding:10px 12px}
+.spec dt{font-weight:700;margin-top:6px}
+.spec dt:first-child{margin-top:0}
+.spec dd{margin:2px 0 0}
+.spec .pro{color:#1f9d55} .spec .con{color:#c2410c}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .spec .pro{color:#4ade80} :root:not([data-theme="light"]) .spec .con{color:#ff9f6e}}
+table{width:100%;border-collapse:collapse;background:var(--paper);font-size:13.5px}
+th,td{padding:8px 10px;border-bottom:1px solid var(--hair);text-align:left;vertical-align:top}
+th{color:var(--ink2);font-weight:600;font-size:12.5px}
+.tw{overflow-x:auto;border-radius:12px;border:1px solid var(--hair)}
+ol{padding-left:20px;margin:6px 0} li{margin:4px 0}
+.rank{background:var(--paper);border:1px solid var(--hair);border-radius:12px;padding:12px 16px;max-width:980px}
+
+.zoomer{overflow:hidden}
+.dev{position:relative;display:flex;flex-direction:column;background:var(--paper);border:1px solid var(--hair);overflow:hidden;font-size:17px;color:var(--ink);transform-origin:0 0}
+.sb{flex:none;display:flex;align-items:flex-end;justify-content:space-between;padding:0 34px 8px;font-size:17px;font-weight:600}
+.pills{flex:none;display:flex;align-items:center;gap:8px;height:56px;padding:0 18px}
+.pills span{width:54px;height:44px;border-radius:22px;background:var(--fill);display:flex;align-items:center;justify-content:center;font-size:17px;color:var(--ink2)}
+.pills span:first-child{width:46px;height:46px;background:var(--paper);border:1px solid var(--hair);box-shadow:0 1px 4px rgba(0,0,0,.08)}
+.pills em{margin-left:auto;font-style:normal;color:var(--ink2);font-size:15px}
+.wk{flex:none;display:grid;grid-template-columns:repeat(7,1fr);text-align:center;padding:4px 8px 8px;border-bottom:.5px solid var(--hair)}
+.wk small{display:block;font-size:12px;font-weight:600;line-height:20px;border-bottom:.5px solid var(--hair);margin-bottom:6px}
+.wk b{display:inline-block;width:32px;height:32px;line-height:32px;font-weight:500;font-size:18px;color:var(--ink3)}
+.wk i{display:block;width:16px;height:4px;border-radius:2px;margin:3px auto 0;background:#9cc3f7}
+.wk .on b{background:var(--red);color:#fff;border-radius:50%;font-weight:600}
+.wk .fut b{color:var(--ink)}
+.grab{flex:none;height:12px;display:flex;justify-content:center;align-items:center}
+.grab::before{content:"";width:36px;height:4px;border-radius:2px;background:var(--hair)}
+.rib{flex:none;position:relative;height:52px;margin:0 16px;touch-action:none;user-select:none;cursor:pointer}
+.rib .ax{position:absolute;left:0;right:0;top:20px;height:1px;background:var(--hair)}
+.rib .hr{position:absolute;top:32px;font-size:10px;color:var(--ink3);transform:translateX(-50%);font-variant-numeric:tabular-nums}
+.rib .m{position:absolute;transform:translateX(-50%)}
+.rib .m.ev{top:14px;height:13px;border-radius:4px;transform:none;min-width:5px}
+.rib .m.rem{top:16px;width:9px;height:9px;border-radius:50%;background:var(--ink)}
+.rib .m.rep{top:16px;width:9px;height:9px;border-radius:50%;border:1.6px solid var(--ink)}
+.rib .m.unk{top:16px;width:9px;height:9px;border-radius:50%;background:var(--ink3)}
+.rib .m.od{border-color:var(--red);background:none;border:1.6px solid var(--red)}
+.rib .m.dn{opacity:.25}
+.rib .nw{position:absolute;top:5px;width:2px;height:30px;margin-left:-1px;background:var(--red);border-radius:1px}
+.rib .box{position:absolute;top:6px;height:29px;background:var(--win);border:1.5px solid var(--winb);border-radius:9px;pointer-events:none}
+.rib .box.view{transition:left .08s linear,width .08s linear}
+.rib .seg{position:absolute;top:6px;height:29px;border-radius:7px;pointer-events:none}
+.rib .seg.cur{background:var(--part)}
+.rib .tick{position:absolute;top:8px;width:1px;height:25px;background:var(--ink3);opacity:.55}
+.rib .pl{position:absolute;top:-2px;font-size:9.5px;color:var(--ink3);transform:translateX(-50%);letter-spacing:.02em}
+.rib .pl.cur{color:var(--red);font-weight:600}
+.rib .chip{position:absolute;right:-6px;top:-6px;font-size:12px;font-weight:600;color:#fff;background:var(--red);border-radius:10px;padding:1px 9px;cursor:pointer}
+.hline{flex:none;height:38px;display:flex;align-items:center;padding:0 18px;color:var(--ink2);font-size:16px;gap:8px}
+.hline::before{content:"♥";color:var(--red);font-size:18px}
+.hline::after{content:"›";margin-left:auto;font-size:20px;color:var(--ink3)}
+.list{flex:1;min-height:0;overflow-y:auto;scrollbar-width:none;position:relative;padding-bottom:6px}
+.list::-webkit-scrollbar{display:none}
+.card{margin:0 8px 10px;background:var(--card);border-radius:20px;padding:0 0 6px}
+.div{display:flex;align-items:center;gap:8px;height:34px;padding:8px 12px 0;color:var(--ink2);font-size:14px;font-weight:600}
+.div::after{content:"";flex:1;height:1px;background:var(--hair)}
+.div em{font-style:normal;font-weight:500;color:var(--ink3);order:2}
+.div.cur{color:var(--red)}
+.r{display:flex;align-items:center;gap:12px;height:44px;padding:0 12px 0 12px}
+.list>.r,.list>.nowl{padding-left:20px;padding-right:20px}
+.r .tc{width:78px;flex:none;white-space:nowrap;display:flex;flex-direction:column;justify-content:center;line-height:1.15}
+.r .lt{color:var(--ink2);font-size:15px;font-variant-numeric:tabular-nums}
+.r .bj{color:var(--ink3);font-size:10.5px;letter-spacing:.02em;font-variant-numeric:tabular-nums}
+.r .ic{flex:none;width:22px;height:22px;border-radius:50%;border:1.6px solid var(--ink3)}
+.r .ic.ev{border:0;border-radius:3px;width:5px;height:26px;margin:0 9px 0 8px}
+.r .ti{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.r .ti .bar{display:inline-block;width:58%;height:12px;border-radius:6px;background:var(--skel);vertical-align:middle}
+.r .tr{flex:none;font-size:14px;color:var(--ink2)}
+.r .tr.rep{font-size:16px;color:var(--ink3)}
+.r .tr.flag{color:var(--orange);font-size:16px}
+.r.rep .ti{color:var(--ink2)}
+.r.od .lt{color:var(--red)}
+.r.dn .ti{color:var(--ink3);text-decoration:line-through}
+.r.dn .ic{background:var(--ink3)}
+.r.past{opacity:.45}
+.nowl{display:flex;align-items:center;gap:8px;height:22px;padding:0 12px;color:var(--red);font-size:12.5px;font-weight:600}
+.nowl::after{content:"";flex:1;height:1.5px;background:var(--red)}
+.foot{flex:none;display:flex;align-items:center;gap:10px;height:46px;padding:0 20px;font-size:16px;color:var(--ink2)}
+.foot .later{display:flex;gap:6px;flex:1;min-width:0;cursor:pointer;white-space:nowrap}
+.foot .later em{font-style:normal;overflow:hidden;text-overflow:ellipsis}
+.foot .st{margin-left:auto;flex:none}
+.fabz{flex:none;display:flex;justify-content:flex-end;gap:14px;padding:4px 20px 0}
+.fabz span{width:60px;height:60px;border-radius:30px;background:var(--paper);box-shadow:0 2px 10px rgba(0,0,0,.14);display:flex;align-items:center;justify-content:center;font-size:24px}
+</style>
+</head>
+<body>
+<main>
+<h1>Today · 时间轴留下，下面的列表怎么配</h1>
+<p class="lead">顶部的全天时间轴<b>全部保留</b>，右下的 <b>Settled</b> 也保留。要定的是时间轴和列表的关系。下面 4 版都用你截图里的数据（周六 11 月 21 日），按 16 Pro Max 的真实 pt 尺寸绘制。<b>A、B、C 都去掉了随时间移动的框，列表改回 Morning / Afternoon / Evening 分隔</b>（#401 之前的样子：标题 + 细线 + 淡色卡片，不折叠）。D 是对照组：保留现在的窗口和 Later，只去掉自动移动。</p>
+
+<div class="ctl">
+  <div class="tm"><span>现在</span><input id="now" type="range" min="360" max="1430" step="1" value="467"><output id="nowv">07:47</output></div>
+  <button id="reopen">重新打开 Today</button>
+  <select id="dev"><option value="pm">16 Pro Max</option><option value="p16">iPhone 16</option><option value="se">iPhone SE</option></select>
+</div>
+<p class="hint">拖“现在”滑块 = 你一直看着屏幕，时间在走：看每一版屏幕上有什么在动。点“重新打开 Today” = 离开再回来：已做完、已结束的这时才收走。每部手机都能操作：点或拖时间轴、滚列表、点 Now、点 Later。截图外的几项（15:00 和 21:30 以后）用灰条示意。</p>
+
+<div class="grid" id="grid"></div>
+
+<h2>对比</h2>
+<div class="tw"><table>
+<tr><th></th><th>A 静态总览</th><th>B 时段高亮</th><th>C 时间轴当滚动条</th><th>D 只听手的窗口（对照）</th></tr>
+<tr><td>看着屏幕时，什么会自己动</td><td>只有红色 Now 线</td><td>Now 线；12:00、18:00 时段底色换一次</td><td>只有 Now 线</td><td>只有 Now 线</td></tr>
+<tr><td>时间轴上的框</td><td>没有</td><td>没有框，当前时段一块淡底色</td><td>有：就是你正在看的那一段，只跟你的滚动走</td><td>有：你拖到哪就停在哪</td></tr>
+<tr><td>点时间轴</td><td>列表滚到那个钟点</td><td>列表滚到那个时段的分隔</td><td>列表滚到那个钟点</td><td>窗口跳到那一项</td></tr>
+<tr><td>拖时间轴</td><td>不响应</td><td>不响应</td><td>拖框 = 滚列表</td><td>拖框 = 换窗口</td></tr>
+<tr><td>列表</td><td>全天，早中晚分隔，可滚</td><td>同 A，当前时段标题标红</td><td>同 A</td><td>窗口内的项 + Later 折叠，不滚</td></tr>
+<tr><td>概念个数</td><td>2（时间轴、列表）</td><td>3（+ 时段）</td><td>3（+ 视野框）</td><td>4（+ 窗口、Later）</td></tr>
+<tr><td>改动量</td><td>小：拿回 #401 前的分隔，删窗口</td><td>A + 时间轴分段</td><td>A + 一个只读框</td><td>小：删自动回位</td></tr>
+</table></div>
+
+<h2>推荐（排序）</h2>
+<div class="rank"><ol>
+<li><b>C · 时间轴当滚动条</b>。列表回到大家熟悉的早中晚 + 正常滚动，什么都不藏；时间轴上的框换了意思：不再是“列表只显示这一段”，而是“你正看着这一段”。框只跟你的手走，时间流逝时一动不动。你喜欢的那条时间轴因此有了实际用处：看忙闲、点一下跳过去、拖一下快速翻。万一用下来觉得框多余，去掉框就是 A，代码不用返工。</li>
+<li><b>A · 静态总览</b>：最简单，最符合“少即是多”；缺点是时间轴和列表之间看不出对应关系，滚到晚上时时间轴不告诉你在哪。</li>
+<li><b>B · 时段高亮</b>：早中晚在时间轴和列表上用同一套说法，但底色每天还是会跳两次，而且晚上 6 小时挤成一块，分辨率太粗。</li>
+<li><b>D · 只听手的窗口</b>：解决了“自己动”，但没解决“太复杂”：窗口外的项被藏进 Later，截图里 08:00–09:00 那三项就是这样“看不见”的。</li>
+</ol>
+<p>三版共同的规则：不自动滚动；进入 Today 时列表从顶上开始（做完的、结束的都已收走，顶上本来就是过点未做 + 接下来）；做完或结束的项留在原位变淡，下次进入才收走；过点未做的项红色时间、留在它的时段里；44 pt 一行、无分隔线、北京时间第二行照旧；Settled 放在最底下一行的右边。</p></div>
+</main>
+
+<script>
+const DEVS = {
+  pm: { w: 440, h: 956, top: 62, bot: 34, r: 56 },
+  p16: { w: 393, h: 852, top: 54, bot: 34, r: 50 },
+  se: { w: 375, h: 667, top: 22, bot: 0, r: 22 },
+};
+const V = [
+  { id: 'A', name: '静态总览', sub: '时间轴只看不动' },
+  { id: 'B', name: '时段高亮', sub: '当前时段一块底色' },
+  { id: 'C', name: '时间轴当滚动条', sub: '框 = 你正在看的一段', rec: true },
+  { id: 'D', name: '只听手的窗口', sub: '对照：现在的设计去掉自动回位' },
+];
+const SPEC = {
+  A: [
+    ['时间轴 ↔ 列表', '时间轴只读，没有框。点一下：列表滚到那个钟点的第一项。不响应拖动。点 Now：滚到 Now 线。'],
+    ['列表', '全天一个列表，Morning / Afternoon / Evening 分隔（#401 之前的标题 + 细线 + 淡色卡片），全部展开，正常上下滚。'],
+    ['时间流逝', '只有红色 Now 线在走（时间轴上和列表里各一条）。过点没做的时间变红，留在原位。'],
+    ['+', '最简单；没有任何需要学的东西。', 'pro'],
+    ['−', '滚到晚上时，时间轴不告诉你现在看的是哪段。', 'con'],
+  ],
+  B: [
+    ['时间轴 ↔ 列表', '时间轴在 12:00、18:00 有分段刻度，现在所在的时段有一块淡红底色。点一个时段：列表滚到那个分隔。不响应拖动。'],
+    ['列表', '同 A；当前时段的标题标红，并带项数。'],
+    ['时间流逝', 'Now 线在走；到 12:00、18:00 时底色和红色标题换到下一个时段（淡入），列表不动。'],
+    ['+', '“现在是一天的哪部分”一眼可见，时间轴和列表说同一种话。', 'pro'],
+    ['−', '一天还是会自己变两次；晚上 6 小时是一大块，太粗。', 'con'],
+  ],
+  C: [
+    ['时间轴 ↔ 列表', '框 = 列表当前露出的那几项的时间范围。滚列表，框跟着走；在时间轴上点或拖，列表跟着滚。框永远是结果，不是开关。'],
+    ['列表', '同 A，全天、早中晚、正常滚动，没有任何东西被藏起来。'],
+    ['时间流逝', '框不动（你没滚）；只有 Now 线在走。下次进入时收走做完的，框随之重算。'],
+    ['+', '保留了你觉得好的“框”，但它只说真话：你在看哪。随时知道自己在一天里的位置。', 'pro'],
+    ['−', '一行 4 小时的事件会把框撑宽；比 A 多一个元素。', 'con'],
+  ],
+  D: [
+    ['时间轴 ↔ 列表', '框 = 列表只显示这一段。进入时从现在开始；拖框换段，点 Later 翻页，点 Now 回来。'],
+    ['列表', '没有分隔；窗口外的放进 Later，列表不滚。'],
+    ['时间流逝', '框留在你放的地方，不再自己回位、不再重排。'],
+    ['+', '一屏放得下，不用滚。', 'pro'],
+    ['−', '还是两套概念（窗口 + Later）；窗口外的项看不见，正是你说的“太复杂”。', 'con'],
+  ],
+};
+const T = s => { const [h, m] = s.split(':').map(Number); return h * 60 + m; };
+const F = m => String(Math.floor(m / 60) % 24).padStart(2, '0') + ':' + String(Math.round(m) % 60).padStart(2, '0');
+const RAW = [
+  ['07:30', null, 'rem', '刷牙', { rep: 1, keep: 1 }],
+  ['08:00', '08:10', 'ev', '鸭子放出来-谁做谁删', { c: 'var(--blue)' }],
+  ['08:30', null, 'rem', '吃高血压药 量体重', { rep: 1 }],
+  ['09:00', null, 'rem', '走路（上午）', { rep: 1 }],
+  ['10:00', '14:00', 'ev', 'Boat Hackathon　Demo Day', { c: 'var(--blue)' }],
+  ['15:00', null, 'rem', '', { unk: 1 }],
+  ['18:01', null, 'rem', '研究 omarchy 的 slack', {}],
+  ['18:30', null, 'rem', '晚上刷牙 断食', { rep: 1 }],
+  ['18:30', null, 'rem', '每个月报销 200 codex 从 JYC 要钱', {}],
+  ['18:31', null, 'rem', '发送信息 诉讼书给所有投资人', { flag: 1, keep: 1 }],
+  ['19:00', '20:00', 'ev', 'Marcus 放钱', { c: 'var(--green)' }],
+  ['20:00', '21:00', 'ev', 'Qina 或 Yuan | 完成谷雨测试', { c: 'var(--blue)' }],
+  ['20:00', null, 'rem', '每天听 alden 演讲 10 遍', { rep: 1 }],
+  ['21:00', '21:10', 'ev', '鸭子回笼-谁做谁删', { c: 'var(--blue)' }],
+  ['21:16', null, 'rem', '申请 claude 工作', { keep: 1 }],
+  ['21:35', null, 'rem', '', { unk: 1 }],
+  ['22:00', null, 'rem', '', { unk: 1 }],
+  ['22:20', null, 'rem', '', { unk: 1 }],
+  ['22:40', null, 'rem', '', { unk: 1 }],
+  ['23:00', '23:05', 'ev', 'House door lock', { c: 'var(--blue)' }],
+];
+const ITEMS = RAW.map(([t, e, k, ti, o], i) => ({ i, t: T(t), end: e ? T(e) : null, k, ti, ...o }));
+const stop = it => it.end ?? it.t;
+const doneAt = (it, n) => it.k === 'rem' && !it.keep && n >= it.t + 10;
+const S = { now: 467, entry: 467, dev: 'pm', ws: null, scroll: {} };
+const PARTS = [{ k: 0, name: 'Morning', a: 0, b: 720 }, { k: 1, name: 'Afternoon', a: 720, b: 1080 }, { k: 2, name: 'Evening', a: 1080, b: 1440 }];
+const partOf = m => (m < 720 ? 0 : m < 1080 ? 1 : 2);
+const R0 = 360, R1 = 1440, X = m => ((Math.min(Math.max(m, R0), R1) - R0) / (R1 - R0)) * 100;
+const members = () => ITEMS.filter(it => (it.k === 'ev' ? it.end > S.entry : !doneAt(it, S.entry)));
+const dur = m => (m >= 60 ? `${Math.floor(m / 60)} h${m % 60 ? ' ' + (m % 60) + ' min' : ''}` : `${m} min`);
+
+function rowHTML(it) {
+  const n = S.now, od = it.k === 'rem' && it.t < n && !doneAt(it, n), dn = doneAt(it, n), past = it.k === 'ev' && it.end <= n;
+  const bjm = it.t + 16 * 60, bjh = Math.floor(bjm / 60) % 24;
+  const bj = bjh >= 8 && bjh < 22 ? `<span class="bj">BJ ${F(bjm)}${bjm >= 1440 ? ' +1' : ''}</span>` : '';
+  const ic = it.k === 'ev' ? `<span class="ic ev" style="background:${it.c}"></span>` : '<span class="ic"></span>';
+  let tr = '';
+  if (it.k === 'ev') tr = `<span class="tr">${dur(it.end - it.t)}</span>`;
+  else if (it.flag) tr = '<span class="tr flag">⚑</span>';
+  else if (it.rep) tr = '<span class="tr rep">↻</span>';
+  const cls = ['r', it.rep ? 'rep' : '', od ? 'od' : '', dn ? 'dn' : '', past ? 'past' : ''].join(' ');
+  return `<div class="${cls}" data-t="${it.t}" data-s="${stop(it)}"><span class="tc"><span class="lt">${F(it.t)}</span>${bj}</span>${ic}<span class="ti">${it.ti || '<span class="bar"></span>'}</span>${tr}</div>`;
+}
+const nowHTML = () => `<div class="nowl">${F(S.now)}</div>`;
+
+function partedList(vid) {
+  const n = S.now, seq = members().map(it => ({ it, t: it.t }));
+  seq.push({ now: true, t: n + 0.5 });
+  seq.sort((a, b) => a.t - b.t || (a.it?.i ?? 0) - (b.it?.i ?? 0));
+  let h = '';
+  for (const p of PARTS) {
+    const inP = seq.filter(x => partOf(x.t) === p.k);
+    const cnt = inP.filter(x => x.it).length;
+    if (!cnt) { h += inP.map(nowHTML).join(''); continue; }
+    const cur = vid === 'B' && partOf(n) === p.k;
+    h += `<div class="card" data-part="${p.k}"><div class="div${cur ? ' cur' : ''}">${p.name}${vid === 'B' ? `<em>${cnt}</em>` : ''}</div>`;
+    h += inP.map(x => (x.now ? nowHTML() : rowHTML(x.it))).join('') + '</div>';
+  }
+  return h;
+}
+
+function windowList(listH) {
+  const n = S.now, ws = S.ws ?? S.entry, all = members().sort((a, b) => a.t - b.t || a.i - b.i);
+  const pinned = all.filter(it => it.k === 'rem' && it.t < n && !doneAt(it, n));
+  const cand = all.filter(it => !pinned.includes(it) && stop(it) >= ws);
+  const nowIn = ws <= n;
+  const fit = Math.max(1, Math.floor((listH - pinned.length * 44 - (nowIn ? 22 : 0)) / 44));
+  const shown = cand.slice(0, fit), later = cand.slice(fit);
+  const seq = [...pinned, ...shown].map(it => ({ it, t: it.t }));
+  if (nowIn) seq.push({ now: true, t: n + 0.5 });
+  seq.sort((a, b) => a.t - b.t);
+  const we = later.length ? later[0].t : 1440;
+  return { html: seq.map(x => (x.now ? nowHTML() : rowHTML(x.it))).join(''), later, ws, we };
+}
+
+function ribbonHTML(vid, extra) {
+  const n = S.now;
+  let h = '<div class="ax"></div>';
+  if (vid === 'B') {
+    const cp = partOf(n);
+    for (const p of PARTS) {
+      const a = Math.max(p.a, R0), b = p.b;
+      h += `<div class="seg${p.k === cp ? ' cur' : ''}" style="left:${X(a)}%;width:${X(b) - X(a)}%"></div>`;
+      h += `<div class="pl${p.k === cp ? ' cur' : ''}" style="left:${(X(a) + X(b)) / 2}%">${p.name}</div>`;
+    }
+    for (const m of [720, 1080]) h += `<div class="tick" style="left:${X(m)}%"></div>`;
+  }
+  for (const hr of [6, 9, 12, 15, 18, 21, 24]) h += `<div class="hr" style="left:${X(hr * 60)}%">${hr}</div>`;
+  for (const it of ITEMS) {
+    const dn = doneAt(it, n) || (it.k === 'ev' && it.end <= n) ? ' dn' : '';
+    const od = it.k === 'rem' && it.t < n && !doneAt(it, n) ? ' od' : '';
+    if (it.k === 'ev') h += `<div class="m ev${dn}" style="background:${it.c};left:${X(it.t)}%;width:${Math.max(0.9, X(it.end) - X(it.t))}%"></div>`;
+    else h += `<div class="m ${it.unk ? 'unk' : it.rep ? 'rep' : 'rem'}${dn}${od}" style="left:${X(it.t)}%"></div>`;
+  }
+  h += `<div class="nw" style="left:${X(n)}%"></div>`;
+  if (extra) h += extra;
+  return h;
+}
+
+function shell(vid, dev) {
+  const days = ['M16', 'T17', 'W18', 'T19', 'F20', 'S21', 'S22'];
+  return `<div class="dev" id="d-${vid}" data-v="${vid}" style="width:${dev.w}px;height:${dev.h}px;border-radius:${dev.r}px">
+    <div class="sb" style="height:${dev.top}px"><span class="clk"></span><span>▮▮▮ 80</span></div>
+    <div class="pills"><span>≡</span><span>▦</span><span>☰</span><span>◷</span><em>Nov 2026</em></div>
+    <div class="wk">${days.map((x, i) => `<div class="${i === 5 ? 'on' : i === 6 ? 'fut' : ''}"><small>${x[0]}</small><b>${x.slice(1)}</b><i></i></div>`).join('')}</div>
+    <div class="grab"></div>
+    <div class="rib" data-v="${vid}"></div>
+    <div class="hline">81 steps</div>
+    <div class="list"></div>
+    <div class="foot"></div>
+    <div class="fabz" style="height:${72 + dev.bot}px"><span>✦</span><span>＋</span></div>
+  </div>`;
+}
+
+function build() {
+  const dev = DEVS[S.dev];
+  document.getElementById('grid').innerHTML = V.map(v => `<div class="vcol">
+    <div class="vname"><span class="vtag">${v.id}</span>${v.name}${v.rec ? ' · 推荐' : ''}<small>${v.sub}</small></div>
+    <div class="zoomer" data-v="${v.id}">${shell(v.id, dev)}</div>
+    <dl class="spec">${SPEC[v.id].map(([k, d, c]) => `<dt class="${c || ''}">${k}</dt><dd>${d}</dd>`).join('')}</dl>
+  </div>`).join('');
+  fit();
+  drawAll(true);
+}
+function fit() {
+  const dev = DEVS[S.dev];
+  document.querySelectorAll('.zoomer').forEach(z => {
+    const s = Math.min(1, z.clientWidth / (dev.w + 2));
+    const d = z.firstElementChild;
+    d.style.transform = `scale(${s})`;
+    z.style.height = Math.ceil((dev.h + 2) * s) + 'px';
+  });
+}
+window.addEventListener('resize', fit);
+
+function drawAll(reset) {
+  for (const v of V) draw(v.id, reset);
+}
+function draw(vid, reset) {
+  const root = document.getElementById('d-' + vid);
+  root.querySelector('.clk').textContent = F(S.now);
+  const list = root.querySelector('.list');
+  const keep = reset ? 0 : list.scrollTop;
+  let foot = '<span class="st">Settled 3</span>';
+  if (vid === 'D') {
+    const W = windowList(list.clientHeight - 6);
+    list.innerHTML = W.html;
+    root.querySelector('.rib').innerHTML = ribbonHTML(vid, `<div class="box" style="left:${X(W.ws)}%;width:${Math.max(1.5, X(W.we) - X(W.ws))}%"></div>` + (W.ws !== S.entry ? '<div class="chip" data-now>Now</div>' : ''));
+    if (W.later.length) {
+      const c = W.later.find(x => x.k === 'ev') || W.later[0];
+      foot = `<span class="later" data-later>Later · ${W.later.length} · <em>${F(c.t)} ${c.ti || '…'}</em> ›</span>` + foot;
+    }
+  } else {
+    list.innerHTML = partedList(vid);
+    list.scrollTop = keep;
+    root.querySelector('.rib').innerHTML = ribbonHTML(vid, vid === 'B' ? '' : '<div class="chip" data-now>Now</div>');
+    if (vid === 'C') viewBox(root);
+  }
+  root.querySelector('.foot').innerHTML = foot;
+}
+function viewBox(root) {
+  const list = root.querySelector('.list'), top = list.scrollTop, bot = top + list.clientHeight;
+  let a = 1e9, b = -1;
+  for (const r of list.querySelectorAll('.r')) {
+    const y = r.offsetTop, y2 = y + r.offsetHeight;
+    if (y2 > top + 8 && y < bot - 8) { a = Math.min(a, +r.dataset.t); b = Math.max(b, +r.dataset.s); }
+  }
+  const rib = root.querySelector('.rib');
+  let box = rib.querySelector('.box');
+  if (!box) { box = document.createElement('div'); box.className = 'box view'; rib.appendChild(box); }
+  if (b < 0) { box.style.display = 'none'; return; }
+  box.style.display = '';
+  const l = X(a), r = X(Math.max(b, a + 20));
+  box.style.left = l + '%';
+  box.style.width = Math.max(1.5, r - l) + '%';
+}
+function scrollToMinute(root, m, smooth) {
+  const list = root.querySelector('.list');
+  const rows = [...list.querySelectorAll('.r')];
+  const target = rows.find(r => +r.dataset.s >= m) || rows[rows.length - 1];
+  if (!target) return;
+  const card = target.closest('.card');
+  const y = target === card?.querySelector('.r') ? card.offsetTop : target.offsetTop - 8;
+  list.scrollTo({ top: Math.max(0, y), behavior: smooth ? 'smooth' : 'auto' });
+}
+function minuteAt(rib, x) {
+  const r = rib.getBoundingClientRect();
+  return R0 + Math.min(Math.max((x - r.left) / r.width, 0), 1) * (R1 - R0);
+}
+let drag = null;
+document.addEventListener('pointerdown', e => {
+  if (e.target.closest('[data-now]')) return;
+  const rib = e.target.closest('.rib');
+  if (!rib) return;
+  drag = { rib, vid: rib.dataset.v, x0: e.clientX, moved: false, ws0: S.ws ?? S.entry, m0: minuteAt(rib, e.clientX) };
+  rib.setPointerCapture(e.pointerId);
+  e.preventDefault();
+});
+document.addEventListener('pointermove', e => {
+  if (!drag) return;
+  if (Math.abs(e.clientX - drag.x0) > 4) drag.moved = true;
+  if (!drag.moved) return;
+  const root = drag.rib.closest('.dev'), m = minuteAt(drag.rib, e.clientX);
+  if (drag.vid === 'C') scrollToMinute(root, m, false);
+  if (drag.vid === 'D') { S.ws = snap(drag.ws0 + (m - drag.m0)); draw('D'); }
+});
+document.addEventListener('pointerup', e => {
+  if (!drag) return;
+  const d = drag; drag = null;
+  if (d.moved) return;
+  const root = d.rib.closest('.dev'), m = minuteAt(d.rib, e.clientX);
+  if (d.vid === 'A' || d.vid === 'C') scrollToMinute(root, m, true);
+  if (d.vid === 'B') {
+    const card = root.querySelector(`.card[data-part="${partOf(m)}"]`) || [...root.querySelectorAll('.card')].find(c => +c.dataset.part > partOf(m));
+    if (card) root.querySelector('.list').scrollTo({ top: card.offsetTop, behavior: 'smooth' });
+  }
+  if (d.vid === 'D') { S.ws = snap(m); draw('D'); }
+});
+function snap(m) {
+  const ts = [S.entry, ...members().map(x => x.t)];
+  return ts.reduce((b, t) => (Math.abs(t - m) < Math.abs(b - m) ? t : b), S.entry);
+}
+document.addEventListener('scroll', e => {
+  const l = e.target;
+  if (l.classList?.contains('list')) { const root = l.closest('.dev'); if (root.dataset.v === 'C') viewBox(root); }
+}, true);
+document.addEventListener('click', e => {
+  const nc = e.target.closest('[data-now]');
+  if (nc) {
+    const root = nc.closest('.dev');
+    if (root.dataset.v === 'D') { S.ws = null; draw('D'); return; }
+    const nl = root.querySelector('.nowl'), list = root.querySelector('.list');
+    if (nl) list.scrollTo({ top: Math.max(0, nl.offsetTop - list.clientHeight / 3), behavior: 'smooth' });
+    return;
+  }
+  const lt = e.target.closest('[data-later]');
+  if (lt) {
+    const list = lt.closest('.dev').querySelector('.list');
+    const W = windowList(list.clientHeight - 6);
+    if (W.later.length) { S.ws = W.later[0].t; draw('D'); }
+  }
+});
+const nowIn = document.getElementById('now');
+nowIn.addEventListener('input', () => {
+  S.now = +nowIn.value;
+  if (S.now < S.entry) S.entry = S.now;
+  document.getElementById('nowv').textContent = F(S.now);
+  drawAll(false);
+});
+document.getElementById('reopen').addEventListener('click', () => { S.entry = S.now; S.ws = null; drawAll(true); });
+document.getElementById('dev').addEventListener('change', e => { S.dev = e.target.value; build(); });
+build();
+</script>
+</body>
+</html>

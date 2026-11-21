@@ -83,7 +83,6 @@
 
     @AppStorage(Appearance.storageKey) private var appearance = Appearance.default.rawValue
     @AppStorage(SettingsKey.showAlarms) private var showAlarms = true
-    @AppStorage(SettingsKey.jumpToNow) private var jumpToNow = true
     @AppStorage(SettingsKey.autoArchiveChats) private var autoArchiveChats = true
     @AppStorage(Preferences.aiChangesKey) private var aiChanges = Preferences.aiChanges
     @AppStorage(SmartListLayout.orderKey) private var smartOrder = ""
@@ -281,7 +280,6 @@
     private var todaySection: some View {
       Section {
         Toggle("Show alarms in Today and Calendar", isOn: $showAlarms)
-        Toggle("Scroll to now when Today opens", isOn: $jumpToNow)
         TodayTimelineSettings(
           upNextChanged: { on in
             ledger.activity.record(ActivityEvents.upNextSetting(on: on))

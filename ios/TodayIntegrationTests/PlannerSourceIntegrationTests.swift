@@ -84,7 +84,6 @@
       a.defaults.set(true, forKey: "today.remindersSync.enabled")
       a.defaults.set(true, forKey: "today.calendarSync.enabled")
       a.defaults.set(false, forKey: SettingsKey.healthSummary)
-      a.defaults.set(false, forKey: SettingsKey.jumpToNow)
       a.defaults.set(false, forKey: Preferences.showFreeTimeKey)
       var nativeStoreCreations = 0
       var rangeReads = 0
