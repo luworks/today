@@ -42,8 +42,8 @@
     }
   }
 
-  /// App shell with secondary tabs above the page and Today, Chat and contextual creation below.
-  /// The menu and left-edge swipe open conversation history in the sidebar.
+  /// App shell: the page fills the screen under the status bar; one docked bottom row holds the four tabs and Ask with +.
+  /// A swipe from the left edge opens conversation history in the sidebar.
   public struct HomeView: View {
     private let composition: ShellComposition
     private var session: PlannerSession { composition.session }
@@ -83,14 +83,13 @@
 
     @Environment(\.modelContext) private var context
     @Environment(\.scenePhase) private var scenePhase
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var tab: HomeTab
     @State private var calendarDay: Date
     // Each tab's place is kept here, outside the tab, so leaving a tab and coming back finds it where it was
     // (the open list in Reminders, 2 Day / Month / Year in Calendar, the day in Today).
     @State private var calendarMode: CalendarView.Mode
-    /// The first and last day the Calendar page shows, published by it for the top bar's month label.
+    /// The first and last day the Calendar page shows, published by it for the period in its control row.
     @State private var calendarShown: ClosedRange<Date>
     /// Alarms · World Clock · Stopwatch · Timer inside the Clock tab.
     @State private var clockSection: ClockSection
@@ -480,14 +479,23 @@
 
     private var page: some View {
       VStack(spacing: 0) {
-        topBar
-          .modifier(TabSwipe(isEnabled: !drawer.isOpen, move: switchTab))
+        Color.clear
+          .frame(width: ButtonConfiguration.minimumHitSize, height: 1)
+          .accessibilityElement()
+          .accessibilityLabel("Open menu")
+          .accessibilityHint(
+            "Shows chats, Search and Settings. You can also swipe from the left edge."
+          )
+          .accessibilityAddTraits(.isButton)
+          .accessibilityAction { drawer.set(open: true) }
+          .accessibilityIdentifier("Open menu")
+          .frame(maxWidth: .infinity, alignment: .leading)
         Group {
           switch tab {
           case .today:
             MonthCalendar(
               calendar: session.calendar, day: $todayDay, foldKey: "today.today.monthWeekMode",
-              startsFolded: true
+              startsFolded: true, namesMonth: true
             ) { _ in
               DayAgenda(
                 day: $todayDay, nowRequest: todayNowRequest,
@@ -511,7 +519,10 @@
                 todayDay = picked
                 tab = .today
               },
-              onVisibleDays: { calendarShown = $0 })
+              onVisibleDays: { calendarShown = $0 },
+              period: MonthLabel.period(
+                now: presentation.now, visibleDays: calendarShown,
+                showsYear: calendarMode == .year))
           case .tasks:
             RemindersView(
               isPushed: $remindersPushed,
@@ -759,99 +770,81 @@
       try? context.save()
     }
 
-    // MARK: Top: avatar + tab pills
-
-    private var topBar: some View {
-      HStack(spacing: 8) {
-        // The three lines open the sidebar (chat history and Search), like ChatGPT and Claude; a swipe from the left edge does too.
-        CircleButton(
-          systemImage: "line.3.horizontal", label: "Open menu",
-          size: ButtonConfiguration.minimumHitSize
-        ) {
-          drawer.set(open: true)
-        }
-        // Reserve the displayed period before adapting the pills. Keep their hit areas intact.
-        HStack(spacing: 8) {
-          ViewThatFits(in: .horizontal) {
-            pills
-            ScrollView(.horizontal, showsIndicators: false) { pills }
-          }
-          Spacer(minLength: 0)
-          if !askVisible {
-            TimelineView(.periodic(from: presentation.now, by: 60)) { _ in
-              monthLabel
-            }
-            .id(headerTimeRevision)
-            .layoutPriority(1)
-          }
-        }
-        Spacer(minLength: 0)
-      }
-      .padding(.horizontal, 20)
-      .padding(.vertical, 8)
-      .contentShape(Rectangle())
-      // Chrome stays usable at the largest text sizes; content below still scales fully.
-      .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
-    }
-
-    @State private var headerTimeRevision = 0
-
-    private var headerPeriod: MonthLabel.Period {
-      MonthLabel.period(
-        now: presentation.now, visibleDays: tab == .calendar ? calendarShown : nil,
-        showsYear: calendarMode == .year)
-    }
-
-    /// Calendar follows its visible page; the other tabs keep the device's current month.
-    private var monthLabel: some View {
-      Text(
-        MonthLabel.text(
-          period: headerPeriod, calendar: presentation.calendar,
-          locale: presentation.locale)
-      )
-      .font(.footnote.weight(.semibold))
-      .foregroundStyle(Color(.secondaryLabel))
-      .lineLimit(1)
-      .fixedSize()
-      .accessibilityLabel(
-        MonthLabel.text(
-          period: headerPeriod, length: .full,
-          calendar: presentation.calendar, locale: presentation.locale)
-      )
-      .accessibilityIdentifier("topBar.month")
-      .onReceive(
-        NotificationCenter.default.publisher(for: UIApplication.significantTimeChangeNotification)
-      ) { _ in
-        headerTimeRevision += 1
-      }
-      .onReceive(NotificationCenter.default.publisher(for: .NSSystemTimeZoneDidChange)) { _ in
-        headerTimeRevision += 1
-      }
-      .onChange(of: scenePhase) { _, phase in
-        if phase == .active { headerTimeRevision += 1 }
-      }
-    }
-
-    private var pills: some View {
-      HStack(spacing: PillStyle.spacing) {
-        ForEach(HomeTab.allCases.filter { $0 != .today }) { item in
-          TabPill(tab: item, isSelected: item == tab) {
-            traceTabAction(to: item)
-            tab = item
-          }
-        }
-      }
-    }
-
-    // MARK: Bottom: Today, Chat, new
+    // MARK: Bottom: tabs, then Ask with +
 
     private var bottomBar: some View {
       VStack(spacing: 8) {
         if !drawer.isOpen { UndoToastView() }
-        bottomButtons
+        dock
           .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
           .modifier(TabSwipe(isEnabled: !drawer.isOpen, move: switchTab))
       }
+    }
+
+    private var dock: some View {
+      HStack(spacing: 8) {
+        HStack(spacing: 0) {
+          ForEach(HomeTab.allCases) { item in
+            DockTab(
+              tab: item, isSelected: item == tab, marked: item == .today && !showsToday,
+              tint: item == .today ? TodayButtonColor(stored: todayButtonColor).color : .primary
+            ) {
+              select(item)
+            }
+          }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Tabs")
+        composer
+      }
+      .padding(.horizontal, 12)
+      .padding(.top, 6)
+      .padding(.bottom, 2)
+      .frame(maxWidth: .infinity)
+      .background(.bar, ignoresSafeAreaEdges: .bottom)
+      .overlay(alignment: .top) {
+        Rectangle().fill(Color(.separator)).frame(height: 0.5)
+      }
+    }
+
+    private var showsToday: Bool {
+      todayDay == session.runtime.calendar.startOfDay(for: session.runtime.now())
+    }
+
+    private func select(_ item: HomeTab) {
+      traceTabAction(to: item)
+      if item == .today {
+        todayNowRequest += 1
+        todayDay = session.runtime.calendar.startOfDay(for: session.runtime.now())
+        calendarDay = todayDay
+        calendarShown = todayDay...todayDay
+      }
+      tab = item
+    }
+
+    private var composer: some View {
+      HStack(spacing: 0) {
+        plusButton
+        Button {
+          openAsk(nil)
+        } label: {
+          Text("Ask anything")
+            .font(.body)
+            .foregroundStyle(Color(.placeholderText))
+            .lineLimit(1)
+            .frame(
+              maxWidth: .infinity, minHeight: ButtonConfiguration.minimumHitSize,
+              alignment: .leading
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(PressScale())
+        .accessibilityLabel("Chat")
+        .accessibilityIdentifier("Ask AI or add anything")
+        .accessibilityHint("Starts a new chat. You can also pull down on Today or Calendar.")
+      }
+      .padding(.trailing, 12)
+      .background(Color(.tertiarySystemFill), in: Capsule())
     }
 
     /// A new event: Apple's own editor when Calendar access is on (presented by UIKit, see `NativeEvents`), else ours.
@@ -874,85 +867,8 @@
     /// On World Clock, + adds a city.
     private var plusAddsCity: Bool { tab == .clock && clockSection == .worldClock }
 
-    private var showsTodayButton: Bool {
-      tab != .today || askVisible
-        || todayDay != session.runtime.calendar.startOfDay(for: session.runtime.now())
-    }
-
-    private var bottomButtons: some View {
-      HStack(spacing: 10) {
-        Spacer(minLength: 0)
-        if showsTodayButton {
-          Button {
-            traceTabAction(to: .today)
-            todayNowRequest += 1
-            todayDay = session.runtime.calendar.startOfDay(for: session.runtime.now())
-            calendarDay = todayDay
-            calendarShown = todayDay...todayDay
-            tab = .today
-          } label: {
-            todayLabel
-          }
-          .buttonStyle(PressScale())
-          .accessibilityLabel("Today")
-          .transition(.scale(scale: 0.8).combined(with: .opacity))
-        }
-        Button {
-          openAsk(nil)
-        } label: {
-          floatingCircle(Image(systemName: "sparkles"))
-        }
-        .buttonStyle(PressScale())
-        .accessibilityLabel("Chat")
-        .accessibilityIdentifier("Ask AI or add anything")
-        .accessibilityHint("Starts a new chat. You can also pull down on Today or Calendar.")
-        plusButton
-      }
-      .animation(reduceMotion ? nil : PillStyle.selectionAnimation, value: showsTodayButton)
-      .padding(.horizontal, 16)
-      .padding(.top, 6)
-      .padding(.bottom, 4)
-    }
-
-    private func floatingCircle(_ image: Image) -> some View {
-      image
-        .font(ButtonConfiguration.Icon.font)
-        .foregroundStyle(.primary)
-        .frame(
-          width: ButtonConfiguration.minimumHitSize, height: ButtonConfiguration.minimumHitSize
-        )
-        .background(ButtonConfiguration.Icon.background, in: Circle())
-        .overlay { Circle().strokeBorder(Color(.separator).opacity(0.35), lineWidth: 0.5) }
-        .shadow(color: .black.opacity(0.18), radius: 8, y: 2)
-        .contentShape(Circle())
-    }
-
-    /// The word "Today", like Apple Calendar's button: a capsule as tall as +.
     @AppStorage(TodayButtonColor.storageKey) private var todayButtonColor = TodayButtonColor.green
       .stored
-    @Environment(\.colorScheme) private var identityColorScheme
-
-    private var todayLabel: some View {
-      let fill = TodayButtonColor(stored: todayButtonColor).color
-      return
-        Text("Today")
-        .font(.subheadline.weight(.semibold))
-        .lineLimit(1)
-        .fixedSize()
-        .foregroundStyle(fill.contrastForeground(for: identityColorScheme))
-        .padding(.horizontal, 14)
-        .frame(
-          minWidth: ButtonConfiguration.minimumHitSize,
-          minHeight: ButtonConfiguration.minimumHitSize
-        )
-        .background(
-          fill,
-          in: Capsule()
-        )
-        .overlay { Capsule().strokeBorder(Color(.separator).opacity(0.35), lineWidth: 0.5) }
-        .shadow(color: .black.opacity(0.18), radius: 8, y: 2)
-        .contentShape(Capsule())
-    }
 
     private var newReminderUsesPreferredList: Bool {
       guard tab == .tasks, let target = remindersPath.last else { return true }
@@ -980,7 +896,13 @@
     }
 
     private var plusLabel: some View {
-      floatingCircle(Image(systemName: "plus"))
+      Image(systemName: "plus")
+        .font(ButtonConfiguration.Icon.font)
+        .foregroundStyle(.primary)
+        .frame(
+          width: ButtonConfiguration.minimumHitSize, height: ButtonConfiguration.minimumHitSize
+        )
+        .contentShape(Circle())
     }
 
     private var creationChoices: some View {
@@ -1027,15 +949,9 @@
 
   }
 
-  /// Swipe left or right to move to the next or previous tab.
-  ///
-  /// Where it works: only on the top bar (the tab pills) and the bottom bar (Today, Chat, +). These two
-  /// strips hold no rows, so they never compete with row swipe actions (Delete / Flag on reminders,
-  /// alarms and events), with Calendar's own month/week paging, or with scrolling in the middle of the
-  /// page. The middle of the page does not switch tabs on purpose.
-  /// What it ignores: drags that start within 44pt of the left edge (they open the sidebar), drags that
-  /// are not clearly sideways (horizontal under 2x vertical), and short ones. A drag on a button cancels
-  /// its tap, so swiping across "Ask AI" does not open it.
+  /// Swipe left or right on the bottom bar to move to the next or previous tab. The bar holds no rows, so it never
+  /// competes with row swipe actions, Calendar paging or scrolling. Ignores drags that start within 44pt of the left
+  /// edge (they open the sidebar), drags that are not clearly sideways, and short ones.
   struct TabSwipe: ViewModifier {
     var isEnabled: Bool
     /// -1 = previous tab (finger moves right), +1 = next tab (finger moves left).
@@ -1087,29 +1003,36 @@
     }
   }
 
-  /// Selected tab: a wide pill with its label. Others: icon-only capsules.
-  struct TabPill: View {
+  struct DockTab: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let tab: HomeTab
     let isSelected: Bool
+    let marked: Bool
+    let tint: Color
     var action: () -> Void
 
     var body: some View {
       Button(action: action) {
-        HStack(spacing: PillStyle.Tab.iconLabelSpacing) {
-          Image(systemName: tab.icon)
-          if isSelected { Text(tab.title) }
-        }
-        .font(PillStyle.Tab.font)
-        .padding(.horizontal, isSelected ? PillStyle.Tab.selectedPadding : 0)
-        .frame(minWidth: PillStyle.Tab.minWidth, minHeight: PillStyle.Tab.height)
-        .background(PillStyle.fill(selected: isSelected), in: Capsule())
-        .foregroundStyle(PillStyle.text(selected: isSelected))
-        .animation(reduceMotion ? nil : PillStyle.selectionAnimation, value: isSelected)
+        Image(systemName: tab.icon)
+          .font(ButtonConfiguration.Icon.font)
+          .foregroundStyle(isSelected ? tint : Color(.secondaryLabel))
+          .overlay(alignment: .topTrailing) {
+            if marked {
+              Circle().fill(tint).frame(width: 7, height: 7).offset(x: 5, y: -2)
+            }
+          }
+          .frame(width: 46, height: ButtonConfiguration.minimumHitSize)
+          .background {
+            if isSelected { Capsule().fill(Color(.tertiarySystemFill)) }
+          }
+          .contentShape(Rectangle())
+          .animation(reduceMotion ? nil : PillStyle.selectionAnimation, value: isSelected)
       }
       .buttonStyle(PressScale())
       .accessibilityLabel(tab.title)
+      .accessibilityValue(marked ? "Showing another day" : "")
       .accessibilityAddTraits(isSelected ? .isSelected : [])
+      .accessibilityIdentifier("tab.\(tab.rawValue)")
     }
   }
 

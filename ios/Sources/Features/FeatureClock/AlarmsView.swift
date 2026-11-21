@@ -12,8 +12,8 @@
   /// Adding is the app-wide + at the bottom right.
   /// Alarms are real: each one is an AlarmKit alarm (they ring through Silent and Focus). The tasks and events
   /// you marked "Ring as alarm" follow in their own section. Reminders and event alerts live in Apple Reminders / Calendar.
-  /// Like Clock, the tab has four sections (Alarms · World Clock · Stopwatch · Timer), picked from a quiet switcher under
-  /// the top bar. The section lives in `HomeView`, so leaving the tab and coming back finds the same one.
+  /// Like Clock, the tab has four sections (Alarms · World Clock · Stopwatch · Timer), picked from a quiet switcher at the
+  /// top of the tab. The section lives in `HomeView`, so leaving the tab and coming back finds the same one.
   /// The Timer section (`TimerSection`) is a copy of Apple's Timers screen: wheel picker, Recents, running timers (AlarmKit countdowns).
   package struct AlarmsView: View {
     @Binding var section: ClockSection
@@ -351,7 +351,7 @@
 
     // MARK: Next alarm
 
-    /// "Next alarm in 7 hr 12 min" while an alarm is on. The "Alarms" title is the app's top bar, so it isn't repeated here.
+    /// "Next alarm in 7 hr 12 min" while an alarm is on. The tab icon names it, so no title is repeated here.
     @ViewBuilder private var nextAlarmRow: some View {
       if let hint = nextAlarmHint {
         Text(hint)

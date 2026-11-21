@@ -33,8 +33,9 @@
     let onOpenTask: @MainActor (OneTask) -> Void
     let onOpenAlarm: @MainActor (OneAlarm) -> Void
     let onOpenDay: @MainActor (Date) -> Void
-    /// The first and last day on screen (one month's start in Month), for the top bar's month label.
+    /// The first and last day on screen (one month's start in Month), for the period named in the control row.
     let onVisibleDays: @MainActor (ClosedRange<Date>) -> Void
+    let period: MonthLabel.Period?
 
     @State private var showsTimeZone = false
     @State private var opened: EventPresentation?
@@ -64,9 +65,11 @@
       onOpenTask: @escaping @MainActor (OneTask) -> Void,
       onOpenAlarm: @escaping @MainActor (OneAlarm) -> Void,
       onOpenDay: @escaping @MainActor (Date) -> Void,
-      onVisibleDays: @escaping @MainActor (ClosedRange<Date>) -> Void = { _ in }
+      onVisibleDays: @escaping @MainActor (ClosedRange<Date>) -> Void = { _ in },
+      period: MonthLabel.Period? = nil
     ) {
       _day = day
+      self.period = period
       self.visibleDay = visibleDay ?? day.wrappedValue
       _mode = mode
       self.calendar = calendar
@@ -161,8 +164,19 @@
 
     // MARK: One control row: the view switcher
 
-    /// 2 Day / Month / Year as pills, the same style as the top tab pills (one size down), left-aligned. The month on
-    /// screen is named once, in the top bar (`onVisibleDays`).
+    private func periodText(_ period: MonthLabel.Period, length: MonthLabel.Length) -> some View {
+      Text(
+        MonthLabel.text(
+          period: period, length: length, calendar: presentation.calendar,
+          locale: presentation.locale)
+      )
+      .font(.footnote.weight(.semibold))
+      .foregroundStyle(Color(.secondaryLabel))
+      .lineLimit(1)
+      .fixedSize()
+    }
+
+    /// 2 Day / Month / Year as pills, left-aligned, then the period on screen (`period`, fed by `onVisibleDays`).
     private var controlRow: some View {
       HStack(spacing: PillStyle.spacing) {
         HStack(spacing: PillStyle.spacing) {
@@ -179,6 +193,18 @@
         .accessibilityElement(children: .contain)
         .accessibilityLabel("View")
         Spacer(minLength: 0)
+        if let period {
+          ViewThatFits(in: .horizontal) {
+            periodText(period, length: .full)
+            periodText(period, length: .short)
+          }
+          .accessibilityLabel(
+            MonthLabel.text(
+              period: period, length: .full, calendar: presentation.calendar,
+              locale: presentation.locale)
+          )
+          .accessibilityIdentifier("calendar.period")
+        }
         Button {
           showsTimeZone = true
         } label: {
@@ -330,13 +356,15 @@
     let pager: Pager
     let strip: Strip
     let agenda: Agenda
+    let title: String?
     @SceneStorage private var collapsed: Bool
     @State private var progress: Double?
 
     init(
       row: Int, rowHeight: CGFloat, monthHeight: CGFloat, foldKey: String, startsFolded: Bool,
-      pager: Pager, strip: Strip, agenda: Agenda
+      pager: Pager, strip: Strip, agenda: Agenda, title: String?
     ) {
+      self.title = title
       self.row = row
       self.rowHeight = rowHeight
       self.monthHeight = monthHeight
@@ -376,33 +404,45 @@
 
     private var handle: some View {
       let distance = Double(monthHeight - rowHeight)
-      return Capsule()
-        .fill(Color(.tertiaryLabel))
-        .frame(width: 36, height: 5)
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 6)
-        .contentShape(Rectangle())
-        .gesture(
-          DragGesture(minimumDistance: 4, coordinateSpace: .global)
-            .onChanged { value in
-              progress = MonthWeekStrip.progress(
-                collapsed: collapsed, translation: Double(value.translation.height),
-                distance: distance)
-            }
-            .onEnded { value in
-              settle(
-                MonthWeekStrip.settlesCollapsed(
-                  progress: progress ?? (collapsed ? 1 : 0),
-                  predictedTranslation: Double(value.predictedEndTranslation.height),
-                  distance: distance))
-            }
-        )
-        .onTapGesture { settle(!collapsed) }
-        .accessibilityElement()
-        .accessibilityLabel(collapsed ? "Show Month" : "Show Week")
-        .accessibilityAddTraits(.isButton)
-        .accessibilityAction { settle(!collapsed) }
-        .accessibilityIdentifier("calendar.monthHandle")
+      return ZStack {
+        if let title {
+          Text(title)
+            .font(.footnote.weight(.semibold))
+            .foregroundStyle(Color(.secondaryLabel))
+            .lineLimit(1)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 16)
+            .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+        }
+        Capsule()
+          .fill(Color(.tertiaryLabel))
+          .frame(width: 36, height: 5)
+      }
+      .frame(maxWidth: .infinity)
+      .padding(.vertical, title == nil ? 6 : 4)
+      .contentShape(Rectangle())
+      .gesture(
+        DragGesture(minimumDistance: 4, coordinateSpace: .global)
+          .onChanged { value in
+            progress = MonthWeekStrip.progress(
+              collapsed: collapsed, translation: Double(value.translation.height),
+              distance: distance)
+          }
+          .onEnded { value in
+            settle(
+              MonthWeekStrip.settlesCollapsed(
+                progress: progress ?? (collapsed ? 1 : 0),
+                predictedTranslation: Double(value.predictedEndTranslation.height),
+                distance: distance))
+          }
+      )
+      .onTapGesture { settle(!collapsed) }
+      .accessibilityElement()
+      .accessibilityLabel(collapsed ? "Show Month" : "Show Week")
+      .accessibilityValue(title ?? "")
+      .accessibilityAddTraits(.isButton)
+      .accessibilityAction { settle(!collapsed) }
+      .accessibilityIdentifier("calendar.monthHandle")
     }
 
     private func settle(_ toCollapsed: Bool) {
@@ -429,12 +469,14 @@
     @Binding var day: Date
     let foldKey: String
     let startsFolded: Bool
+    let namesMonth: Bool
     var onVisibleDays: @MainActor (ClosedRange<Date>) -> Void
     var openDay: ((Date) -> Void)?
     let agenda: (MonthItems) -> Agenda
 
     package init(
       calendar: any CalendarService, day: Binding<Date>, foldKey: String, startsFolded: Bool,
+      namesMonth: Bool = false,
       onVisibleDays: @escaping @MainActor (ClosedRange<Date>) -> Void = { _ in },
       openDay: ((Date) -> Void)? = nil, @ViewBuilder agenda: @escaping (MonthItems) -> Agenda
     ) {
@@ -442,6 +484,7 @@
       _day = day
       self.foldKey = foldKey
       self.startsFolded = startsFolded
+      self.namesMonth = namesMonth
       self.onVisibleDays = onVisibleDays
       self.openDay = openDay
       self.agenda = agenda
@@ -492,7 +535,11 @@
           foldKey: foldKey, startsFolded: startsFolded,
           pager: pager(signature: signature), strip: weekStrip(signature: signature),
           agenda: agenda(
-            MonthItems(signature: signature, events: events, tasks: tasks, alarms: alarms)))
+            MonthItems(signature: signature, events: events, tasks: tasks, alarms: alarms)),
+          title: namesMonth
+            ? MonthLabel.text(
+              now: month(current), length: .full, calendar: cal, locale: presentation.locale)
+            : nil)
       }
       .onChange(of: day) { _, new in
         let target = CalendarMath.monthOffset(of: new, from: base, calendar: cal)

@@ -1,6 +1,6 @@
 import Foundation
 
-/// The four parts of the Clock tab, like the tabs of Apple's Clock app. Shown as a small switcher under the top bar.
+/// The four parts of the Clock tab, like the tabs of Apple's Clock app. Shown as a small switcher at the top of the tab.
 public enum ClockSection: String, CaseIterable, Identifiable {
   case alarms, worldClock, stopwatch, timer
 
