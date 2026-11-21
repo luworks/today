@@ -172,19 +172,21 @@
             .accessibilityHidden(askVisible)
             .ignoresSafeArea(.keyboard, edges: askVisible ? .bottom : [])
             .background(Color(.systemBackground))
-            // Swipe right from the left edge opens the sidebar. The edge strip sits above the
-            // lists so it wins over row swipe actions; row swipes elsewhere stay free.
-            .overlay(alignment: .leading) {
-              if edgeSwipeEnabled {
-                Color.clear
-                  .frame(width: 24)
-                  .contentShape(Rectangle())
-                  .modifier(DrawerDrag(model: drawer, width: width, kind: .edgeStrip))
-              }
+            .background {
+              DrawerPan(
+                isEnabled: !drawer.isOpen && (askVisible || edgeSwipeEnabled),
+                changed: { translation in
+                  if !askVisible { drawer.dragChanged(translation: translation) }
+                },
+                ended: { translation, projected in
+                  if askVisible {
+                    if translation.width > 60 { openSidebarFromAsk() }
+                  } else {
+                    drawer.dragEnded(width: width, projected: projected)
+                  }
+                },
+                cancelled: { drawer.dragCancelled(width: width) })
             }
-            .modifier(
-              DrawerDrag(model: drawer, width: width, kind: .edgeOnly, enabled: edgeSwipeEnabled)
-            )
             .modifier(
               DrawerMainSlide(
                 model: drawer, width: width, size: geo.size, insets: geo.safeAreaInsets))
@@ -201,7 +203,7 @@
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Close sidebar")
-            .modifier(DrawerDrag(model: drawer, width: width, kind: .close))
+            .modifier(DrawerDrag(model: drawer, width: width))
             .frame(maxWidth: .infinity, alignment: .trailing)
             .ignoresSafeArea()
           }
@@ -228,19 +230,6 @@
             )
             .id(route.id)
             .background(Color(.systemBackground).ignoresSafeArea())
-            // Like the page under it, a swipe right from the left edge opens the sidebar.
-            .overlay(alignment: .leading) {
-              Color.clear
-                .frame(width: 20)
-                .contentShape(Rectangle())
-                .simultaneousGesture(
-                  DragGesture(minimumDistance: 20).onEnded { v in
-                    if v.translation.width > 60, v.translation.width > 2 * abs(v.translation.height)
-                    {
-                      openSidebarFromAsk()
-                    }
-                  })
-            }
             // A hidden page stays mounted below the screen, out of hit testing; AskView drops its header and editor.
             .offset(y: askVisible ? 0 : geometry.size.height + 640)
             .opacity(askVisible ? 1 : 0)
@@ -778,6 +767,7 @@
         dock
           .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
           .modifier(TabSwipe(isEnabled: !drawer.isOpen, move: switchTab))
+          .drawerSwipeExcluded(tab != HomeTab.allCases.first)
       }
     }
 

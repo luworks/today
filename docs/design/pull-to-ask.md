@@ -19,7 +19,7 @@ and one docked bottom row holds the four tabs and an "Ask anything" field with
 | Calendar 2 Day | Horizontal paging one day per swipe inside a vertical hour scroll. | `OneDayPaging` in `CalendarView` |
 | Calendar Month | Vertical paging one month per swipe; below the grid a continuous multi-day agenda `List` (`DayAgendaList` until November 2026). | `OneMonthPaging`, `MonthAgendaList` |
 | Calendar Year | Continuous vertical scrolling. | `CalendarView` |
-| Any page | Rightward swipe from the left edge (24 pt strip) opens the sidebar with past chats; the same swipe on the Chat page returns to the sidebar. | `DrawerDrag`, Chat overlay in `HomeView` |
+| Any page | Rightward swipe anywhere opens the sidebar with past chats (from the left edge it always wins; elsewhere a horizontal scroller that can still move right, the ribbon and the bottom bar off the first tab keep it); the same swipe on the Chat page returns to the sidebar. | `DrawerPan` in `HomeView` |
 | Bottom bar | Horizontal swipe switches tabs. | `TabSwipe` |
 | Bottom field | Tap reveals the prebuilt full-screen Chat; an empty new chat focuses its editor on the next frame and the keyboard is warmed at launch. Close (top right) returns to the page underneath, which stayed mounted with its scroll position. | `openAsk` / `closeAsk` in `HomeView`, `AskView` |
 
