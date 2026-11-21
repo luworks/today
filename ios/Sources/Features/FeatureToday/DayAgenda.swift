@@ -121,6 +121,7 @@
     @ScaledMetric(relativeTo: .footnote) private var nowFloor: CGFloat = 24
     @ScaledMetric(relativeTo: .footnote) private var freeFloor: CGFloat = 24
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.monthFoldOpen) private var monthFoldOpen
     @Environment(\.modelContext) private var context
     @Environment(UndoToast.self) private var toast: UndoToast?
 
@@ -571,7 +572,9 @@
         ?? window.filter { $0.stop >= dayStart }.map(\.start).min() ?? dayStart
       let layout = TodayWindow.layout(
         items: window, free: free, now: current, start: start, heights: heights,
-        available: available ?? heights.row * 6 + heights.now, dayEnd: dayEnd)
+        available: monthFoldOpen
+          ? .greatestFiniteMagnitude : available ?? heights.row * 6 + heights.now,
+        dayEnd: dayEnd)
       return DayPlan(
         planned: planned, free: free, window: window, rows: layout.rows, layout: layout,
         start: start, range: range, targets: TodayWindow.snapTargets(items: window, now: current))
