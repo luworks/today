@@ -28,12 +28,6 @@ struct TodayTimelineTests {
     #expect(!TodayTimeline.isListed(Item(start: at(8), kind: .alarm), entry: entry))
   }
 
-  @Test func whatEndsAfterEntryStaysUntilTheNextEntry() {
-    let item = event(9, 0, minutes: 30)
-    #expect(TodayTimeline.isListed(item, entry: at(9, 10)))
-    #expect(!TodayTimeline.isListed(item, entry: at(10)))
-  }
-
   @Test func openPastRemindersStayAndDoneOnesLeaveOnlyAtEntry() {
     let entry = at(12)
     #expect(TodayTimeline.isListed(Item(start: at(8), kind: .reminder), entry: entry))

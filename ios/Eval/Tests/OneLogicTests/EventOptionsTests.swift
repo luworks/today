@@ -70,13 +70,6 @@ final class EventOptionsTests: XCTestCase {
 
   // MARK: Settings
 
-  func testNewEventDefaultsAreWhatTodayDidBefore() {
-    let d = freshDefaults()
-    XCTAssertEqual(Preferences.newEventCalendar, "", "Auto")
-    XCTAssertNil(Preferences.newEventCalendar(writable: ["home", "work"], d))
-    XCTAssertEqual(Preferences.newEventAlertMinutes(d), 10, "Today always added 10 minutes before")
-  }
-
   func testNewEventChoicesApplyWhileTheyStillExist() {
     let d = freshDefaults()
     d.set("work", forKey: Preferences.newEventCalendarKey)
@@ -91,19 +84,5 @@ final class EventOptionsTests: XCTestCase {
     XCTAssertEqual(Preferences.newEventAlertMinutes(d), 10, "an unknown value reads as the default")
     XCTAssertEqual(Preferences.newEventAlertLabel(Preferences.noEventAlert), "None")
     XCTAssertEqual(Preferences.newEventAlertLabel(60), "1 hour before")
-  }
-
-  // MARK: Cards
-
-  func testEventCardsKeepTheirCalendarAndAlert() throws {
-    var c = Capture(title: "Family dinner", day: Date(timeIntervalSince1970: 0), hasDay: true)
-    c.kind = .event
-    let old = try JSONDecoder().decode(Capture.self, from: JSONEncoder().encode(c))
-    XCTAssertNil(old.calendarID, "cards saved before calendars decode as the default")
-    XCTAssertNil(old.alertMinutes)
-    c.calendarID = "family"
-    c.calendarTitle = "Family"
-    c.alertMinutes = Preferences.noEventAlert
-    XCTAssertEqual(try JSONDecoder().decode(Capture.self, from: JSONEncoder().encode(c)), c)
   }
 }

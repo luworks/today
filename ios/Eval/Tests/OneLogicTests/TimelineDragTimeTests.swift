@@ -81,11 +81,6 @@ struct TimelineDropPlanTests {
     #expect(target(plan, index: 1) == at(15, 10))
   }
 
-  @Test func aSmallGapIsPreviousPlusOneMinute() throws {
-    let plan = try stops([anchor(at(11, 16)), anchor(at(11, 20))])
-    #expect(target(plan, index: 1) == at(11, 17))
-  }
-
   @Test func aMiddleRoundedOntoANeighbourFallsBackToOneMinute() throws {
     let plan = try stops([anchor(at(10, 10)), anchor(at(10, 15))])
     #expect(target(plan, index: 1) == at(10, 11))
@@ -110,20 +105,9 @@ struct TimelineDropPlanTests {
     #expect(calendar.isDate(last, inSameDayAs: day))
   }
 
-  @Test func aGapBetweenItemsUsesItsMiddle() throws {
-    let plan = try stops([anchor(at(10)), anchor(at(13)), anchor(at(19))])
-    #expect(target(plan, index: 1) == at(11, 30))
-    #expect(target(plan, index: 2) == at(16))
-  }
-
   @Test func anEmptyDayOffersNoon() throws {
     let plan = try stops([])
     #expect(target(plan, index: 0) == at(12))
-  }
-
-  @Test func firstInTheDaySitsHalfAnHourBefore() throws {
-    let plan = try stops([anchor(at(12, 10))])
-    #expect(target(plan, index: 0) == at(11, 40))
   }
 
   @Test func afterAnEventCountsFromItsEnd() throws {

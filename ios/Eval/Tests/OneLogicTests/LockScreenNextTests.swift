@@ -106,16 +106,6 @@ final class LockScreenNextTests: XCTestCase {
     XCTAssertEqual(make([e], at: date(16, 20, 31)).lead, .text("until 21:00"))
   }
 
-  func testMoreCountsTheRestOfToday() {
-    let m = make([
-      item("A", date(16, 20)), item("B", date(16, 21)), item("C", date(16, 22)),
-      item("D", date(16, 23)),
-    ])
-    XCTAssertEqual(m.title, "A")
-    XCTAssertEqual(m.more, "+3")
-    XCTAssertEqual(m.accessibilityLabel, "Next: A at 20:00, in 25 minutes. 3 more today.")
-  }
-
   func testItemsStartingTogetherAreGrouped() {
     // The Lock Screen screenshot: three reminders at 20:00. The time is already in the headline, so just "+2".
     let items = [

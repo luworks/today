@@ -7,7 +7,7 @@ import sys
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-from scripts.ci.scope import READ_BY_TESTS, UI_PREFIXES, app_changed, logic_changed, ui_only  # noqa: E402
+from scripts.ci.scope import UI_PREFIXES, app_changed, logic_changed  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -40,16 +40,13 @@ class LogicScopeTests(unittest.TestCase):
                      'ios/Sources/TodayShared/WidgetSnapshot.swift', 'ios/TodayWidgets/Next.swift',
                      'ios/ShareExtension/Share.swift', 'ios/Package.swift', 'ios/project.yml',
                      'ios/App/OneApp.swift', 'ios/Eval/Tests/OneLogicTests/A.swift',
-                     'ios/Sources/TodayShell/HomeView.swift', 'ios/Sources/Features/FeatureToday/data.json'):
+                     'ios/Sources/Features/FeatureToday/data.json'):
             with self.subTest(path=path):
                 self.assertTrue(logic_changed([self.VIEW, path]))
 
     def test_unknown_or_truncated_lists_run_logic(self):
         self.assertTrue(logic_changed([]))
         self.assertTrue(logic_changed([self.VIEW] * 300))
-
-    def test_every_listed_path_is_ui_only(self):
-        self.assertFalse(any(ui_only(path) for path in READ_BY_TESTS))
 
     def test_no_swiftpm_test_target_depends_on_a_ui_module(self):
         package = json.loads(subprocess.run(['swift', 'package', '--package-path', 'ios', 'dump-package'], cwd=ROOT,
@@ -70,14 +67,14 @@ class LogicScopeTests(unittest.TestCase):
             with self.subTest(target=name):
                 self.assertFalse(path.startswith(UI_PREFIXES), 'a test target can see this module; update UI_PREFIXES')
 
-    def test_no_test_reads_a_ui_source_except_those_listed(self):
+    def test_no_test_reads_a_ui_source(self):
         pattern = re.compile(r'Sources/(?:Features|TodayDesignSystem|TodayPlannerUI|TodayShell)/[\w./]+\.swift')
         read = set()
         for base in ('ios/Eval/Tests', 'ios/SceneRegistryTests', 'tests/ci', 'tests/qa'):
             for path in (ROOT / base).rglob('*'):
                 if path.suffix in ('.swift', '.py') and path.name != 'test_scope.py':
                     read |= {'ios/' + hit for hit in pattern.findall(path.read_text())}
-        self.assertLessEqual(read, READ_BY_TESTS)
+        self.assertEqual(read, set())
 
 
 if __name__ == '__main__':

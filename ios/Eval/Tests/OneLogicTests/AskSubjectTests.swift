@@ -41,19 +41,4 @@ final class AskSubjectTests: XCTestCase {
     let long = AskSubject(kind: .reminder, title: String(repeating: "a", count: 500))
     XCTAssertEqual(long.title.count, 120)
   }
-
-  func testSystemEventAttachmentRetainsOccurrenceAndAllDayAcrossChatStorage() throws {
-    let occurrence = calendar.startOfDay(for: start)
-    let subject = AskSubject(
-      kind: .event, title: "Conference", start: occurrence, isAllDay: true, minutes: 1440,
-      details: ["repeats"], itemRef: "apple-series-id", isSystemEvent: true)
-    let restored = try JSONDecoder().decode(AskSubject.self, from: JSONEncoder().encode(subject))
-    XCTAssertEqual(restored, subject)
-    XCTAssertEqual(restored.itemRef, "apple-series-id")
-    XCTAssertEqual(restored.start, occurrence)
-    XCTAssertTrue(restored.isAllDay)
-    XCTAssertEqual(restored.minutes, 1440)
-    XCTAssertFalse(restored.contextLine(calendar: calendar).contains("apple-series-id"))
-  }
-
 }

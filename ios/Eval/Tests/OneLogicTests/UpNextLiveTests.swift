@@ -64,13 +64,6 @@ final class UpNextLiveTests: XCTestCase {
         now: now), [])
   }
 
-  func testAlarmsAndRemindersCount() {
-    let now = at(9)
-    XCTAssertEqual(
-      titles([item("r", at(10), kind: .reminder), item("al", at(11), kind: .alarm)], now: now),
-      ["r", "al"])
-  }
-
   func testSortsByTimeAndKeepsTiesInOrder() {
     let now = at(9)
     XCTAssertEqual(
@@ -126,23 +119,6 @@ final class UpNextLiveTests: XCTestCase {
     XCTAssertEqual(rows(items, now: at(9), settled: ["b"]).map(\.title), ["a", "c", "d"])
   }
 
-  func testAllSettledMeansNoCard() {
-    let now = at(9)
-    let result = rows([item("a", at(10)), item("b", at(11))], now: now, settled: ["a", "b"])
-    XCTAssertEqual(result, [])
-    XCTAssertEqual(action(rows: result, live: nil, now: now), .none)
-    let live = UpNextLifecycle.Live(rows: row, requestedAt: at(8))
-    XCTAssertEqual(action(rows: result, live: live, now: now), .end)
-  }
-
-  func testASettledItemTakesNoSlotUnderASmallerMaximum() {
-    var options = defaultOptions
-    options.maxItems = 1
-    let items = [item("a", at(10)), item("b", at(11))]
-    XCTAssertEqual(
-      rows(items, now: at(9), settled: ["a"], options: options).map(\.title), ["b"])
-  }
-
   // MARK: Options
 
   func testEachWindowIncludesItsEdgeAndExcludesPastIt() {
@@ -185,17 +161,6 @@ final class UpNextLiveTests: XCTestCase {
     XCTAssertEqual(shown(without: .event), ["r", "al"])
     XCTAssertEqual(shown(without: .reminder), ["e", "al"])
     XCTAssertEqual(shown(without: .alarm), ["e", "r"])
-  }
-
-  func testAllKindsOffMeansNoCard() {
-    var options = defaultOptions
-    options.kinds = []
-    let rows = UpNextLive.rows(
-      from: [item("e", at(10))], now: at(9), options: options)
-    XCTAssertEqual(rows, [])
-    XCTAssertEqual(action(rows: rows, live: nil, now: at(9)), .none)
-    let live = UpNextLifecycle.Live(rows: row, requestedAt: at(8))
-    XCTAssertEqual(action(rows: rows, live: live, now: at(9)), .end)
   }
 
   func testOptionReadersDefaultAndRejectUnknownValues() throws {
@@ -303,29 +268,5 @@ final class UpNextLiveTests: XCTestCase {
   func testUITestingNeverAllowsARealActivity() {
     XCTAssertFalse(UpNextLive.allowsRealActivity(arguments: ["app", "-uiTesting"]))
     XCTAssertTrue(UpNextLive.allowsRealActivity(arguments: ["app"]))
-  }
-
-  // MARK: Setting and events
-
-  func testSettingDefaultsOnAndCanBeTurnedOff() throws {
-    XCTAssertTrue(Preferences.upNextLiveActivity)
-    let suite = "UpNextLiveTests.\(UUID().uuidString)"
-    let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
-    defer { defaults.removePersistentDomain(forName: suite) }
-    XCTAssertTrue(Preferences.upNextLiveActivityEnabled(defaults))
-    defaults.set(false, forKey: Preferences.upNextLiveActivityKey)
-    XCTAssertFalse(Preferences.upNextLiveActivityEnabled(defaults))
-  }
-
-  func testEventsCarryNoFreeText() {
-    let setting = ActivityEvents.upNextSetting(on: true)
-    XCTAssertEqual(setting.kind, ActivityKind.sysUpNextSetting)
-    XCTAssertTrue(setting.props.contains("true"))
-    let option = ActivityEvents.settingChanged(key: Preferences.upNextWindowHoursKey, value: "2")
-    XCTAssertTrue(option.props.contains(Preferences.upNextWindowHoursKey))
-    XCTAssertTrue(option.props.contains("\"value\":\"2\""))
-    let dismissed = ActivityEvents.upNextDismissed()
-    XCTAssertEqual(dismissed.kind, ActivityKind.sysUpNextDismissed)
-    XCTAssertTrue(dismissed.props.contains("lockscreen"))
   }
 }

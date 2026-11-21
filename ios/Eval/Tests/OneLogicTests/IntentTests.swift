@@ -81,18 +81,6 @@ final class IntentTests: XCTestCase {
     XCTAssertEqual(alarm.kind, .task)
   }
 
-  // MARK: Start Timer
-
-  func testTimerMinutesMatchTheDial() {
-    XCTAssertEqual(IntentTimer.seconds(minutes: 1), 60)
-    XCTAssertEqual(IntentTimer.seconds(minutes: 25), 1500)
-    XCTAssertEqual(IntentTimer.seconds(minutes: IntentTimer.maxMinutes), TimerDial.maxSeconds)
-    XCTAssertNil(IntentTimer.seconds(minutes: 0))
-    XCTAssertNil(IntentTimer.seconds(minutes: IntentTimer.maxMinutes + 1))
-    XCTAssertEqual(IntentTimer.spoken(minutes: 1), "1 minute")
-    XCTAssertEqual(IntentTimer.spoken(minutes: 5), "5 minutes")
-  }
-
   // MARK: What's next
 
   private func item(

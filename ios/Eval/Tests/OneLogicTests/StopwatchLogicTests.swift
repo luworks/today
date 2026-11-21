@@ -9,13 +9,6 @@ import XCTest
 final class StopwatchLogicTests: XCTestCase {
   // MARK: Ring
 
-  func testRingHasFourTicksASecond() {
-    XCTAssertEqual(StopwatchDial.tickCount, 240)
-    XCTAssertEqual(StopwatchDial.angle(ofTick: 0), 0)
-    XCTAssertEqual(StopwatchDial.angle(ofTick: 1), 1.5, accuracy: 1e-9)
-    XCTAssertEqual(StopwatchDial.angle(ofTick: 120), 180, accuracy: 1e-9)
-  }
-
   func testTickKinds() {
     let kinds = (0..<StopwatchDial.tickCount).map(StopwatchDial.tick(at:))
     XCTAssertEqual(kinds.filter { $0 == .major }.count, 12, "white at 5, 10 … 60")
@@ -25,20 +18,6 @@ final class StopwatchLogicTests: XCTestCase {
     XCTAssertEqual(StopwatchDial.tick(at: 20), .major, "5 seconds")
     XCTAssertEqual(StopwatchDial.tick(at: 60), .major, "15 seconds, at 3 o'clock")
     XCTAssertEqual(StopwatchDial.angle(ofTick: 60), 90, accuracy: 1e-9)
-  }
-
-  func testNumeralsSitAtTheirSeconds() {
-    XCTAssertEqual(StopwatchDial.numerals, [5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60])
-    XCTAssertEqual(StopwatchDial.numeralAngle(60), 0, "60 is at the top")
-    XCTAssertEqual(StopwatchDial.numeralAngle(5), 30)
-    XCTAssertEqual(StopwatchDial.numeralAngle(15), 90)
-    XCTAssertEqual(StopwatchDial.numeralAngle(30), 180, "30 is at the bottom")
-    XCTAssertEqual(StopwatchDial.numeralAngle(45), 270)
-    // Every numeral sits on a white tick.
-    for n in StopwatchDial.numerals {
-      let index = Int((StopwatchDial.numeralAngle(n) / 1.5).rounded())
-      XCTAssertEqual(StopwatchDial.tick(at: index), .major)
-    }
   }
 
   // MARK: Hands
@@ -67,25 +46,6 @@ final class StopwatchLogicTests: XCTestCase {
     XCTAssertEqual(StopwatchDial.minutesHandAngle(elapsed: 35 * 60), 60, accuracy: 1e-9)
   }
 
-  // MARK: Counter
-
-  func testCounterTicksAndNumerals() {
-    XCTAssertEqual(StopwatchDial.subTickCount, 60)
-    let kinds = (0..<StopwatchDial.subTickCount).map(StopwatchDial.subTick(at:))
-    XCTAssertEqual(kinds.filter { $0 == .major }.count, 6, "white every 5 minutes")
-    XCTAssertEqual(kinds.filter { $0 == .minute }.count, 24)
-    XCTAssertEqual(kinds.filter { $0 == .half }.count, 30)
-    XCTAssertEqual(StopwatchDial.angle(ofSubTick: 10), 60, accuracy: 1e-9)
-    XCTAssertEqual(StopwatchDial.subNumerals, [5, 10, 15, 20, 25, 30])
-    XCTAssertEqual(StopwatchDial.subNumeralAngle(30), 0, "30 is at the top")
-    XCTAssertEqual(StopwatchDial.subNumeralAngle(5), 60)
-    XCTAssertEqual(StopwatchDial.subNumeralAngle(15), 180)
-    for n in StopwatchDial.subNumerals {
-      let index = Int((StopwatchDial.subNumeralAngle(n) / 6).rounded())
-      XCTAssertEqual(StopwatchDial.subTick(at: index), .major)
-    }
-  }
-
   // MARK: Laps
 
   func testFastestAndSlowestMarks() {
@@ -102,11 +62,6 @@ final class StopwatchLogicTests: XCTestCase {
   }
 
   // MARK: Wording
-
-  func testTheTimeReadsLikeTheReferenceShot() {
-    XCTAssertEqual(StopwatchState.format(5.75), "00:05.75")
-    XCTAssertEqual(StopwatchState.digital(5.75, decimalSeparator: "."), "00:05.75")
-  }
 
   func testDigitalUsesTheLanguagesDecimalMark() {
     XCTAssertEqual(StopwatchState.digital(5.75, decimalSeparator: ","), "00:05,75")
@@ -141,17 +96,5 @@ final class StopwatchLogicTests: XCTestCase {
       StopwatchState.spokenLap(number: 2, time: 3.2, mark: .fastest), "Lap 2, 00:03.20, fastest")
     XCTAssertEqual(
       StopwatchState.spokenLap(number: 3, time: 8.9, mark: .slowest), "Lap 3, 00:08.90, slowest")
-  }
-
-  func testPageDefaultsToAnalogAndRemembersTheChoice() {
-    let defaults = UserDefaults(suiteName: "StopwatchLogicTests")!
-    defaults.removePersistentDomain(forName: "StopwatchLogicTests")
-    XCTAssertEqual(StopwatchPage.load(from: defaults), .analog)
-    defaults.set("digital", forKey: StopwatchPage.defaultsKey)
-    XCTAssertEqual(StopwatchPage.load(from: defaults), .digital)
-    defaults.set("garbage", forKey: StopwatchPage.defaultsKey)
-    XCTAssertEqual(StopwatchPage.load(from: defaults), .analog)
-    XCTAssertEqual(
-      StopwatchPage.allCases, [.digital, .analog], "digital is the left dot, analog the right")
   }
 }

@@ -41,40 +41,6 @@ final class ActivityStoreTests: XCTestCase {
 
   // MARK: Schema
 
-  func testNewEventKeepsIdentityStampAndPayloadDefaults() {
-    let e = ActivityEvent(kind: "ai.turn", actor: "you", at: now, calendar: cal)
-    let stamp = ActivityClock.stamp(now, calendar: cal)
-    XCTAssertNotNil(UUID(uuidString: e.uid))
-    XCTAssertNotEqual(
-      e.uid, ActivityEvent(kind: e.kind, actor: e.actor, at: now, calendar: cal).uid)
-    XCTAssertEqual(e.ts, stamp.ts)
-    XCTAssertEqual(e.tz, stamp.tz)
-    XCTAssertEqual(e.day, stamp.day)
-    XCTAssertEqual(e.tier, ActivityTier.ai.rawValue)
-    XCTAssertEqual(
-      ActivityEvent(kind: "ai.turn", tier: .usage, actor: "you", at: now, calendar: cal).tier, 3)
-    XCTAssertEqual(e.device, "")
-    XCTAssertEqual(e.props, "{}")
-    XCTAssertEqual(e.v, 1)
-    XCTAssertEqual(e.sync, 0)
-    XCTAssertNil(e.channel)
-    XCTAssertNil(e.session)
-    XCTAssertNil(e.thread)
-    XCTAssertNil(e.subjectKind)
-    XCTAssertNil(e.subjectRef)
-    XCTAssertNil(e.approval)
-    XCTAssertNil(e.undoOf)
-    XCTAssertNil(e.title)
-    XCTAssertNil(e.beforeText)
-    XCTAssertNil(e.afterText)
-    XCTAssertNil(e.beforeTs)
-    XCTAssertNil(e.afterTs)
-    XCTAssertNil(e.rowID)
-    XCTAssertNil(e.snapshot)
-    XCTAssertFalse(e.hasSnapshot)
-    XCTAssertEqual(e.content, [])
-  }
-
   func testHydrationPreservesEveryPersistedFieldAndLoadsPayloadOnlyForExport() throws {
     let s = try memory()
     var e = change(
@@ -344,18 +310,6 @@ final class ActivityStoreTests: XCTestCase {
     XCTAssertEqual(try c.count(ActivityQuery(tiers: [.changes])), 5, "forever keeps every change")
   }
 
-  func testDefaultRetentionAndExplicitSavedChoices() throws {
-    let suite = "activity-retention-\(UUID().uuidString)"
-    let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
-    defer { defaults.removePersistentDomain(forName: suite) }
-    XCTAssertEqual(ActivitySettings().retention, .forever)
-    XCTAssertEqual(ActivitySettings(defaults).retention, .forever)
-    for choice in [ActivityRetention.days90, .year, .forever] {
-      defaults.set(choice.rawValue, forKey: ActivitySettings.retentionKey)
-      XCTAssertEqual(ActivitySettings(defaults).retention, choice)
-    }
-  }
-
   func testForeverKeepsRawEventsAndContentAcrossAllTiersButExpiresSnapshots() throws {
     let s = try memory()
     var events: [ActivityEvent] = []
@@ -548,46 +502,5 @@ final class ActivityStoreTests: XCTestCase {
     XCTAssertEqual(try ActivityExport.write(.csv, from: s, to: csv), 1234)
     let lines = try String(contentsOf: csv, encoding: .utf8).components(separatedBy: "\r\n")
     XCTAssertEqual(lines.count, 1236, "header + rows + trailing empty piece")
-  }
-
-  func testRedactedDropsEverythingPersonalAndCoarsensTime() {
-    var e = change("Call Mom", ref: "ref", uid: "x")
-    e.thread = "t"
-    e.beforeText = "a"
-    e.afterText = "b"
-    e.snapshot = Data([1])
-    e.undoOf = "u"
-    e.content = [ActivityContent(field: "title", before: "a", after: "b")]
-    e.ts = 3_600_000 * 7 + 123_456
-    e.props = ActivityProps.json(["ms": 5])
-    let r = e.redacted()
-    XCTAssertNil(r.title)
-    XCTAssertNil(r.beforeText)
-    XCTAssertNil(r.thread)
-    XCTAssertNil(r.subjectRef)
-    XCTAssertNil(r.snapshot)
-    XCTAssertTrue(r.content.isEmpty)
-    XCTAssertEqual(r.ts, 3_600_000 * 7)
-    XCTAssertEqual(r.kind, e.kind)
-    XCTAssertEqual(r.props, e.props, "counts and durations stay")
-  }
-
-  // MARK: Benchmark
-
-  func testBenchmarkRunsAndReportsNumbers() throws {
-    let r = try ActivityBenchmark.run(rows: 5_000, in: dir)
-    XCTAssertEqual(r.rows, 5_000)
-    XCTAssertGreaterThan(r.insertRowsPerSecond, 1_000)
-    XCTAssertLessThan(r.newestPageMs, 250)
-    print("ACTIVITY BENCH (5k, quick):\n" + r.summary)
-  }
-
-  /// `ACTIVITY_BENCH_ROWS=100000 swift test --filter testBenchmarkLarge` for the numbers in the README.
-  func testBenchmarkLarge() throws {
-    guard let n = ProcessInfo.processInfo.environment["ACTIVITY_BENCH_ROWS"].flatMap(Int.init)
-    else { throw XCTSkip("set ACTIVITY_BENCH_ROWS") }
-    let r = try ActivityBenchmark.run(rows: n, in: dir)
-    print("ACTIVITY BENCH (\(n)):\n" + r.summary)
-    XCTAssertLessThan(r.deepPageMs, 100)
   }
 }

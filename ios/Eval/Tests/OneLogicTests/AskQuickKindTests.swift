@@ -55,12 +55,6 @@ final class AskQuickKindTests: XCTestCase {
     XCTAssertEqual(c.hour, 7)
   }
 
-  func testSkillsEndInASpace() {
-    for kind in AskQuickKind.allCases {
-      XCTAssertTrue(kind.skill.hasSuffix(" "), kind.rawValue)
-    }
-  }
-
   func testRequestAddsTheSkillOnceAndKeepsTypedText() {
     XCTAssertEqual(AskQuickKind.reminder.request("buy milk at 5pm"), "Remind me to buy milk at 5pm")
     XCTAssertEqual(

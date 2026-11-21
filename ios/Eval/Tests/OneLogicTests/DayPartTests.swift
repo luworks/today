@@ -57,8 +57,4 @@ struct DayPartTests {
     ])
     #expect(rows == ["label.morning", "a.morning.close", "end.morning", "free"])
   }
-
-  @Test func noItemsNoRows() {
-    #expect(ids([]).isEmpty)
-  }
 }

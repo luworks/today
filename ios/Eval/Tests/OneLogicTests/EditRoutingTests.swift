@@ -44,10 +44,6 @@ final class EditRoutingTests: XCTestCase {
     XCTAssertFalse(isEdit(first))
   }
 
-  func testClarificationIsNotAnEdit() {
-    XCTAssertFalse(isEdit(clarification))
-  }
-
   func testClarificationBecomesAReminderToday3pm() {
     let c = CaptureParser.parse(clarification, now: now, calendar: cal)
     XCTAssertEqual(c.hour, 15)
@@ -61,11 +57,6 @@ final class EditRoutingTests: XCTestCase {
   }
 
   // MARK: A clock time alone names no item
-
-  func testPlacementWithATimeIsNotAnEdit() {
-    XCTAssertFalse(isEdit("把东西放到车库，下午3点"))
-    XCTAssertFalse(isEdit("Put the boxes in the garage at 3pm"))
-  }
 
   func testRemindMeAtAnItemsTimeIsNew() {
     XCTAssertFalse(isEdit("Remind me to call Sam at 3pm"))

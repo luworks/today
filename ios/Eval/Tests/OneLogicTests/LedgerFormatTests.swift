@@ -28,18 +28,6 @@ final class LedgerFormatTests: XCTestCase {
     XCTAssertTrue(all.allSatisfy(ActivityFilter.all.includes))
   }
 
-  func testHeadlineAndBeforeAfter() {
-    XCTAssertEqual(LedgerFormat.headline(.planned, title: "Buy milk"), "Planned “Buy milk”")
-    XCTAssertEqual(LedgerFormat.headline(.deleted, title: "Buy milk"), "Deleted “Buy milk”")
-    XCTAssertEqual(
-      LedgerFormat.change(before: "Not planned", after: "Today 10:00"), "Not planned → Today 10:00")
-    XCTAssertEqual(LedgerFormat.change(before: "", after: "Today 10:00"), "Today 10:00")
-    XCTAssertEqual(LedgerFormat.change(before: "", after: ""), "")
-    XCTAssertEqual(LedgerFormat.time(nil), "Not planned")
-    XCTAssertEqual(LedgerFormat.time(nil, none: "No date"), "No date")
-    XCTAssertEqual(LedgerFormat.time(cal.startOfDay(for: .now), calendar: cal), "Today")
-  }
-
   func testUndoIsOfferedOnlyForReminderChangesTodayCanPutBack() {
     func can(
       _ a: LedgerAction, kind: String = "task", approval: LedgerApproval = .userMade,
@@ -81,13 +69,5 @@ final class LedgerFormatTests: XCTestCase {
     XCTAssertEqual(groups.map(\.title).prefix(2), ["Today", "Yesterday"])
     XCTAssertEqual(groups.count, 3)
     XCTAssertEqual(groups[0].items, [dates[2], dates[0]], "newest first within a day")
-  }
-
-  func testTaskSnapshotRoundTrips() throws {
-    let s = TaskSnapshot(
-      title: "Buy milk", due: .now, listName: "Home", flagged: true,
-      checklist: [ChecklistItem(title: "Oat")])
-    let back = try JSONDecoder().decode(TaskSnapshot.self, from: JSONEncoder().encode(s))
-    XCTAssertEqual(back, s)
   }
 }

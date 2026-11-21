@@ -5,7 +5,7 @@ import XCTest
 @testable import TodayData
 
 /// The one-time import of the Clock app's alarms: the repeat text a Shortcut hands over, and the staging list the
-/// Clock tab reads (nothing is set until the user taps Add). Also the intro card's shown-once flag.
+/// Clock tab reads (nothing is set until the user taps Add).
 final class AlarmImportTests: XCTestCase {
   private var defaults: UserDefaults!
   private var suite = ""
@@ -56,11 +56,5 @@ final class AlarmImportTests: XCTestCase {
         .init(hour: i / 60, minute: i % 60, label: "", weekdays: [], isOn: true), defaults)
     }
     XCTAssertEqual(AlarmImport.staged(defaults).count, AlarmImport.limit)
-  }
-
-  func testIntroIsShownOnce() {
-    XCTAssertFalse(Preferences.alarmIntroSeen(defaults))
-    Preferences.markAlarmIntroSeen(defaults)
-    XCTAssertTrue(Preferences.alarmIntroSeen(defaults))
   }
 }

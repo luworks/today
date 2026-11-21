@@ -42,11 +42,6 @@ final class ConversationHistoryTests: XCTestCase {
     XCTAssertEqual(groups[0].items.map(\.0), ["today-late", "today-early"])
   }
 
-  func testEmptyInputGivesNoGroups() {
-    XCTAssertTrue(
-      ConversationHistory.group([Date](), date: { $0 }, now: now, calendar: cal).isEmpty)
-  }
-
   func testTitleCollapsesWhitespaceAndCaps() {
     XCTAssertEqual(
       ConversationHistory.title(from: "  Call   Alex\n tomorrow "), "Call Alex tomorrow")

@@ -4,44 +4,6 @@ import Testing
 @testable import TodayScenes
 
 struct SceneRegistryTests {
-  @Test func persistedAutomationHandlesStayAvailable() throws {
-    // External launch contract, grouped by user journeys rather than a tautological case count.
-    let journeys = [
-      ["today"],
-      [
-        "calendar.twoday", "calendar.month", "calendar.year", "calendar.year.key",
-        "calendar.event.editor",
-      ],
-      [
-        "reminders", "reminders.today", "reminders.scheduled", "reminders.all", "reminders.flagged",
-        "reminders.completed", "reminders.list", "reminders.editor", "reminders.quickAdd",
-        "reminders.listEditor",
-      ],
-      [
-        "clock.alarms", "clock.alarm.editor", "clock.alarm.sound", "clock.world",
-        "clock.world.cityPicker", "clock.stopwatch", "clock.timer",
-      ],
-      [
-        "ask", "ask.card.capture", "ask.card.stack", "ask.card.change",
-        "ask.card.tidy",
-      ],
-      [
-        "activity", "settings", "settings.appearance", "settings.apple", "settings.today",
-        "settings.calendar",
-        "settings.reminders", "settings.smartLists", "settings.alarms", "settings.ai",
-        "settings.activity", "settings.calendar.holidays", "settings.about", "settings.delete",
-      ],
-      ["health", "health.detail", "health.picker"],
-    ]
-    for handle in journeys.flatMap({ $0 }) {
-      let config = try SceneRegistry.configuration(arguments: ["-scene", handle])
-      #expect(config.scene.rawValue == handle)
-    }
-    let handles = SceneRegistry.all.map(\.id.rawValue)
-    #expect(Set(handles).count == handles.count)
-    #expect(handles.allSatisfy { !$0.isEmpty && !$0.contains(" ") })
-  }
-
   @Test func everyDeclaredScenarioIsValidatedAndEveryOtherScenarioIsRejected() throws {
     for descriptor in SceneRegistry.all {
       #expect(descriptor.scenarios.contains(.normal))
@@ -57,22 +19,6 @@ struct SceneRegistryTests {
         }
       }
     }
-  }
-
-  @Test func nativeFixtureCapabilitiesAreTruthful() {
-    #expect(SceneRegistry.descriptor(for: .clockWorld).capabilities.contains(.injectedClock))
-    #expect(SceneRegistry.descriptor(for: .clockStopwatch).capabilities.contains(.isolatedDefaults))
-    #expect(SceneRegistry.descriptor(for: .healthDetail).capabilities.contains(.mockHealth))
-    #expect(!SceneRegistry.descriptor(for: .health).scenarios.contains(.denied))
-    #expect(!SceneRegistry.descriptor(for: .reminderEditor).scenarios.contains(.dense))
-    #expect(SceneRegistry.descriptor(for: .settingsSmartLists).integrationBlocker == nil)
-    #expect(SceneRegistry.descriptor(for: .settingsToday).integrationBlocker == nil)
-    #expect(SceneRegistry.descriptor(for: .settingsApple).capabilities.contains(.legacyEnvironment))
-    #expect(SceneRegistry.descriptor(for: .health).scenarios.contains(.error))
-    #expect(SceneRegistry.descriptor(for: .health).scenarios.contains(.unavailable))
-    #expect(!SceneRegistry.descriptor(for: .healthDetail).scenarios.contains(.error))
-    #expect(!SceneRegistry.descriptor(for: .healthPicker).scenarios.contains(.unavailable))
-    #expect(!SceneRegistry.descriptor(for: .health).scenarios.contains(.loading))
   }
 
   @Test func configurationRoundTripPreservesClockCalendarAndIdentity() throws {

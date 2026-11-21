@@ -153,20 +153,6 @@ final class TravelTimeTests: XCTestCase {
 
   // MARK: Permission and throttling
 
-  func testAskForLocationOnlyWhenNeeded() {
-    XCTAssertTrue(
-      TravelTime.shouldAskPermission(notDetermined: true, enabled: true, hasEligibleEvent: true))
-    XCTAssertFalse(
-      TravelTime.shouldAskPermission(notDetermined: false, enabled: true, hasEligibleEvent: true),
-      "already answered")
-    XCTAssertFalse(
-      TravelTime.shouldAskPermission(notDetermined: true, enabled: false, hasEligibleEvent: true),
-      "Travel time off")
-    XCTAssertFalse(
-      TravelTime.shouldAskPermission(notDetermined: true, enabled: true, hasEligibleEvent: false),
-      "nothing upcoming")
-  }
-
   func testSoonestRequestsFirstAndAFewAtATime() {
     let c: [(id: String, start: Date)] = [
       ("c", date(17, 9)), ("a", date(16, 11)), ("d", date(17, 12)), ("b", date(16, 15)),

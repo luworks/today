@@ -13,18 +13,11 @@ final class AgentRunnerTests: XCTestCase {
     var book = AgentProposalBook()
     var run = "run-1"
     var log: [String] = []
-    var inFlight = 0
-    var maxInFlight = 0
-    var readDelay: Duration = .zero
 
     func run(_ call: AgentToolCall) async -> AgentToolOutcome {
       log.append(call.name)
       guard let tool = call.tool else { return .error("unknown_tool", call.name) }
       if !tool.isWrite {
-        inFlight += 1
-        maxInFlight = max(maxInFlight, inFlight)
-        if readDelay > .zero { try? await Task.sleep(for: readDelay) }
-        inFlight -= 1
         return AgentToolOutcome(["items": [["id": "t17", "title": "[QA] Dentist"]]])
       }
       switch tool {
@@ -55,12 +48,11 @@ final class AgentRunnerTests: XCTestCase {
   }
 
   private func runner(
-    _ steps: [ScriptedModelClient.Step], toolbox: Toolbox = Toolbox(), maxSteps: Int = 6,
-    deadline: TimeInterval = 30
+    _ steps: [ScriptedModelClient.Step], toolbox: Toolbox = Toolbox(), maxSteps: Int = 6
   ) -> (AgentRunner, ScriptedModelClient, Toolbox) {
     let client = ScriptedModelClient(steps)
     return (
-      AgentRunner(client: client, toolbox: toolbox, maxSteps: maxSteps, deadline: deadline),
+      AgentRunner(client: client, toolbox: toolbox, maxSteps: maxSteps),
       client, toolbox
     )
   }
@@ -112,24 +104,6 @@ final class AgentRunnerTests: XCTestCase {
       input.contains { AgentItem.role($0) == "system" || AgentItem.role($0) == "developer" })
   }
 
-  func testReadToolsRunInParallel() async {
-    let box = Toolbox()
-    box.readDelay = .milliseconds(80)
-    let (r, _, _) = runner(
-      [
-        ScriptedModelClient.calls([
-          Call("get_agenda", ["start": "tomorrow", "end": "tomorrow", "kinds": []], id: "a"),
-          Call("free_time", ["day": "tomorrow", "min_minutes": 30], id: "b"),
-          Call("list_lists", [:], id: "c"),
-        ]),
-        ScriptedModelClient.reply("You have one event tomorrow."),
-      ], toolbox: box)
-    let result = await r.run(history: [], message: "我明天有什么安排？", runID: "r", chinese: true)
-    XCTAssertEqual(box.maxInFlight, 3, "all three reads were in flight together")
-    XCTAssertEqual(result.cards, 0)
-    XCTAssertEqual(result.reply, "You have one event tomorrow.")
-  }
-
   func testTheRunStopsAtSixStepsAndSaysItIsUnfinished() async {
     let looping = (1...8).map { i in
       ScriptedModelClient.calls([Call("find_items", ["query": .string("x\(i)")], id: "c\(i)")])
@@ -144,22 +118,6 @@ final class AgentRunnerTests: XCTestCase {
     let calls = result.items.filter { AgentItem.type($0) == "function_call" }.count
     let outputs = result.items.filter { AgentItem.type($0) == "function_call_output" }.count
     XCTAssertEqual(calls, outputs)
-  }
-
-  func testTheDeadlineStopsARunAndKeepsItsCards() async {
-    let (r, _, box) = runner(
-      [
-        ScriptedModelClient.calls([
-          Call("propose_create", ["items": [["kind": "reminder", "title": "Milk"]]], id: "c1")
-        ]),
-        ScriptedModelClient.reply("slow", delay: .seconds(5)),
-      ], deadline: 0.3)
-    let result = await r.run(history: [], message: "milk", runID: "r", chinese: false)
-    XCTAssertEqual(result.stop, .deadline)
-    XCTAssertEqual(result.cards, 1)
-    XCTAssertTrue(box.book.hasOpen)
-    XCTAssertEqual(result.reply, AgentReply.unfinished(cards: 1, chinese: false))
-    XCTAssertLessThan(result.duration, 3)
   }
 
   func testAFailedFirstStepLeavesNoHistoryAndKeepsTheDraft() async {

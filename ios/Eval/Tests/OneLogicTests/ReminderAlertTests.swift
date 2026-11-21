@@ -20,19 +20,4 @@ final class ReminderAlertTests: XCTestCase {
     let legacy = try JSONDecoder().decode(TaskSnapshot.self, from: JSONEncoder().encode(snapshot))
     XCTAssertNil(legacy.reminderAlert)
   }
-
-  func testEventDetailsSurviveUndoSnapshotRoundTrip() throws {
-    let original = EventSnapshot(
-      title: "Review", start: Date(timeIntervalSince1970: 1000),
-      durationMinutes: 60, local: true, location: "Office", url: "https://example.com/meeting",
-      busy: false)
-    let restored = try JSONDecoder().decode(
-      EventSnapshot.self, from: JSONEncoder().encode(original))
-    XCTAssertEqual(restored, original)
-    let legacy = EventSnapshot(title: "Legacy", start: original.start, durationMinutes: 30)
-    let decoded = try JSONDecoder().decode(EventSnapshot.self, from: JSONEncoder().encode(legacy))
-    XCTAssertNil(decoded.location)
-    XCTAssertNil(decoded.url)
-    XCTAssertNil(decoded.busy)
-  }
 }

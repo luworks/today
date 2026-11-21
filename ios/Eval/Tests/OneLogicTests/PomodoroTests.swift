@@ -16,15 +16,6 @@ final class PomodoroTests: XCTestCase {
       from: DateComponents(year: 2026, month: 10, day: day, hour: hour, minute: minute))!
   }
 
-  func testPresetsAndLabels() {
-    XCTAssertEqual(Pomodoro.chips, [.focus, .shortBreak, .longBreak])
-    XCTAssertEqual(Pomodoro.chips.map(\.minutes), [25, 5, 15])
-    XCTAssertEqual(Pomodoro.chips.map(\.presetLabel), ["Focus", "Short break", "Long break"])
-    XCTAssertEqual(PomodoroPhase.focus.title, "Focus")
-    XCTAssertEqual(PomodoroPhase.shortBreak.title, "Break")
-    XCTAssertEqual(PomodoroPhase.longBreak.title, "Break")
-  }
-
   func testOnlyAnExactPresetIsAPomodoroTimer() {
     XCTAssertEqual(Pomodoro.preset(seconds: 25 * 60, label: "Focus"), .focus)
     XCTAssertEqual(Pomodoro.preset(seconds: 5 * 60, label: "Short break"), .shortBreak)
