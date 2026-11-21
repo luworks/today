@@ -52,8 +52,7 @@ def release():
     generate()
     step('project generated')
     run('xcodebuild', 'build', '-quiet', '-project', 'ios/Today.xcodeproj', '-scheme', 'Today',
-        '-configuration', 'Release', '-destination', 'generic/platform=iOS', '-jobs', '3',
-        'CODE_SIGNING_ALLOWED=NO', *FLAGS)
+        '-configuration', 'Release', '-destination', 'generic/platform=iOS', 'CODE_SIGNING_ALLOWED=NO', *FLAGS)
     step('built App, Widget and Share for a device in Release')
     return 0
 
@@ -70,7 +69,7 @@ def build():
     stable = [f'{name}={os.environ[name]}' for name in ('HOME', 'PATH', 'DEVELOPER_DIR')]
     # No separate debug dylib for Previews: one link and one signature fewer per app, same compile.
     run('env', '-i', *stable, 'xcodebuild', 'build-for-testing', '-quiet', '-project', 'ios/Today.xcodeproj', '-scheme', 'TodayCI',
-        '-configuration', 'Debug', '-destination', 'generic/platform=iOS Simulator', '-jobs', '3',
+        '-configuration', 'Debug', '-destination', 'generic/platform=iOS Simulator',
         'ARCHS=arm64', 'ENABLE_DEBUG_DYLIB=NO', *FLAGS)
     step('built App, Widget, Share, Mock and test bundles')
     products = DD / 'Build/Products/Debug-iphonesimulator'
