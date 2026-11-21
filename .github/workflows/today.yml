@@ -34,16 +34,6 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RANGE: ${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }}
-      - if: steps.scope.outputs.app != 'false'
-        run: python3 scripts/ci/job.py --command ./dev bootstrap --tool swift-format --tool swiftlint --tool ruff --tool actionlint
-      - if: steps.scope.outputs.app != 'false'
-        run: python3 scripts/ci/job.py --command ./dev format --check
-      - if: steps.scope.outputs.app != 'false'
-        run: python3 scripts/ci/job.py --command ./dev lint
-      - if: steps.scope.outputs.logic != 'false'
-        run: python3 scripts/ci/job.py --command ./dev test helpers
-      - if: steps.scope.outputs.logic != 'false'
-        run: python3 scripts/ci/job.py --command ./dev test qa
       # The logic tests compile incrementally on the SwiftPM build of the newest green main, which
       # saves it. Content-based mtimes make the restored build reusable.
       - id: logic
@@ -59,6 +49,20 @@ jobs:
           restore-keys: ${{ steps.logic.outputs.prefix }}
       - if: steps.scope.outputs.logic != 'false'
         run: python3 scripts/ci/mtimes.py
+      # Compile them in the background while format, lint and the helper tests run; the unit step
+      # waits for this build and then only runs the tests.
+      - if: steps.scope.outputs.logic != 'false'
+        run: nohup swift build --package-path ios --build-tests >/dev/null 2>&1 &
+      - if: steps.scope.outputs.app != 'false'
+        run: python3 scripts/ci/job.py --command ./dev bootstrap --tool swift-format --tool swiftlint --tool ruff --tool actionlint
+      - if: steps.scope.outputs.app != 'false'
+        run: python3 scripts/ci/job.py --command ./dev format --check
+      - if: steps.scope.outputs.app != 'false'
+        run: python3 scripts/ci/job.py --command ./dev lint
+      - if: steps.scope.outputs.logic != 'false'
+        run: python3 scripts/ci/job.py --command ./dev test helpers
+      - if: steps.scope.outputs.logic != 'false'
+        run: python3 scripts/ci/job.py --command ./dev test qa
       - if: steps.scope.outputs.logic != 'false'
         run: python3 scripts/ci/job.py --command ./dev test unit
       - if: github.event_name == 'push'
