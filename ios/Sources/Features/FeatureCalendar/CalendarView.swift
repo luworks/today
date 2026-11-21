@@ -365,8 +365,9 @@
         let drop = (monthHeight - rowHeight) * (1 - p)
         VStack(spacing: 0) {
           handle
-          agenda
+          agenda.environment(\.monthFoldOpen, !collapsed)
         }
+        .safeAreaPadding(.bottom, collapsed || progress != nil ? 0 : monthHeight - rowHeight)
         .visualEffect { content, _ in content.offset(y: drop) }
       }
       .animation(.snappy, value: monthHeight)

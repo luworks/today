@@ -75,6 +75,18 @@ struct TodayWindowTests {
     #expect(result.windowEnd == at(12, 30))
   }
 
+  @Test func anUnboundedWindowListsTheRestOfTheDayWithNothingLater() {
+    let free = [DateInterval(start: at(10, 30), end: at(11, 30))]
+    let result = layout(dataset, available: .greatestFiniteMagnitude, free: free)
+    #expect(result.pinned == [0])
+    #expect(result.shown == Array(2...16))
+    #expect(result.later.isEmpty)
+    #expect(result.rows.contains(.free(0)))
+    #expect(!result.overflows)
+    #expect(!result.scrolls)
+    #expect(result.windowEnd == dayEnd)
+  }
+
   @Test func aLargeScreenFitsMoreAndNamesNoMeetingWhenLaterHasNone() {
     let result = layout(dataset, available: large)
     #expect(result.pinned == [0])
