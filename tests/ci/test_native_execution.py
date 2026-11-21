@@ -99,7 +99,15 @@ class BuildDiagnosticsTests(unittest.TestCase):
             self.assertIn('[REDACTED].swift', phases[0]['phase'])
             self.assertIn('DEV_BUILD_ACTIVITY', raw)
 
-    def test_prepare_only_preserves_build_failure_without_publishing_or_running_tests(self):
+    def test_an_exited_group_that_refuses_the_signal_is_not_a_failure(self):
+        from scripts.devtools import process
+        root = Path(__file__).resolve().parents[2]
+        evidence = process.Evidence(root, 'exited-group', process.Redactor())
+        self.addCleanup(evidence.close)
+        with patch.object(process.os, 'killpg', side_effect=PermissionError(1, 'Operation not permitted')):
+            result = process.run_process(['/usr/bin/true'], cwd=root, evidence=evidence, timeout=30)
+        self.assertEqual((result.returncode, result.reason), (0, 'exited'))
+
         from scripts.devtools import commands
         from scripts.devtools.core import NativeBuildError
         root = Path(__file__).resolve().parents[2]

@@ -209,9 +209,9 @@ def run_process(argv, *, cwd, evidence, env=None, timeout=600, cancel=None, grac
                     reason = 'cancelled' if cancelled.is_set() or (cancel and cancel.is_set()) else 'timeout'
                     stopped = now
                     diagnostics.emit(reason)
-                    _signal_group(proc.pid, signal.SIGTERM)
+                    _signal_group(proc, signal.SIGTERM)
                 if stopped is not None and now - stopped >= grace:
-                    _signal_group(proc.pid, signal.SIGKILL)
+                    _signal_group(proc, signal.SIGKILL)
                     group_killed = True
                     # Bound cancellation even if an escaped descendant retains the pipe.
                     break
@@ -261,7 +261,7 @@ def run_process(argv, *, cwd, evidence, env=None, timeout=600, cancel=None, grac
         if proc:
             if not group_killed:
                 try:
-                    _signal_group(proc.pid, signal.SIGKILL)
+                    _signal_group(proc, signal.SIGKILL)
                 except OSError as error:
                     cleanup_errors.append(error)
                     # The Popen child is ours; never discover or signal other PIDs.
@@ -304,12 +304,14 @@ def run_process(argv, *, cwd, evidence, env=None, timeout=600, cancel=None, grac
     return ProcessResult(code, reason, time.monotonic() - start, evidence.path)
 
 
-def _signal_group(pid, sig):
+def _signal_group(proc, sig):
     try:
-        os.killpg(pid, sig)
+        os.killpg(proc.pid, sig)
     except ProcessLookupError:
         pass
     except OSError as error:
-        detail = f'os.killpg(pgid={pid}, signal={sig}); owned start_new_session child'
+        if isinstance(error, PermissionError) and proc.poll() is not None:
+            return
+        detail = f'os.killpg(pgid={proc.pid}, signal={sig}); owned start_new_session child'
         error.strerror = f'{error.strerror}; {detail}'
         raise
