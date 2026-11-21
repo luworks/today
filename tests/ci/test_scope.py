@@ -8,6 +8,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from scripts.ci.scope import UI_PREFIXES, app_changed, logic_changed  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
+TIMING_PROBE = 0
 
 
 class ScopeTests(unittest.TestCase):
