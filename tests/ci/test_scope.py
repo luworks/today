@@ -1,8 +1,6 @@
 """Docs-only pull request scope. No network."""
-import json
 from pathlib import Path
 import re
-import subprocess
 import sys
 import unittest
 
@@ -49,23 +47,29 @@ class LogicScopeTests(unittest.TestCase):
         self.assertTrue(logic_changed([self.VIEW] * 300))
 
     def test_no_swiftpm_test_target_depends_on_a_ui_module(self):
-        package = json.loads(subprocess.run(['swift', 'package', '--package-path', 'ios', 'dump-package'], cwd=ROOT,
-                                            capture_output=True, text=True, check=True).stdout)
-        targets = {target['name']: target for target in package['targets']}
-
-        def dependencies(target):
-            return [dep['byName'][0] for dep in target['dependencies'] if dep.get('byName')]
-        seen, stack = set(), [name for name, target in targets.items() if target['type'] == 'test']
+        text = (ROOT / 'ios/Package.swift').read_text()
+        opening = r'\.(target|testTarget|executableTarget)\('
+        parts = re.split(opening, text)[1:]
+        targets = {}
+        for kind, body in zip(parts[::2], parts[1::2]):
+            name = re.search(r'name:\s*"(\w+)"', body).group(1)
+            listed = re.search(r'dependencies:\s*\[(.*?)\]', body, re.S)
+            path = re.search(r'\bpath:\s*"([^"]+)"', body)
+            targets[name] = (kind, re.findall(r'"(\w+)"', listed.group(1)) if listed else [],
+                             path.group(1) if path else f'Sources/{name}')
+        self.assertEqual(len(targets), len(re.findall(opening, text)))
+        seen, stack = set(), [name for name, target in targets.items() if target[0] == 'testTarget']
         self.assertTrue(stack)
         while stack:
             name = stack.pop()
-            if name not in seen and name in targets:
+            self.assertIn(name, targets)
+            if name not in seen:
                 seen.add(name)
-                stack.extend(dependencies(targets[name]))
+                stack.extend(targets[name][1])
         for name in seen:
-            path = 'ios/' + (targets[name].get('path') or f'Sources/{name}') + '/'
             with self.subTest(target=name):
-                self.assertFalse(path.startswith(UI_PREFIXES), 'a test target can see this module; update UI_PREFIXES')
+                self.assertFalse(f'ios/{targets[name][2]}/'.startswith(UI_PREFIXES),
+                                 'a test target can see this module; update UI_PREFIXES')
 
     def test_no_test_reads_a_ui_source(self):
         pattern = re.compile(r'Sources/(?:Features|TodayDesignSystem|TodayPlannerUI|TodayShell)/[\w./]+\.swift')
