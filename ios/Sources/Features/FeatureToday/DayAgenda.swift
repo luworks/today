@@ -396,6 +396,9 @@
         timelineContent(items, rows: rows)
       }
       .listStyle(.plain)
+      .transaction(value: settledTodayIDs) { transaction in
+        if settlesHere { transaction.animation = nil }
+      }
       .animation(reduceMotion ? nil : .snappy, value: items.timeline.map(\.start))
       .environment(\.defaultMinListRowHeight, 0)
       .listSectionSpacing(0)
@@ -1189,6 +1192,15 @@
         cal.isDate($0.agendaDay(calendar: cal), inSameDayAs: day)
           && actions.focus.state(for: $0.identity, now: now, on: day) == .settled
       }
+    }
+
+    private var settledTodayIDs: Set<FocusIdentity> {
+      let calendar = cal
+      return Set(
+        actions.focus.records.lazy.filter {
+          $0.state == .settled
+            && calendar.isDate($0.agendaDay(calendar: calendar), inSameDayAs: now)
+        }.map(\.identity))
     }
 
     private var settledSheet: some View {
