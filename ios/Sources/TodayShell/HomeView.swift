@@ -542,6 +542,9 @@
           }
         }
       }
+      .overlay(alignment: .bottom) {
+        if !keyboardUp, !drawer.isOpen { UndoToastView() }
+      }
       .safeAreaInset(edge: .bottom) { if !keyboardUp { bottomBar } }
       .onReceive(
         NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)
@@ -762,13 +765,10 @@
     // MARK: Bottom: tabs, then Ask with +
 
     private var bottomBar: some View {
-      VStack(spacing: 8) {
-        if !drawer.isOpen { UndoToastView() }
-        dock
-          .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
-          .modifier(TabSwipe(isEnabled: !drawer.isOpen, move: switchTab))
-          .drawerSwipeExcluded(tab != HomeTab.allCases.first)
-      }
+      dock
+        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+        .modifier(TabSwipe(isEnabled: !drawer.isOpen, move: switchTab))
+        .drawerSwipeExcluded(tab != HomeTab.allCases.first)
     }
 
     private var dock: some View {
