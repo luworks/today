@@ -494,23 +494,96 @@
     @Query private var tasks: [OneTask]
     @Query private var allAlarms: [OneAlarm]
     @AppStorage(SettingsKey.showAlarms) private var showsAlarms = true
-    // Read so the grid updates when Settings changes the session calendar layout.
     @AppStorage(Preferences.firstWeekdayKey) private var firstWeekday = Preferences.firstWeekday
       .rawValue
+    @State private var clockRevision = 0
+
+    private var cal: Calendar {
+      _ = firstWeekday
+      return Preferences.firstWeekdayChoice(presentation.defaults).calendar(
+        base: presentation.calendar)
+    }
+
+    private var alarms: [OneAlarm] { showsAlarms ? allAlarms : [] }
+
+    private var items: MonthItems {
+      MonthItems(signature: signature, events: events, tasks: tasks, alarms: alarms)
+    }
+
+    package var body: some View {
+      MonthCalendarLayout(
+        calendar: calendar, cal: cal, day: $day, foldKey: foldKey, startsFolded: startsFolded,
+        namesMonth: namesMonth, onVisibleDays: onVisibleDays, openDay: openDay,
+        items: items, currentItems: { items }, agenda: agenda
+      )
+      .onReceive(Timer.publish(every: 30, on: .main, in: .common).autoconnect()) { _ in
+        clockRevision += 1
+      }
+    }
+
+    private var signature: Int {
+      _ = clockRevision
+      var h = Hasher()
+      h.combine(calendar.version)
+      h.combine(cal.identifier)
+      h.combine(cal.timeZone.identifier)
+      h.combine(cal.firstWeekday)
+      h.combine(cal.startOfDay(for: presentation.now))
+      h.combine(showsAlarms)
+      for e in events {
+        h.combine(e.start)
+        h.combine(e.durationMinutes)
+        h.combine(e.repeatRule)
+        h.combine(e.isAllDay)
+        h.combine(e.title)
+        h.combine(e.externalID)
+        h.combine(e.calendarName)
+      }
+      for t in tasks {
+        h.combine(t.title)
+        h.combine(t.due)
+        h.combine(t.durationMinutes)
+        h.combine(t.isDone)
+      }
+      for a in alarms {
+        h.combine(a.hour)
+        h.combine(a.minute)
+        h.combine(a.label)
+        h.combine(a.weekdays)
+        h.combine(a.isOn)
+        if a.isOn && a.weekdays.isEmpty {
+          h.combine(
+            AlarmPlan.nextFire(
+              hour: a.hour, minute: a.minute, weekdays: [], after: presentation.now, calendar: cal))
+        }
+      }
+      return h.finalize()
+    }
+  }
+
+  private struct MonthCalendarLayout<Agenda: View>: View {
+    let calendar: any CalendarService
+    let cal: Calendar
+    @Environment(PlannerPresentation.self) private var presentation
+    @Binding var day: Date
+    let foldKey: String
+    let startsFolded: Bool
+    let namesMonth: Bool
+    var onVisibleDays: @MainActor (ClosedRange<Date>) -> Void
+    var openDay: ((Date) -> Void)?
+    let items: MonthItems
+    let currentItems: @MainActor () -> MonthItems
+    let agenda: (MonthItems) -> Agenda
     @AppStorage(Preferences.weekNumbersKey) private var showsWeekNumbers = Preferences.weekNumbers
     @AppStorage(Preferences.dimPastDaysKey) private var dimsPast = Preferences.dimPastDays
     /// Months from the current one, the id of each page in the pager.
     @State private var pos: Int? = 0
     @State private var settled = 0
     @State private var isUserPaging = false
-    @State private var clockRevision = 0
     @State private var marks = MonthMarksCache()
     @State private var weekPos: Int? = 0
     @State private var weekSettled = 0
     @ScaledMetric(relativeTo: .body) private var rowHeight: CGFloat = 51
-    private var cal: Calendar {
-      Preferences.firstWeekdayChoice(presentation.defaults).calendar(base: presentation.calendar)
-    }
     private var base: Date {
       CalendarMath.monthStart(offset: 0, from: presentation.now, calendar: cal)
     }
@@ -520,11 +593,8 @@
       CalendarMath.monthStart(offset: offset, from: base, calendar: cal)
     }
     private var current: Int { settled }
-    /// Alarms follow Settings → "Show alarms in the day", like the Today timeline.
-    private var alarms: [OneAlarm] { showsAlarms ? allAlarms : [] }
 
-    package var body: some View {
-      let signature = signature
+    var body: some View {
       let weeks = CalendarMath.monthWeeks(of: month(current), calendar: cal)
       VStack(spacing: 0) {
         weekdayHeader
@@ -533,9 +603,8 @@
           row: MonthWeekStrip.row(of: day, inMonthWeeks: weeks, calendar: cal),
           rowHeight: rowHeight, monthHeight: CGFloat(weeks.count) * rowHeight,
           foldKey: foldKey, startsFolded: startsFolded,
-          pager: pager(signature: signature), strip: weekStrip(signature: signature),
-          agenda: agenda(
-            MonthItems(signature: signature, events: events, tasks: tasks, alarms: alarms)),
+          pager: pager(signature: items.signature), strip: weekStrip(signature: items.signature),
+          agenda: agenda(items),
           title: namesMonth
             ? MonthLabel.text(
               now: month(current), length: .full, calendar: cal, locale: presentation.locale)
@@ -554,9 +623,6 @@
         }
       }
       .onChange(of: month(current)) { _, new in onVisibleDays(new...new) }
-      .onReceive(Timer.publish(every: 30, on: .main, in: .common).autoconnect()) { _ in
-        clockRevision += 1
-      }
       .onAppear {
         let target = CalendarMath.monthOffset(of: day, from: base, calendar: cal)
         settled = target
@@ -668,45 +734,6 @@
       .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
     }
 
-    private var signature: Int {
-      _ = clockRevision
-      var h = Hasher()
-      h.combine(calendar.version)
-      h.combine(cal.identifier)
-      h.combine(cal.timeZone.identifier)
-      h.combine(cal.firstWeekday)
-      h.combine(cal.startOfDay(for: presentation.now))
-      h.combine(showsAlarms)
-      for e in events {
-        h.combine(e.start)
-        h.combine(e.durationMinutes)
-        h.combine(e.repeatRule)
-        h.combine(e.isAllDay)
-        h.combine(e.title)
-        h.combine(e.externalID)
-        h.combine(e.calendarName)
-      }
-      for t in tasks {
-        h.combine(t.title)
-        h.combine(t.due)
-        h.combine(t.durationMinutes)
-        h.combine(t.isDone)
-      }
-      for a in alarms {
-        h.combine(a.hour)
-        h.combine(a.minute)
-        h.combine(a.label)
-        h.combine(a.weekdays)
-        h.combine(a.isOn)
-        if a.isOn && a.weekdays.isEmpty {
-          h.combine(
-            AlarmPlan.nextFire(
-              hour: a.hour, minute: a.minute, weekdays: [], after: presentation.now, calendar: cal))
-        }
-      }
-      return h.finalize()
-    }
-
     private func load(_ start: Date, signature: Int) async {
       guard marks.pages[start]?.signature != signature, marks.loading[start] != signature,
         let interval = cal.dateInterval(of: .month, for: start)
@@ -717,8 +744,11 @@
       let now = presentation.now
       let system = await calendar.loadEvents(
         in: interval,
-        excluding: calendar.usesSystemEventSnapshots ? [] : Set(events.compactMap(\.externalID)))
-      guard !Task.isCancelled, self.signature == signature else { return }
+        excluding: calendar.usesSystemEventSnapshots
+          ? [] : Set(items.events.compactMap(\.externalID)))
+      guard !Task.isCancelled else { return }
+      let freshItems = currentItems()
+      guard freshItems.signature == signature else { return }
       var tints: [Color] = []
       var indexes: [Color: Int] = [:]
       func tint(_ color: Color) -> Int {
@@ -728,7 +758,7 @@
         indexes[color] = index
         return index
       }
-      let local: [MonthLocalSnapshot] = events.compactMap { e in
+      let local: [MonthLocalSnapshot] = freshItems.events.compactMap { e in
         guard e.externalID == nil || !calendar.usesSystemEventSnapshots else { return nil }
         guard !calendar.isHidden(externalID: e.externalID) else { return nil }
         return MonthLocalSnapshot(
@@ -742,7 +772,7 @@
           title: e.title, isAlarm: false, tintIndex: tint(e.color))
       }
       let accent = tint(.accentColor)
-      for t in tasks where !t.isDone {
+      for t in freshItems.tasks where !t.isDone {
         guard let due = t.due, interval.contains(due),
           c.dateComponents([.hour, .minute], from: due) != DateComponents(hour: 0, minute: 0)
         else { continue }
@@ -751,7 +781,7 @@
             start: due, end: due.addingTimeInterval(TimeInterval(t.durationMinutes * 60)),
             isAllDay: false, title: t.title, isAlarm: false, tintIndex: accent))
       }
-      let alarmSpecs = alarms.map(\.spec)
+      let alarmSpecs = freshItems.alarms.map(\.spec)
       let fixedEntries = entries
       let days = CalendarMath.monthWeeks(of: start, calendar: c).flatMap { $0 }.compactMap { $0 }
       let result = await Task.detached(priority: .userInitiated) {
@@ -778,7 +808,7 @@
         }
         return MonthSummary.summarize(days: days, entries: all, calendar: c)
       }.value
-      guard !Task.isCancelled, self.signature == signature else { return }
+      guard !Task.isCancelled, currentItems().signature == signature else { return }
       marks.pages[start] = MonthMarksCache.Page(
         signature: signature, days: Dictionary(uniqueKeysWithValues: result.map { ($0.day, $0) }),
         tints: tints)
