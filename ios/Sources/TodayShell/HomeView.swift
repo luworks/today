@@ -495,7 +495,8 @@
                   tab = .clock
                 }, actions: session.actions, calendar: session.calendar, timers: session.timers,
                 reminders: session.reminders, ledger: session.ledger, travel: session.travel,
-                presentation: presentation, openTidy: { tidying = TidyRoute(overdue: $0) })
+                presentation: presentation, showsUndoToast: !keyboardUp && !drawer.isOpen,
+                openTidy: { tidying = TidyRoute(overdue: $0) })
             }
           case .calendar:
             CalendarView(
@@ -763,7 +764,7 @@
 
     private var bottomBar: some View {
       VStack(spacing: 8) {
-        if !drawer.isOpen { UndoToastView() }
+        if tab != .today, !drawer.isOpen { UndoToastView() }
         dock
           .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
           .modifier(TabSwipe(isEnabled: !drawer.isOpen, move: switchTab))

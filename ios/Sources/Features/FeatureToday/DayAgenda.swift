@@ -18,6 +18,7 @@
     private let reminders: any ReminderService
     private let ledger: Ledger
     private let travel: any TravelTimeProviding
+    private let showsUndoToast: Bool
     @Environment(PlannerPresentation.self) private var presentation
     @Binding var day: Date
     private var nowRequest: Int
@@ -37,6 +38,7 @@
       openTimer: @escaping @MainActor () -> Void, actions: PlannerActions,
       calendar: any CalendarService, timers: any TimerService, reminders: any ReminderService,
       ledger: Ledger, travel: any TravelTimeProviding, presentation: PlannerPresentation,
+      showsUndoToast: Bool = false,
       openTidy: (@MainActor ([OneTask]) -> Void)? = nil
     ) {
       self.actions = actions
@@ -45,6 +47,7 @@
       self.reminders = reminders
       self.ledger = ledger
       self.travel = travel
+      self.showsUndoToast = showsUndoToast
       _now = State(initialValue: presentation.now)
       _showsAlarms = AppStorage(
         wrappedValue: true, SettingsKey.showAlarms, store: presentation.defaults)
@@ -121,6 +124,9 @@
         VStack(spacing: 0) {
           if !isPastDay, !plan.marks.isEmpty { ribbon(plan, rows: rows, proxy: proxy) }
           list(proxy, items: dayItems, rows: rows)
+            .overlay(alignment: .bottom) {
+              if showsUndoToast { UndoToastView() }
+            }
           settledFooter
         }
         .onAppear {
