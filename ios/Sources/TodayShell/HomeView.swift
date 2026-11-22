@@ -495,7 +495,8 @@
                   tab = .clock
                 }, actions: session.actions, calendar: session.calendar, timers: session.timers,
                 reminders: session.reminders, ledger: session.ledger, travel: session.travel,
-                presentation: presentation, openTidy: { tidying = TidyRoute(overdue: $0) })
+                presentation: presentation, showsUndoToast: !keyboardUp && !drawer.isOpen,
+                openTidy: { tidying = TidyRoute(overdue: $0) })
             }
           case .calendar:
             CalendarView(
@@ -541,9 +542,6 @@
               bootstrapComplete: PerformanceTrace.shared.bootstrapComplete)
           }
         }
-      }
-      .overlay(alignment: .bottom) {
-        if !keyboardUp, !drawer.isOpen { UndoToastView() }
       }
       .safeAreaInset(edge: .bottom) { if !keyboardUp { bottomBar } }
       .onReceive(
@@ -765,10 +763,13 @@
     // MARK: Bottom: tabs, then Ask with +
 
     private var bottomBar: some View {
-      dock
-        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
-        .modifier(TabSwipe(isEnabled: !drawer.isOpen, move: switchTab))
-        .drawerSwipeExcluded(tab != HomeTab.allCases.first)
+      VStack(spacing: 8) {
+        if tab != .today, !drawer.isOpen { UndoToastView() }
+        dock
+          .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+          .modifier(TabSwipe(isEnabled: !drawer.isOpen, move: switchTab))
+          .drawerSwipeExcluded(tab != HomeTab.allCases.first)
+      }
     }
 
     private var dock: some View {
