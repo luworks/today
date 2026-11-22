@@ -229,7 +229,8 @@
                     }
                   } label: {
                     ResultRow(
-                      symbol: "calendar", tint: hit.color, title: hit.title, detail: hit.detail,
+                      symbol: "calendar", tint: hit.color, title: hit.title,
+                      detail: dateLabel(hit.start) + " · " + hit.calendarName,
                       dimmed: hit.start < presentation.now)
                   }
                   .accessibilityIdentifier("search.result")
@@ -342,7 +343,7 @@
     private struct EventHit: Identifiable {
       let id: String
       let title: String
-      let detail: String
+      let calendarName: String
       let start: Date
       let color: Color
       let opened: Opened
@@ -377,8 +378,8 @@
           SearchMatch.matches(q, in: [$0.title, $0.calendarName])
         }.map { e in
           EventHit(
-            id: "o\(e.persistentModelID.hashValue)", title: e.title,
-            detail: dateLabel(e.start) + " · " + e.calendarName, start: e.start, color: .blue,
+            id: "o\(e.persistentModelID.hashValue)", title: e.title, calendarName: e.calendarName,
+            start: e.start, color: .blue,
             opened: .event(e))
         }
         // The whole system calendar, two years either side of today (events Today mirrored are not listed twice).
@@ -393,7 +394,7 @@
         {
           hits.append(
             EventHit(
-              id: "s\(s.id)", title: s.title, detail: dateLabel(s.start) + " · " + s.calendarTitle,
+              id: "s\(s.id)", title: s.title, calendarName: s.calendarTitle,
               start: s.start, color: s.color, opened: .system(s.eventIdentifier)))
         }
         // Upcoming first (soonest first), then the past (most recent first).
@@ -439,14 +440,14 @@
             })
           else { return nil }
           return EventHit(
-            id: "o\(e.persistentModelID.hashValue)", title: e.title,
-            detail: dateLabel(next) + " · " + e.calendarName, start: next, color: .blue,
+            id: "o\(e.persistentModelID.hashValue)", title: e.title, calendarName: e.calendarName,
+            start: next, color: .blue,
             opened: .event(e))
         }
         for s in systemEvents where s.start >= presentation.now && s.start < window.end {
           hits.append(
             EventHit(
-              id: "s\(s.id)", title: s.title, detail: dateLabel(s.start) + " · " + s.calendarTitle,
+              id: "s\(s.id)", title: s.title, calendarName: s.calendarTitle,
               start: s.start, color: s.color, opened: .system(s.eventIdentifier)))
         }
         out.events = hits.sorted { $0.start < $1.start }
