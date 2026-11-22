@@ -89,6 +89,18 @@ struct TodayTimelineTests {
         == DateInterval(start: at(7), end: at(19)))
   }
 
+  @Test func viewportUsesStrictEdgesAndKeepsTheLatestEndOfOverlappingEvents() {
+    let frames = [
+      TodayTimeline.Frame(span: DateInterval(start: at(14), end: at(15)), minY: 140, maxY: 180),
+      TodayTimeline.Frame(span: DateInterval(start: at(6), end: at(7)), minY: 0, maxY: 48),
+      TodayTimeline.Frame(span: DateInterval(start: at(17), end: at(19)), minY: 192, maxY: 230),
+      TodayTimeline.Frame(span: DateInterval(start: at(9), end: at(16)), minY: 50, maxY: 90),
+    ]
+    #expect(
+      TodayTimeline.viewport(frames.lazy, top: 40, bottom: 200)
+        == DateInterval(start: at(9), end: at(16)))
+  }
+
   @Test func scrollTargetIsTheFirstRowStillRunningAtThatTime() {
     let spans = [
       DateInterval(start: at(7), end: at(7)), DateInterval(start: at(9), end: at(10)),

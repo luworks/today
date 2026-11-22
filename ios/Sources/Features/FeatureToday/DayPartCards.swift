@@ -7,6 +7,7 @@
     let rows: [DayPartRow<Item>]
     let swipes: DayPartSwipes
     let drag: TimelineDragModel
+    var viewport: TimelineViewport? = nil
     @ViewBuilder let row: (Item) -> Row
 
     var body: some View {
@@ -16,7 +17,7 @@
         case .cardEnd: DayPartGap()
         case .item(let item, let card, let closesCard):
           row(item)
-            .modifier(drag.frameReader(entry.id))
+            .modifier(drag.frameReader(entry.id, viewport: viewport))
             .listRowBackground(
               card.map { _ in
                 DayPartFill(edge: closesCard ? .bottom : .middle, id: entry.id, swipes: swipes)
