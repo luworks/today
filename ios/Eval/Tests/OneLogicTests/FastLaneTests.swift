@@ -181,6 +181,15 @@ final class FastLaneTests: XCTestCase {
         "Remind me to water the plants every Monday at 9am", now: now, calendar: calendar))
   }
 
+  func testBuyingAnAlarmClockRemainsAReminderOffline() throws {
+    let capture = try XCTUnwrap(preview("Remind me to buy an alarm clock tomorrow at 3pm."))
+    XCTAssertEqual(capture.kindLabel, "New reminder")
+    XCTAssertEqual(capture.title, "buy an alarm clock")
+    XCTAssertEqual(
+      capture.taskTiming(calendar: calendar).due,
+      calendar.date(from: DateComponents(year: 2026, month: 10, day: 21, hour: 15)))
+  }
+
   func testUnsureOrNonRequestTextHasNoLocalPreview() {
     let dentist = EditItem(
       id: "t1", type: "task", title: "Dentist", start: now.addingTimeInterval(3600), minutes: 30,
