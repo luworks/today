@@ -47,7 +47,7 @@
               }
             }
             .onScrollGeometryChange(for: CGFloat.self) { geometry in
-              -(geometry.contentOffset.y + geometry.contentInsets.top)
+              max(0, -(geometry.contentOffset.y + geometry.contentInsets.top))
             } action: { _, overscroll in
               apply(pull.update(pullDistance: overscroll, isTracking: isTracking))
             }
