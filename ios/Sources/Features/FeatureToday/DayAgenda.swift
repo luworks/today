@@ -108,8 +108,7 @@
     @State private var entry: Date?
     @State private var doneAnchor: Set<PersistentIdentifier> = []
     @State private var swipes = DayPartSwipes()
-    @State private var tracker = TimelineViewport()
-    @State private var viewport: DateInterval?
+    @State private var viewport = TimelineViewport()
     @State private var picked: AnyHashable?
     @Environment(\.modelContext) private var context
     @Environment(UndoToast.self) private var toast: UndoToast?
@@ -143,9 +142,8 @@
           frozenDayItems = nil
           retryTime = nil
         }
-        .onChange(of: rows.map(\.id)) { _, ids in
-          tracker.keep(Set(ids))
-          refreshViewport()
+        .onChange(of: timelineSpans(rows), initial: true) { _, spans in
+          viewport.setSpans(spans)
         }
       }
       .onChange(of: tasks.map { "\($0.title)|\($0.due?.timeIntervalSince1970 ?? 0)|\($0.isDone)" })
@@ -399,20 +397,18 @@
       .onScrollGeometryChange(for: EdgeInsets.self) {
         $0.contentInsets
       } action: { _, insets in
-        tracker.insets = insets
-        refreshViewport()
+        viewport.setInsets(insets)
       }
       .onGeometryChange(for: CGRect.self) {
         $0.frame(in: .global)
       } action: { frame in
-        tracker.list = frame
-        refreshViewport()
+        viewport.setList(frame)
       }
       .pullToAsk()
       .background(alignment: .topLeading) { DayPartSwipeLayer(swipes: swipes) }
       .background {
         TimelineHoldDragInstaller(
-          model: drag, canLift: { liftCandidate(at: $0) != nil },
+          model: drag, canLift: { canLift(at: $0, rows: rows) },
           touched: {}, began: { beginDrag(at: $0) },
           ended: { endDrag(cancelled: $0) })
       }
@@ -421,28 +417,12 @@
       .sheet(isPresented: $showsSettled) { settledSheet }
     }
 
-    private func refreshViewport() {
-      let next = TodayTimeline.viewport(
-        Array(tracker.frames.values), top: tracker.list.minY + tracker.insets.top,
-        bottom: tracker.list.maxY - tracker.insets.bottom)
-      if next != viewport { viewport = next }
-    }
-
-    private func probe(_ item: TimelineItem) -> some View {
-      let id = item.id
-      let span = item.span
-      return Color.clear
-        .onGeometryChange(for: CGRect.self) {
-          $0.frame(in: .global)
-        } action: { frame in
-          guard let span else { return }
-          tracker.frames[id] = TodayTimeline.Frame(span: span, minY: frame.minY, maxY: frame.maxY)
-          refreshViewport()
-        }
-        .onDisappear {
-          tracker.frames[id] = nil
-          refreshViewport()
-        }
+    private func timelineSpans(_ rows: [DayPartRow<TimelineItem>]) -> [AnyHashable: DateInterval] {
+      var spans: [AnyHashable: DateInterval] = [:]
+      for row in rows {
+        if case .item(let item, _, _) = row { spans[row.id] = item.span }
+      }
+      return spans
     }
 
     @ViewBuilder
@@ -472,8 +452,8 @@
           Text("Nothing planned").foregroundStyle(.secondary)
             .listRowSeparator(.hidden)
         }
-        DayPartRows(rows: rows, swipes: swipes, drag: drag) { item in
-          dayItemRow(item).background { probe(item) }
+        DayPartRows(rows: rows, swipes: swipes, drag: drag, viewport: viewport) { item in
+          dayItemRow(item)
         }
       }
     }
@@ -627,23 +607,29 @@
       }
     }
 
-    private func liftCandidate(at point: CGPoint) -> TimelineItem? {
-      guard !isPastDay, !timeBusy, pendingTime == nil, swipes.slides.isEmpty,
-        let id = drag.rowID(at: point)
-      else { return nil }
-      return shownRows(makePlan(items(on: day, now: now))).first {
-        $0.id == id && dragTiming($0) != nil
+    private func canLift(at point: CGPoint, rows: [DayPartRow<TimelineItem>]) -> Bool {
+      guard let id = dragHit(at: point) else { return false }
+      for row in rows where row.id == id {
+        if case .item(let item, _, _) = row { return dragTiming(item) != nil }
       }
+      return false
+    }
+
+    private func dragHit(at point: CGPoint) -> AnyHashable? {
+      guard !isPastDay, !timeBusy, pendingTime == nil, swipes.slides.isEmpty else { return nil }
+      return drag.rowID(at: point)
     }
 
     private func beginDrag(at point: CGPoint) -> Bool {
-      guard let item = liftCandidate(at: point), let timing = dragTiming(item) else { return false }
-      prepareTime(item, timing: timing)
-      guard timeRequest != nil else { return false }
+      guard let id = dragHit(at: point) else { return false }
       let items = items(on: day, now: now)
       let plan = makePlan(items)
       let others = shownRows(plan).filter { if case .gap = $0 { false } else { true } }
-      guard let originalIndex = others.firstIndex(where: { $0.id == item.id }) else { return false }
+      guard let originalIndex = others.firstIndex(where: { $0.id == id }) else { return false }
+      let item = others[originalIndex]
+      guard let timing = dragTiming(item) else { return false }
+      prepareTime(item, timing: timing)
+      guard timeRequest != nil else { return false }
       var anchors = others
       anchors.remove(at: originalIndex)
       let stops = TimelineDropPlan.stops(
@@ -1556,13 +1542,59 @@
     var range: DateInterval
   }
 
-  @MainActor final class TimelineViewport {
-    var frames: [AnyHashable: TodayTimeline.Frame] = [:]
-    var list = CGRect.zero
-    var insets = EdgeInsets()
+  @MainActor @Observable final class TimelineViewport {
+    private(set) var range: DateInterval?
+    @ObservationIgnored private var frames: [AnyHashable: CGRect] = [:]
+    @ObservationIgnored private var spans: [AnyHashable: DateInterval] = [:]
+    @ObservationIgnored private var list = CGRect.zero
+    @ObservationIgnored private var insets = EdgeInsets()
+    @ObservationIgnored private var updatePending = false
 
-    func keep(_ ids: Set<AnyHashable>) {
-      frames = frames.filter { ids.contains($0.key) }
+    private var top: CGFloat { list.minY + insets.top }
+    private var bottom: CGFloat { list.maxY - insets.bottom }
+
+    func setSpans(_ spans: [AnyHashable: DateInterval]) {
+      self.spans = spans
+      scheduleUpdate()
+    }
+
+    func setList(_ list: CGRect) {
+      self.list = list
+      scheduleUpdate()
+    }
+
+    func setInsets(_ insets: EdgeInsets) {
+      self.insets = insets
+      scheduleUpdate()
+    }
+
+    func setFrame(_ frame: CGRect?, for id: AnyHashable) {
+      let old = frames[id]
+      frames[id] = frame
+      guard spans[id] != nil, isVisible(old) != isVisible(frame)
+      else { return }
+      scheduleUpdate()
+    }
+
+    private func isVisible(_ frame: CGRect?) -> Bool {
+      guard let frame else { return false }
+      return TodayTimeline.intersects(minY: frame.minY, maxY: frame.maxY, top: top, bottom: bottom)
+    }
+
+    private func scheduleUpdate() {
+      guard !updatePending else { return }
+      updatePending = true
+      DispatchQueue.main.async { [weak self] in self?.updateRange() }
+    }
+
+    private func updateRange() {
+      updatePending = false
+      let visible = frames.lazy.compactMap { id, frame -> TodayTimeline.Frame? in
+        guard let span = self.spans[id] else { return nil }
+        return TodayTimeline.Frame(span: span, minY: frame.minY, maxY: frame.maxY)
+      }
+      let next = TodayTimeline.viewport(visible, top: top, bottom: bottom)
+      if next != range { range = next }
     }
   }
 

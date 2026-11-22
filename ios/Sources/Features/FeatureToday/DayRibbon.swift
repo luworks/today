@@ -17,7 +17,7 @@
     let range: DateInterval
     let calendar: Calendar
     let now: Date?
-    let viewport: DateInterval?
+    let viewport: TimelineViewport
     let label: (Date) -> String
     let pick: (Date, Bool) -> Bool
     let showNow: () -> Void
@@ -32,15 +32,11 @@
 
     private enum Axis { case horizontal, ignored }
 
-    private var showsNow: Bool {
-      guard let now, range.contains(now) else { return false }
-      return !(viewport?.contains(now) ?? false)
-    }
-
     var body: some View {
+      let visibleRange = viewport.range
       GeometryReader { geometry in
         let frame = geometry.frame(in: .global)
-        Canvas { context, size in draw(in: &context, size: size) }
+        Canvas { context, size in draw(in: &context, size: size, viewport: visibleRange) }
           .contentShape(Rectangle())
           .highPriorityGesture(
             DragGesture(minimumDistance: 8, coordinateSpace: .global)
@@ -59,7 +55,7 @@
       .frame(height: Self.height)
       .drawerSwipeExcluded()
       .overlay(alignment: .topTrailing) {
-        if showsNow, axis == nil {
+        if let now, range.contains(now), visibleRange?.contains(now) != true, axis == nil {
           Button {
             showNow()
             settles += 1
@@ -82,16 +78,16 @@
       .sensoryFeedback(InteractionFeedback.settle, trigger: settles)
       .accessibilityElement()
       .accessibilityLabel("Day overview")
-      .accessibilityValue(spokenValue)
+      .accessibilityValue(spokenValue(visibleRange))
       .accessibilityAdjustableAction { direction in
-        let from = viewport?.start ?? range.start
+        let from = visibleRange?.start ?? range.start
         let step: TimeInterval = direction == .increment ? 3600 : -3600
         _ = pick(from.addingTimeInterval(step), true)
       }
       .accessibilityIdentifier("today.ribbon")
     }
 
-    private var spokenValue: String {
+    private func spokenValue(_ viewport: DateInterval?) -> String {
       guard let viewport else { return "\(marks.count) items" }
       return "Showing \(label(viewport.start)) to \(label(viewport.end))"
     }
@@ -124,7 +120,7 @@
       axis = nil
     }
 
-    private func draw(in context: inout GraphicsContext, size: CGSize) {
+    private func draw(in context: inout GraphicsContext, size: CGSize, viewport: DateInterval?) {
       let width = size.width
       context.fill(
         Path(CGRect(x: 0, y: 18.5, width: width, height: 1)), with: .color(Color(.separator)))

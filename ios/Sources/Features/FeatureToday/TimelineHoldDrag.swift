@@ -308,8 +308,8 @@
 
     var target: Date? { session.map { $0.stops[stopIndex].target } }
 
-    func frameReader(_ id: AnyHashable) -> TimelineDragFrameReader {
-      TimelineDragFrameReader(id: id, model: self)
+    func frameReader(_ id: AnyHashable, viewport: TimelineViewport?) -> TimelineDragFrameReader {
+      TimelineDragFrameReader(id: id, model: self, viewport: viewport)
     }
 
     func setFrame(_ frame: CGRect?, for id: AnyHashable) { frames[id] = frame }
@@ -412,6 +412,7 @@
   struct TimelineDragFrameReader: ViewModifier {
     let id: AnyHashable
     let model: TimelineDragModel
+    let viewport: TimelineViewport?
 
     /// In a background: on the row itself this loses the row's List insets and separator setting.
     func body(content: Content) -> some View {
@@ -420,10 +421,15 @@
           .onGeometryChange(for: CGRect.self) {
             $0.frame(in: .global)
           } action: {
-            model.setFrame($0, for: id)
+            setFrame($0)
           }
-          .onDisappear { model.setFrame(nil, for: id) }
+          .onDisappear { setFrame(nil) }
       }
+    }
+
+    private func setFrame(_ frame: CGRect?) {
+      model.setFrame(frame, for: id)
+      viewport?.setFrame(frame, for: id)
     }
   }
 

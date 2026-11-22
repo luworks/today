@@ -66,13 +66,24 @@ public enum TodayTimeline {
     return rows
   }
 
-  public static func viewport(_ frames: [Frame], top: CGFloat, bottom: CGFloat, inset: CGFloat = 8)
-    -> DateInterval?
-  {
-    let visible = frames.filter { $0.maxY > top + inset && $0.minY < bottom - inset }
-    guard let start = visible.map(\.span.start).min(), let end = visible.map(\.span.end).max()
-    else { return nil }
-    return DateInterval(start: start, end: max(start, end))
+  public static func viewport(
+    _ frames: some Sequence<Frame>, top: CGFloat, bottom: CGFloat, inset: CGFloat = 8
+  ) -> DateInterval? {
+    var bounds: (start: Date, end: Date)?
+    for frame in frames
+    where intersects(minY: frame.minY, maxY: frame.maxY, top: top, bottom: bottom, inset: inset) {
+      let span = frame.span
+      bounds = (
+        min(bounds?.start ?? span.start, span.start), max(bounds?.end ?? span.end, span.end)
+      )
+    }
+    return bounds.map { DateInterval(start: $0.start, end: $0.end) }
+  }
+
+  package static func intersects(
+    minY: CGFloat, maxY: CGFloat, top: CGFloat, bottom: CGFloat, inset: CGFloat = 8
+  ) -> Bool {
+    maxY > top + inset && minY < bottom - inset
   }
 
   public static func scrollTarget(for date: Date, in spans: [DateInterval]) -> Int? {
