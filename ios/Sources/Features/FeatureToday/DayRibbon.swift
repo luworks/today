@@ -36,7 +36,17 @@
       let visibleRange = viewport.range
       GeometryReader { geometry in
         let frame = geometry.frame(in: .global)
-        Canvas { context, size in draw(in: &context, size: size, viewport: visibleRange) }
+        DayRibbonTrack(marks: marks, range: range, calendar: calendar, now: now)
+          .equatable()
+          .overlay {
+            if let visibleRange {
+              Canvas { context, size in
+                drawViewport(visibleRange, in: &context, width: size.width)
+              }
+              .allowsHitTesting(false)
+              .accessibilityHidden(true)
+            }
+          }
           .contentShape(Rectangle())
           .highPriorityGesture(
             DragGesture(minimumDistance: 8, coordinateSpace: .global)
@@ -92,11 +102,6 @@
       return "Showing \(label(viewport.start)) to \(label(viewport.end))"
     }
 
-    private func x(_ date: Date, width: CGFloat) -> CGFloat {
-      guard range.duration > 0 else { return 0 }
-      return CGFloat(date.timeIntervalSince(range.start) / range.duration) * width
-    }
-
     private func date(at x: CGFloat, width: CGFloat) -> Date {
       guard width > 0 else { return range.start }
       return TodayTimeline.date(at: Double(x / width), in: range)
@@ -120,25 +125,43 @@
       axis = nil
     }
 
-    private func draw(in context: inout GraphicsContext, size: CGSize, viewport: DateInterval?) {
-      let width = size.width
-      context.fill(
-        Path(CGRect(x: 0, y: 18.5, width: width, height: 1)), with: .color(Color(.separator)))
-      drawHours(in: &context, width: width)
-      for mark in marks { drawMark(mark, in: &context, width: width) }
-      if let now, range.contains(now) {
-        context.fill(
-          Path(CGRect(x: x(now, width: width) - 1, y: 4, width: 2, height: 30)),
-          with: .color(.red))
-      }
-      guard let viewport else { return }
-      let left = max(0, x(viewport.start, width: width))
-      let right = min(width, x(viewport.end, width: width))
+    private func drawViewport(
+      _ viewport: DateInterval, in context: inout GraphicsContext, width: CGFloat
+    ) {
+      let left = max(0, ribbonX(viewport.start, in: range, width: width))
+      let right = min(width, ribbonX(viewport.end, in: range, width: width))
       let frame = CGRect(x: min(left, width - 12), y: 5, width: max(right - left, 12), height: 28)
       let box = Path(roundedRect: frame, cornerRadius: 9)
       context.fill(
         box, with: .color(Color.accentColor.opacity(colorScheme == .dark ? 0.22 : 0.14)))
       context.stroke(box, with: .color(Color.accentColor.opacity(0.9)), lineWidth: 1.5)
+    }
+  }
+
+  private struct DayRibbonTrack: View, Equatable {
+    let marks: [DayRibbon.Mark]
+    let range: DateInterval
+    let calendar: Calendar
+    let now: Date?
+
+    nonisolated static func == (lhs: Self, rhs: Self) -> Bool {
+      lhs.range == rhs.range && lhs.calendar == rhs.calendar && lhs.now == rhs.now
+        && lhs.marks == rhs.marks
+    }
+
+    var body: some View {
+      Canvas { context, size in
+        let width = size.width
+        context.fill(
+          Path(CGRect(x: 0, y: 18.5, width: width, height: 1)), with: .color(Color(.separator)))
+        drawHours(in: &context, width: width)
+        for mark in marks { drawMark(mark, in: &context, width: width) }
+        if let now, range.contains(now) {
+          context.fill(
+            Path(CGRect(x: ribbonX(now, in: range, width: width) - 1, y: 4, width: 2, height: 30)),
+            with: .color(.red))
+        }
+      }
     }
 
     private func drawHours(in context: inout GraphicsContext, width: CGFloat) {
@@ -147,7 +170,7 @@
         guard let tick = calendar.date(byAdding: .hour, value: hour, to: midnight),
           range.contains(tick)
         else { continue }
-        let position = x(tick, width: width)
+        let position = ribbonX(tick, in: range, width: width)
         let anchor: UnitPoint =
           position < 8 ? .leading : (position > width - 8 ? .trailing : .center)
         context.draw(
@@ -156,13 +179,15 @@
       }
     }
 
-    private func drawMark(_ mark: Mark, in context: inout GraphicsContext, width: CGFloat) {
+    private func drawMark(
+      _ mark: DayRibbon.Mark, in context: inout GraphicsContext, width: CGFloat
+    ) {
       var layer = context
       if mark.faded { layer.opacity = 0.28 }
-      let left = x(mark.start, width: width)
+      let left = ribbonX(mark.start, in: range, width: width)
       switch mark.kind {
       case .event:
-        let right = x(mark.end ?? mark.start, width: width)
+        let right = ribbonX(mark.end ?? mark.start, in: range, width: width)
         let rect = CGRect(x: left, y: 13, width: max(right - left, 5), height: 13)
         layer.fill(Path(roundedRect: rect, cornerRadius: 4), with: .color(.blue))
       case .alarm:
@@ -182,5 +207,10 @@
         }
       }
     }
+  }
+
+  private func ribbonX(_ date: Date, in range: DateInterval, width: CGFloat) -> CGFloat {
+    guard range.duration > 0 else { return 0 }
+    return CGFloat(date.timeIntervalSince(range.start) / range.duration) * width
   }
 #endif
