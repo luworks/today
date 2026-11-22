@@ -136,8 +136,8 @@ public enum FastLane {
   public static func ruleKind(_ text: String, parsed: Capture) -> Kind? {
     if requestsEvent(text) { return .event }
     if parsed.ringsAsAlarm { return .alarm }
+    if ChatRouting.requestsReminder(text) { return .task }
     if asksForAlarm(text), parsed.hour != nil { return .alarm }
-    if matches(text, #"提醒我|\bremind me\b"#) { return .task }
     if CaptureParser.isBookingAction(text) { return .task }
     if matches(text, eventCue) { return nil }
     let title = parsed.title.lowercased().trimmingCharacters(in: .whitespaces)

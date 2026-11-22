@@ -47,6 +47,13 @@ public enum ChatRouting {
     )
   }
 
+  static func requestsReminder(_ text: String) -> Bool {
+    has(
+      text,
+      #"提醒我|(?:增加|新增|添加|创建|新建|加)(?:一?个|一条)?\s*(?:reminder|提醒事项|提醒)|\bremind me\b|\b(?:add|create|set) (?:a |an )?reminder\b"#
+    )
+  }
+
   /// Only complete, supported operation requests may bypass generic chat. `OverdueTidy.isRequest`
   /// also finds words inside explanations, so it is not sufficient at this boundary.
   public static func isSupportedOperationRequest(_ text: String) -> Bool {

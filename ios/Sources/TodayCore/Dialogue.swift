@@ -247,18 +247,14 @@ public enum CaptureConversation {
   /// Explicit reminders are tasks even when their object contains event words (e.g. "don't eat dinner").
   public static func parse(_ text: String, now: Date, calendar: Calendar) -> Capture {
     var capture = CaptureParser.parse(text, now: now, calendar: calendar)
-    if ChatRouting.intent(text) == .capture, ChatRouting.requestsEvent(text) {
+    guard ChatRouting.intent(text) == .capture else { return capture }
+    if ChatRouting.requestsEvent(text) {
       capture.kind = .event
       capture.ringsAsAlarm = false
-    } else if ChatRouting.intent(text) == .capture, ChatRouting.requestsAlarm(text) {
+    } else if ChatRouting.requestsAlarm(text) {
       capture.kind = .task
       capture.ringsAsAlarm = true
-    } else if ChatRouting.intent(text) == .capture,
-      has(
-        text,
-        #"提醒我|(?:增加|新增|添加|创建|新建|加)(?:一?个|一条)?\s*(?:reminder|提醒事项|提醒)|\bremind me\b|\b(?:add|create|set) (?:a |an )?reminder\b"#
-      ), !has(text, #"闹钟|\balarm\b|wake me"#)
-    {
+    } else if ChatRouting.requestsReminder(text) {
       capture.kind = .task
       capture.ringsAsAlarm = false
     }
