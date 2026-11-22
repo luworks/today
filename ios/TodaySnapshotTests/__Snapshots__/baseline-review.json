@@ -4,10 +4,26 @@
   "reviewer": "integration lead, direct image inspection",
   "status": "reviewed; comparison pending",
   "images": {
-    "testHealthEmptyDarkLargeType.empty-dark-accessibility3.png": "e0e3fcb0d59c221373363bb6fa80fabb8d3fc974b52a9b530fde902ed70a070f",
-    "testHealthStepsLight.steps-light.png": "24425ba5fb210cbcd4e7b5dd0d2776370e44b0b2f3eac1687fea6f5e66c477fd",
+    "testHealthEmptyDarkLargeType.empty-dark-accessibility3.png": "5772766268ed32ab38817eef289917c2e274e8d8433848eccd92890ef982ae45",
+    "testHealthStepsLight.steps-light.png": "3bfe992e5632a4334023af7ad3de59b6c3de60348066d544e0631f72308853a1",
     "testNativePillSwitcherLargeType.range-accessibility3.png": "86d1029f2f0c7bb519eba3a217694616fc80754ecbef80ad8f7089f16f7d11d7",
     "testStopwatchRunningDigitalDark.digital-running-dark.png": "e952398bba4c14aeb6aaba94c45d691b67e61be3ea6579314571462c979c4438",
     "testStopwatchStoppedAnalog.analog-stopped-laps.png": "a968051f78849809b90cc70f48716d790ba6dadd32499ecc2de0e52a8619ef3c"
+  },
+  "health_detail_refresh": {
+    "source_commit": "470f49da1dd7316ba39a6273ab7d2d2f5a4f0854",
+    "xcode": "27.2 (27B52)",
+    "runtime": "iOS 27.0 (24A434)",
+    "device": "iPhone 18 Pro Max",
+    "capture": "Actual PNGs from a recording-off comparison using the production snapshot host",
+    "reviewer": "Integration lead and implementation reviewer, direct image inspection",
+    "visual_changes": [
+      "Date and empty-state label contrast from #162",
+      "Open Health detail action from #188"
+    ],
+    "images": [
+      "testHealthEmptyDarkLargeType.empty-dark-accessibility3.png",
+      "testHealthStepsLight.steps-light.png"
+    ]
   }
 }
