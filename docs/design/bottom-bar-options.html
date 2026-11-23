@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Today 底栏与顶部方案</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;color:var(--foreground,#1c1c1e);font:14px/1.5 -apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC",sans-serif}
+main{max-width:900px;margin:0 auto}
+h2{font-size:17px;margin:16px 0 8px}
+h3{font-size:14px;margin:0}
+p{margin:3px 0 8px;color:var(--muted-foreground,#6e6e73)}
+.row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.opt{background:var(--card,#f5f5f7);border:1px solid var(--border,#d9d9de);border-radius:var(--radius,12px);padding:12px;min-width:0}
+.opt.pick{border-color:var(--ring,#34804a)}
+.opt.pick h3 span{font-size:12px;color:var(--muted-foreground,#6e6e73);margin-left:6px}
+.opt p{min-height:3em}
+.shots{display:grid;gap:6px}
+.fit{width:100%;overflow:hidden;border-radius:10px;border:1px solid var(--border,#d9d9de)}
+details{margin:14px 0}
+summary{cursor:pointer}
+.full{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;max-width:620px;margin-top:8px}
+@media(max-width:600px){
+  .row{grid-template-columns:1fr;gap:8px}
+  .opt p{min-height:0}
+  .shots{grid-template-columns:1fr 1fr}
+}
+.ph{--bg:#fff;--lab:#000;--lab2:rgba(60,60,67,.6);--lab3:rgba(60,60,67,.3);--fill:rgba(118,118,128,.12);--sep:rgba(60,60,67,.22);
+  --card:#f5f5f7;--bar:#f7f7f7;--tint:#34804a;--blue:#007aff;--red:#ff3b30;--glass:rgba(255,255,255,.78);--glassb:rgba(0,0,0,.06);--sh:0 6px 20px rgba(0,0,0,.14);--thumb:rgba(118,118,128,.16);
+  width:440px;height:956px;background:var(--bg);color:var(--lab);position:relative;overflow:hidden;transform-origin:0 0;
+  font:17px/1.2 -apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC",sans-serif}
+.ph.dark{--bg:#000;--lab:#fff;--lab2:rgba(235,235,245,.6);--lab3:rgba(235,235,245,.3);--fill:rgba(118,118,128,.24);--sep:rgba(84,84,88,.6);
+  --card:#141416;--bar:#161617;--tint:#57b872;--blue:#0a84ff;--red:#ff453a;--glass:rgba(44,44,46,.78);--glassb:rgba(255,255,255,.1);--sh:0 6px 20px rgba(0,0,0,.5);--thumb:rgba(118,118,128,.36)}
+.ph.crop{height:213px}
+.ph.near{height:122px}
+.st{height:54px;display:flex;justify-content:space-between;align-items:center;padding:14px 34px 0;font-weight:600;font-size:17px}
+.isl{position:absolute;left:157px;top:12px;width:126px;height:36px;border-radius:20px;background:#000}
+.bat{width:27px;height:13px;border-radius:4px;background:var(--lab);opacity:.9}
+.ttl{padding:0 16px 4px}
+.ttl b{font-size:20px;font-weight:700}
+.tb{display:flex;align-items:center;justify-content:space-between;padding:0 12px 4px;height:44px}
+.tb b{font-size:17px;font-weight:600}
+.tb i{width:44px;height:44px;display:grid;place-items:center;color:var(--lab)}
+.wk{display:grid;grid-template-columns:repeat(7,1fr);text-align:center}
+.wk.l{font-size:11px;font-weight:600;padding:6px 0 5px;border-bottom:.5px solid var(--sep)}
+.wk.d{padding:6px 0 7px;border-bottom:.5px solid var(--sep);font-size:19px;font-weight:600}
+.wk.d span{display:grid;place-items:center;width:30px;height:30px;border-radius:15px;margin:0 auto}
+.wk.d .on{background:var(--red);color:#fff}
+.wk.d u{display:block;width:16px;height:4px;border-radius:2px;background:#3d9bf5;margin:3px auto 0}
+.hd{display:flex;align-items:center;height:22px;padding:0 16px;position:relative;font-size:13px;font-weight:600;color:var(--lab2)}
+.hd:after{content:"";position:absolute;left:50%;top:9px;width:36px;height:5px;margin-left:-18px;border-radius:3px;background:var(--lab3)}
+.rb{height:44px;margin:4px 16px 0;position:relative}
+.rb:before{content:"";position:absolute;left:0;right:0;top:14px;height:1px;background:var(--sep)}
+.rb em{position:absolute;left:17%;top:1px;width:42%;height:27px;border-radius:9px;border:1.5px solid #e8743b;background:rgba(232,116,59,.14)}
+.rb s{position:absolute;left:26%;top:1px;width:1.5px;height:27px;background:var(--red)}
+.rb i{position:absolute;top:10px;width:9px;height:9px;border-radius:5px;background:var(--lab)}
+.rb small{position:absolute;bottom:0;font-size:10px;color:var(--lab3);font-style:normal}
+.hl{display:flex;align-items:center;gap:8px;padding:6px 20px;color:var(--lab2);font-size:13px}
+.hl:before{content:"";width:10px;height:10px;border-radius:5px;background:#ff2d55}
+.ad{padding:2px 20px;font-size:12px;font-weight:600;color:var(--lab2)}
+.ar{display:flex;align-items:center;gap:20px;padding:8px 34px}
+.ar:before{content:"";width:4px;height:20px;border-radius:2px;background:var(--blue)}
+.cd{margin:8px 8px 0;background:var(--card);border-radius:22px;padding:14px 12px 6px}
+.cd h4{margin:0 0 4px;font-size:12px;font-weight:600;color:var(--lab2);display:flex;align-items:center;gap:8px}
+.cd h4:after{content:"";flex:1;height:.5px;background:var(--sep)}
+.it{display:flex;align-items:center;height:44px;font-size:15px}
+.it t{width:58px;font-size:13px;color:var(--lab2)}
+.it.late t{color:var(--red)}
+.it o{width:15px;height:15px;border-radius:8px;border:1.5px solid var(--lab2);margin-right:14px;flex:none}
+.it.ev o{width:4px;border:0;border-radius:2px;background:var(--blue);height:20px;margin:0 20px 0 5px}
+.it.rp x{color:var(--lab2)}
+.it x{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.now{display:flex;align-items:center;gap:8px;color:var(--red);font-size:13px;font-weight:600;height:30px;padding-left:10px}
+.now:before{content:"";width:11px;height:11px;border-radius:6px;background:var(--red)}
+.now:after{content:"";flex:1;height:1px;background:var(--red)}
+.fr{padding:0 0 8px 80px;font-size:12px;color:var(--lab2)}
+.bot{position:absolute;left:0;right:0;bottom:0}
+.settled{text-align:right;padding:8px 20px;color:var(--lab2);font-size:15px}
+.home{position:absolute;left:50%;bottom:8px;width:140px;height:5px;margin-left:-70px;border-radius:3px;background:var(--lab);z-index:5}
+.safe{height:34px}
+svg{display:block}
+.tabs{display:flex}
+.tab{width:46px;height:44px;display:grid;place-items:center;color:var(--lab2);border-radius:22px}
+.tab.sel{color:var(--tint)}
+.field{flex:1;min-width:0;display:flex;align-items:center;height:44px;border-radius:22px;background:var(--fill);color:var(--lab3);padding-right:12px;white-space:nowrap}
+.field i{width:44px;height:44px;display:grid;place-items:center;color:var(--lab);flex:none}
+
+.barA{background:var(--bg);border-top:.5px solid var(--sep)}
+.barA .r{display:flex;gap:10px;align-items:center;padding:6px 12px 0 8px}
+.barA .tab{width:44px}
+.barA .field{height:40px;border-radius:20px}
+.barA .field i{width:40px;height:40px;color:var(--lab2)}
+
+.glassBar{padding:6px 12px 2px}
+.glassBar .r{display:flex;gap:8px;align-items:center}
+.glassBar .tabs,.glassBar .field,.glassBar .action{height:52px;border-radius:26px;background:var(--glass);box-shadow:inset 0 0 0 .5px var(--glassb),var(--sh);backdrop-filter:blur(20px)}
+.glassBar .tabs{padding:4px}
+.glassBar .tab{width:44px;height:44px}
+.glassBar .tab.sel{background:var(--thumb)}
+.glassBar .field{font-size:15px;color:var(--lab2)}
+.glassBar .field i{height:52px;color:var(--lab2)}
+.glassBar.round .tabs{flex:1;justify-content:space-around}
+.glassBar .action{flex:0 0 52px;display:grid;place-items:center;color:var(--lab)}
+</style>
+</head>
+<body>
+<main>
+<h2>底栏三版</h2>
+<div class="row" id="bars"></div>
+<h2>Today 顶部三版</h2>
+<div class="row" id="tops"></div>
+<details>
+  <summary>查看首选组合的完整屏幕</summary>
+  <div class="full" id="full"></div>
+</details>
+</main>
+
+<script>
+const I={
+sun:f=>`<svg width="26" height="26" viewBox="0 0 26 26" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="13" cy="13" r="4.4" ${f?'fill="currentColor"':''}/><path d="M13 3.2v2.4M13 20.4v2.4M3.2 13h2.4M20.4 13h2.4M6.1 6.1l1.7 1.7M18.2 18.2l1.7 1.7M19.9 6.1l-1.7 1.7M7.8 18.2l-1.7 1.7"/></svg>`,
+cal:f=>f?`<svg width="26" height="26" viewBox="0 0 26 26"><path fill="currentColor" d="M7 4h12a4 4 0 0 1 4 4v1H3V8a4 4 0 0 1 4-4zM3 10.6h20V18a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4z"/></svg>`
+ :`<svg width="26" height="26" viewBox="0 0 26 26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3.4" y="4.6" width="19.2" height="17" rx="4"/><path d="M3.6 10h18.8"/><path d="M8.4 14h.1M13 14h.1M17.6 14h.1M8.4 17.6h.1M13 17.6h.1" stroke-width="2.2"/></svg>`,
+list:()=>`<svg width="26" height="26" viewBox="0 0 26 26" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="6.6" cy="8" r="3"/><path d="M5.3 8l1 1 1.7-2" stroke-width="1.4"/><circle cx="6.6" cy="18" r="3"/><path d="M13.2 8h9.4M13.2 18h9.4"/></svg>`,
+clock:f=>f?`<svg width="26" height="26" viewBox="0 0 26 26"><circle cx="13" cy="13" r="10" fill="currentColor"/><path d="M13 7.4V13h4.4" fill="none" stroke="var(--bg)" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>`
+ :`<svg width="26" height="26" viewBox="0 0 26 26" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="13" cy="13" r="9.4"/><path d="M13 7.6V13h4.2"/></svg>`,
+plus:w=>`<svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round"><path d="M11 3.5v15M3.5 11h15"/></svg>`,
+menu:()=>`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 8h16M4 16h11"/></svg>`,
+find:()=>`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6"/><path d="M15.2 15.2l4.6 4.6"/></svg>`
+};
+const tabs=()=>`<div class="tabs">${[I.sun(true),I.cal(false),I.list(),I.clock(false)].map((icon,i)=>`<div class="tab${i?'':' sel'}">${icon}</div>`).join('')}</div>`;
+const field=`<div class="field"><i>${I.plus(1.9)}</i>Ask anything</div>`;
+const sparkles=`<svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M10 3l1.9 5.6L18 11l-6.1 2.4L10 19l-1.9-5.6L2 11l6.1-2.4L10 3zM19 2v6m-3-3h6m-3 11v6m-3-3h6"/></svg>`;
+const BAR={
+ A:`<div class="barA"><div class="r">${tabs()}${field}</div></div>`,
+ B:`<div class="glassBar"><div class="r">${tabs()}${field}</div></div>`,
+ C:`<div class="glassBar round"><div class="r">${tabs()}<div class="action">${I.plus(1.9)}</div><div class="action">${sparkles}</div></div></div>`
+};
+const week=`<div class="wk l"><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span><span>S</span></div>
+<div class="wk d">${[23,24,25,26,27,28,29].map((d,i)=>`<div><span class="${i?'':'on'}">${d}</span><u></u></div>`).join('')}</div>`;
+const ribbon=`<div class="rb"><em></em><s></s>${[8,13,22,33,47,56,58,66,69,74,78,92].map(x=>`<i style="left:${x}%"></i>`).join('')}${[[0,6],[16,9],[33,12],[49,15],[66,18],[83,21],[97,24]].map(a=>`<small style="left:${a[0]}%">${a[1]}</small>`).join('')}</div>`;
+const TOP={
+ T0:`${week}<div class="hd">November 2026</div>`,
+ T1:`<div class="ttl"><b>November 2026</b></div>${week}<div class="hd"></div>`,
+ T2:`<div class="tb"><i>${I.menu()}</i><b>November 2026</b><i>${I.find()}</i></div>${week}<div class="hd"></div>`
+};
+const item=(t,x,c)=>`<div class="it ${c||''}"><t>${t}</t><o></o><x>${x}</x></div>`;
+const body=`${ribbon}<div class="hl">1,205 steps</div><div class="ad">All day</div><div class="ar">Library books due</div>
+<div class="cd"><h4>Morning</h4>${item('09:00','Morning walk','late rp')}${item('10:00','Plan the week','late rp')}<div class="now">Now 10:36</div><div class="fr">Free 1 h 15 min</div></div>
+<div class="cd"><h4>Afternoon</h4>${item('13:00','Focus time','rp')}${item('14:00','Design review','ev')}${item('15:00','Pick up groceries','rp')}${item('15:30','Read chapter 4')}${item('16:00','Send weekly notes')}${item('17:00','Water the plants')}${item('17:30','Reply to email')}</div>`;
+const bottom=bar=>`<div class="bot"><div class="settled">Settled 3</div>${BAR[bar]}<div class="safe"></div></div><div class="home"></div>`;
+const near=(bar,dark)=>`<div class="fit"><div class="ph near${dark?' dark':''}">${bottom(bar)}</div></div>`;
+const phone=(top,dark,crop)=>`<div class="fit"><div class="ph${dark?' dark':''}${crop?' crop':''}"><div class="st"><span>10:36</span><span class="bat"></span></div><div class="isl"></div>${TOP[top]}${body}${crop?'':bottom('B')}</div></div>`;
+const bars=[
+ ['A','停靠单行','页面同色，最省空间。选中标签靠实心图标区分。'],
+ ['B','双玻璃胶囊','左边四个标签，选中有浅底。右边的 + 和 Ask 各自可点。'],
+ ['C','胶囊加圆按钮','+ 和 Chat 都有独立按钮，Chat 由图标表达。']
+];
+const tops=[
+ ['T0','月份放在把手旁','最紧凑，先看到日期再读到月份。'],
+ ['T1','月份标题','先读月份和年份，再看星期和日期。'],
+ ['T2','完整顶栏','菜单、日期、搜索都可见，多占一行。']
+];
+const card=(name,desc,pick,shots)=>`<section class="opt${pick?' pick':''}"><h3>${name}${pick?'<span>首选</span>':''}</h3><p>${desc}</p><div class="shots">${shots}</div></section>`;
+document.getElementById('bars').innerHTML=bars.map(([id,name,desc])=>card(name,desc,id==='B',near(id,false)+near(id,true))).join('');
+document.getElementById('tops').innerHTML=tops.map(([id,name,desc])=>card(name,desc,id==='T1',phone(id,false,true)+phone(id,true,true))).join('');
+document.getElementById('full').innerHTML=phone('T1',false,false)+phone('T1',true,false);
+function fit(){document.querySelectorAll('.fit').forEach(f=>{const p=f.firstElementChild,s=f.clientWidth/440;p.style.transform=`scale(${s})`;f.style.height=p.offsetHeight*s+'px'})}
+fit();addEventListener('resize',fit);document.querySelector('details').addEventListener('toggle',fit);
+</script>
+</body>
+</html>
