@@ -10,6 +10,8 @@ public struct Capture: Equatable, Codable, Sendable {
   public var hasDay: Bool
   public var hour: Int?
   public var minute: Int = 0
+  /// The user named a part of the day and the clock time is a suggestion.
+  public var timeWindow: CaptureTimeWindow? = nil
   /// RepeatRule raw value; nil = one-off.
   public var repeatRule: String? = nil
   /// Set when a time range was given ("3-4pm").
@@ -38,8 +40,8 @@ public struct Capture: Equatable, Codable, Sendable {
   /// An event's alert in minutes before its start, `Preferences.noEventAlert` = none; nil = Settings → "New event alert".
   public var alertMinutes: Int? = nil
 
-  /// An alarm without a chosen time remains a preview, never an ordinary reminder.
-  public var isReadyToAdd: Bool { !ringsAsAlarm || hour != nil }
+  /// An alarm or unresolved time window needs a clock time before Add.
+  public var isReadyToAdd: Bool { hour != nil || (!ringsAsAlarm && timeWindow == nil) }
 
   /// The clock time the line named, on its day.
   public var clockTime: Date? {
@@ -60,6 +62,15 @@ public struct Capture: Equatable, Codable, Sendable {
   public func taskTiming(calendar: Calendar) -> (due: Date?, alertMinutesBefore: Int?) {
     if let start = clockTime(calendar: calendar) { return (start, 0) }
     return (hasDay ? day : nil, nil)
+  }
+
+  public mutating func setTiming(day date: Date?, time: Date?, calendar: Calendar) {
+    timeWindow = nil
+    hasDay = date != nil
+    if let date { day = calendar.startOfDay(for: date) }
+    hour = time.map { calendar.component(.hour, from: $0) }
+    minute = time.map { calendar.component(.minute, from: $0) } ?? 0
+    isAllDay = kind == .event && time == nil
   }
 
   /// "New reminder", "New event", "New alarm": the card's first line.
@@ -90,7 +101,6 @@ public struct Capture: Equatable, Codable, Sendable {
     summary(now: .now, calendar: .current, locale: .current)
   }
 
-  /// The existing readiness policy depends only on whether an alarm has a chosen hour.
   /// Accepts the same calendar as the explicit timing path without adding date-validity requirements.
   public func isReadyToAdd(calendar: Calendar) -> Bool { isReadyToAdd }
 
@@ -113,21 +123,21 @@ public struct Capture: Equatable, Codable, Sendable {
           .day())
     }
     func withTime(_ date: Date) -> String {
-      let parts = calendar.dateComponents([.hour, .minute], from: date)
-      if parts.hour == 0 && parts.minute == 0 { return dayText(date) }
       return dayText(date) + " "
         + date.formatted(
           Date.FormatStyle(
             date: .omitted, time: .shortened, locale: locale, calendar: calendar,
             timeZone: calendar.timeZone))
     }
+    if let timeWindow, clockTime == nil {
+      return dayText(day) + " · " + timeWindow.label + " · Choose a time"
+    }
     var parts: [String] = []
     switch kind {
     case .event where isAllDay:
       parts.append(dayText(day) + " · All day")
     case .event:
-      let start = clockTime ?? day
-      parts.append(withTime(start))
+      parts.append(clockTime.map(withTime) ?? dayText(day))
       if let d = durationMinutes { parts.append(DurationLabel.text(minutes: d)) }
     case .task where ringsAsAlarm:
       parts.append("Alarm " + (clockTime.map { withTime($0) } ?? ""))

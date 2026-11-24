@@ -91,12 +91,12 @@
         })
     }
 
-    /// Saves the decided cards with the conversation (the open ones are not kept).
+    /// Saves decided cards, agent drafts and recoverable local drafts with the conversation.
     func persistCards() {
       guard let thread else { return }
-      let decided = proposals.compactMap(\.stored).filter { $0.status != .open || $0.retainsDraft }
-      guard thread.cards != decided else { return }
-      thread.cards = decided
+      let kept = proposals.compactMap(\.stored).filter(\.shouldPersist)
+      guard thread.cards != kept else { return }
+      thread.cards = kept
       thread.updatedAt = now()
       try? context.save()
     }
@@ -161,7 +161,7 @@
       proposals[i].status = next
       proposals[i].pendingExternalID = nil
       if let aid = proposals[i].agentID {
-        agent?.tools.mark(aid, .added, created: proposals[i].itemRef)
+        agentSession().tools.mark(aid, .added, created: proposals[i].itemRef)
         saveAgentHistory()
       }
       return capture
@@ -194,7 +194,7 @@
       }
       if proposals[i].status == .open { recordCard(resolved: "capture", "skipped") }
       proposals[i].status = next
-      if let aid = proposals[i].agentID { agent?.tools.mark(aid, .dropped) }
+      if let aid = proposals[i].agentID { agentSession().tools.mark(aid, .dropped) }
     }
 
     /// Takes back exactly what Add wrote (the reminder, alarm or event), recorded in Activity. The card shows Undone.
@@ -222,15 +222,15 @@
       proposals[i].itemRef = nil
       proposals[i].entryID = nil
       proposals[i].status = next
-      if let aid = proposals[i].agentID { agent?.tools.mark(aid, .undone) }
+      if let aid = proposals[i].agentID { agentSession().tools.mark(aid, .undone) }
     }
 
     /// Opens what Add wrote: the reminder or alarm in its editor, an event as its day in Today.
     func open(_ id: UUID) {
       guard let p = proposals.first(where: { $0.id == id }) else { return }
       switch CaptureUndo.resolve(p.itemRef, in: context) {
-      case .task(let task): onOpenTask(task, refreshCardTitles)
-      case .alarm(let alarm): onOpenAlarm(alarm, refreshCardTitles)
+      case .task(let task): onOpenTask(task, refreshSavedCards)
+      case .alarm(let alarm): onOpenAlarm(alarm, refreshSavedCards)
       case .event(let event): onOpenDay(event.start)
       case nil: messages.append(reply("“\(p.capture.title)” isn't there any more."))
       }
@@ -312,6 +312,32 @@
         }
       }
       persistCards()
+    }
+
+    func refreshSavedCards() {
+      let calendar = runtime.calendar
+      for i in proposals.indices where proposals[i].status == .added {
+        switch CaptureUndo.resolve(proposals[i].itemRef, in: context) {
+        case .task(let task):
+          proposals[i].capture.setTiming(
+            day: task.due, time: task.dueHasTime ? task.due : nil, calendar: calendar)
+          proposals[i].capture.repeatRule = task.repeatRule
+        case .alarm(let alarm):
+          proposals[i].capture.hour = alarm.hour
+          proposals[i].capture.minute = alarm.minute
+          proposals[i].capture.timeWindow = nil
+          if let date = alarm.nextRing(now: now()) {
+            proposals[i].capture.day = calendar.startOfDay(for: date)
+            proposals[i].capture.hasDay = true
+          }
+        case .event(let event):
+          proposals[i].capture.setTiming(
+            day: event.start, time: event.isAllDay ? nil : event.start, calendar: calendar)
+          proposals[i].capture.durationMinutes = event.isAllDay ? nil : event.durationMinutes
+        case nil: break
+        }
+      }
+      refreshCardTitles()
     }
 
     func isOverdue(_ task: OneTask) -> Bool {

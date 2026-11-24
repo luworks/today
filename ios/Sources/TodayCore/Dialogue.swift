@@ -248,6 +248,12 @@ public enum CaptureConversation {
   public static func parse(_ text: String, now: Date, calendar: Calendar) -> Capture {
     var capture = CaptureParser.parse(text, now: now, calendar: calendar)
     guard ChatRouting.intent(text) == .capture else { return capture }
+    if capture.hour == nil, CaptureParser.leadingMonth(text) == nil,
+      let window = CaptureTimeWindow.detect(in: text)
+    {
+      capture.timeWindow = window
+      capture.hasDay = true
+    }
     if ChatRouting.requestsEvent(text) {
       capture.kind = .event
       capture.ringsAsAlarm = false

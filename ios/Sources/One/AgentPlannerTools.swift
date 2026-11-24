@@ -158,7 +158,7 @@
   @MainActor
   package final class AgentPlannerTools: AgentToolbox {
     package var history: AgentHistory
-    package var book = AgentProposalBook()
+    package var book: AgentProposalBook
     package var turn = AgentTurn(text: "", chinese: false, runID: "")
     package private(set) var cards: [String: AgentCard] = [:]
     package weak var sink: (any AgentCardSink)?
@@ -178,6 +178,7 @@
       actions: PlannerActions, ledger: Ledger, runtime: PlannerRuntime
     ) {
       self.history = history
+      book = AgentProposalBook(next: history.nextProposalNumber ?? 1)
       self.context = context
       self.calendar = calendar
       self.actions = actions
@@ -641,6 +642,37 @@
       }
     }
 
+    package func suggestCaptureTime(_ capture: Capture) -> Capture {
+      guard let window = capture.timeWindow, capture.hour == nil,
+        let day = cal.dateInterval(of: .day, for: capture.day)
+      else { return capture }
+      let busy = entries(in: day, includeDone: false).filter {
+        !$0.isAllDay && !$0.isBackground && !$0.isTask && !$0.isAlarm && $0.end > $0.start
+      }.map { DateInterval(start: $0.start, end: $0.end) }
+      let minutes = capture.kind == .event ? capture.durationMinutes ?? actions.newEventMinutes : 1
+      var usual: Date?
+      if capture.policyKind == .reminder {
+        let title = capture.title
+        var query = FetchDescriptor<OneTask>(
+          predicate: #Predicate { $0.title == title && $0.isDone },
+          sortBy: [SortDescriptor(\.createdAt, order: .reverse)])
+        query.fetchLimit = 12
+        let past = ((try? context.fetch(query)) ?? []).filter(\.dueHasTime).map {
+          ReminderSuggest.Past(title: $0.title, createdAt: $0.createdAt, due: $0.due, isOpen: false)
+        }
+        usual = ReminderSuggest.suggest(from: past, now: now, calendar: cal, limit: 1).first?.when
+      }
+      guard
+        let slot = window.suggestedTime(
+          day: day.start, now: now, busy: busy, durationMinutes: minutes, preferred: usual,
+          calendar: cal)
+      else { return capture }
+      var result = capture
+      result.setTiming(day: slot, time: slot, calendar: cal)
+      result.timeWindow = window
+      return result
+    }
+
     private func freeTime(_ a: JSONValue) -> AgentToolOutcome {
       guard let day = moment(a["day"]?.string)?.date else {
         return .error("unreadable_date", "Couldn't read that day. Ask the user which day.")
@@ -718,9 +750,9 @@
     }
 
     /// The capture a create item describes, or the reason it can't be prepared.
-    private func capture(_ item: JSONValue, base: Capture? = nil) -> Result<
-      Capture, AgentToolOutcome
-    > {
+    private func capture(
+      _ item: JSONValue, base: Capture? = nil, userWindow: (CaptureTimeWindow, Date)? = nil
+    ) -> Result<Capture, AgentToolOutcome> {
       let kind =
         item["kind"]?.string
         ?? (base.map { $0.kind == .event ? "event" : ($0.ringsAsAlarm ? "alarm" : "reminder") }
@@ -733,26 +765,48 @@
       var c = base ?? Capture(title: title, day: cal.startOfDay(for: now), hasDay: false)
       c.title = title
       c.kind = kind == "event" ? .event : .task
-      if let words = item["when_text"]?.string, !words.trimmingCharacters(in: .whitespaces).isEmpty
+      if let (window, day) = userWindow {
+        c.timeWindow = window
+        c.day = day
+        c.hasDay = true
+      } else if let words = item["when_text"]?.string,
+        !words.trimmingCharacters(in: .whitespaces).isEmpty
       {
-        guard let w = when(words, alarm: kind == "alarm") else {
+        let parsedWhen = when(words, alarm: kind == "alarm")
+        let window = parsedWhen?.hour == nil ? CaptureTimeWindow.detect(in: words) : nil
+        guard parsedWhen != nil || window != nil else {
           return .failure(
             .error("unreadable_when", "Couldn't read “\(words)”. Ask the user for the day or time.")
           )
         }
         // A revision keeps the card's own day unless the words name a new one ("改成11点" on
         // next Monday's card stays on Monday), and its time unless they give a new one.
-        if let base, base.hasDay, !w.namesDay {
+        if let base, base.hasDay, parsedWhen?.namesDay != true {
           c.day = base.day
         } else {
-          c.day = w.day ?? cal.startOfDay(for: now)
+          c.day = parsedWhen?.day ?? cal.startOfDay(for: now)
         }
         c.hasDay = true
-        if let hour = w.hour {
-          c.hour = hour
-          c.minute = w.minute
+        if let hour = parsedWhen?.hour {
+          let bareTime =
+            words.trimmingCharacters(in: .whitespacesAndNewlines).range(
+              of: #"^\d{1,2}(?:[:：]\d{2})?$"#, options: .regularExpression) != nil
+          c.hour =
+            bareTime && base?.timeWindow?.hours.contains(hour + 12) == true
+            ? hour + 12 : hour
+          c.minute = parsedWhen?.minute ?? 0
+          c.timeWindow = nil
+        } else if let window {
+          c.timeWindow = window
+          c.hour = nil
+          c.minute = 0
         }
-        if c.kind == .event, let minutes = w.minutes { c.durationMinutes = minutes }
+        if c.kind == .event, let minutes = parsedWhen?.minutes { c.durationMinutes = minutes }
+      }
+      if c.kind == .event, userWindow != nil, let words = item["when_text"]?.string,
+        let minutes = when(words, alarm: false)?.minutes
+      {
+        c.durationMinutes = minutes
       }
       if let list = item["list"]?.string {
         guard let name = listName(list) else {
@@ -772,6 +826,12 @@
         }
       }
       if kind == "alarm" || item["ring"]?.bool == true { c.ringsAsAlarm = true }
+      c = suggestCaptureTime(c)
+      if c.timeWindow != nil, c.hour == nil {
+        return .failure(
+          .error(
+            "no_slot_in_window", "No time fits this part of the day. Ask for another time or day."))
+      }
       if kind == "alarm" && c.hour == nil {
         return .failure(
           .error("missing_time", "An alarm needs a time. Ask the user when it should ring."))
@@ -798,6 +858,7 @@
         "day": c.hasDay ? stamp(c.day, allDay: true) : .null,
         "time": c.hour.map { .string(String(format: "%02d:%02d", $0, c.minute)) } ?? .null,
       ]
+      if c.timeWindow != nil { o["suggested_time"] = true }
       if let list = c.listName { o["list"] = .string(list) }
       if let rule = c.repeatRule { o["repeat"] = .string(rule) }
       if c.kind == .event && c.hour == nil {
@@ -811,13 +872,58 @@
       return .object(o)
     }
 
+    package func rememberCapture(
+      _ capture: Capture, proposalID: String?, status: CardStatus,
+      itemRef: String?
+    ) -> JSONValue {
+      let item = itemRef.map {
+        history.shortID(for: Ledger.comparisonKey($0), prefix: itemPrefix(capture.policyKind))
+      }
+      if let proposalID {
+        if let existing = cards[proposalID] {
+          var card = existing
+          card.body = .create(capture)
+          cards[proposalID] = card
+        } else if let state = AgentProposalBook.Status(rawValue: status.rawValue) {
+          book.restoreCreate(
+            id: proposalID, kind: capture.policyKind.rawValue, status: state,
+            itemID: item)
+          cards[proposalID] = AgentCard(
+            id: proposalID, body: .create(capture), tier: .preview, why: nil, chinese: false)
+        }
+      }
+      return [
+        "proposal_id": proposalID.map(JSONValue.string) ?? .null,
+        "item_id": item.map(JSONValue.string) ?? .null,
+        "status": .string(status.rawValue),
+        "parsed": parsed(capture),
+      ]
+    }
+
+    private func itemPrefix(_ kind: ActionPolicy.Kind) -> String {
+      switch kind {
+      case .event: "e"
+      case .alarm: "a"
+      case .reminder, .list: "t"
+      }
+    }
+
     private func create(_ a: JSONValue) -> AgentToolOutcome {
       let items = a["items"]?.array ?? []
       guard !items.isEmpty else { return .error("no_items", "items is empty.") }
       var results: [JSONValue] = []
       var shown = 0
+      let userWindow: (CaptureTimeWindow, Date)?
+      if items.count == 1, !FastLane.hasMultipleActions(turn.text),
+        let window = CaptureTimeWindow.detect(in: turn.text)
+      {
+        let requested = CaptureParser.parse(turn.text, now: now, calendar: cal)
+        userWindow = requested.hour == nil ? (window, requested.day) : nil
+      } else {
+        userWindow = nil
+      }
       for item in items.prefix(8) {
-        switch capture(item) {
+        switch capture(item, userWindow: userWindow) {
         case .failure(let error):
           results.append(JSONValue.parse(error.output) ?? .null)
         case .success(let c):
@@ -831,7 +937,7 @@
             .init(
               tool: .proposeCreate, source: .agent, words: turn.words, kind: kind, fields: fields,
               askedForAction: turn.askedForAction, reportedSpeech: turn.reportedSpeech,
-              previewFirst: turn.previewFirst))
+              previewFirst: turn.previewFirst || c.timeWindow != nil))
           if case .refuse(let reason) = tier {
             var refused: [String: JSONValue] = [
               "error": "refused", "reason": .string(reason.rawValue),
@@ -1191,6 +1297,10 @@
           case .failure(let e): return e
           case .success(let revised):
             card.body = .create(revised)
+            if revised.timeWindow != nil {
+              card.tier = .preview
+              book.retier(id, .preview)
+            }
             if let w = why(a) { card.why = w }
             cards[id] = card
             sink?.revise(card)

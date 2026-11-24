@@ -18,6 +18,33 @@ final class AgentWhenTextTests: XCTestCase {
     return "\(d.month!)/\(d.day!)"
   }
 
+  func testFlexibleEveningRespectsCalendarDurationAndHabit() throws {
+    func at(_ hour: Int, _ minute: Int = 0) throws -> Date {
+      try XCTUnwrap(cal.date(bySettingHour: hour, minute: minute, second: 0, of: now))
+    }
+    let six = try at(18)
+    let seven = try at(19)
+    let eight = try at(20)
+    let nine = try at(21)
+    let busy = [DateInterval(start: six, end: seven)]
+    let window = CaptureTimeWindow.evening
+    XCTAssertEqual(
+      window.suggestedTime(
+        day: now, now: now, busy: busy, durationMinutes: 30, preferred: eight, calendar: cal), eight
+    )
+    XCTAssertEqual(
+      window.suggestedTime(
+        day: now, now: now, busy: busy, durationMinutes: 90, preferred: eight, calendar: cal), seven
+    )
+    XCTAssertNil(
+      window.suggestedTime(
+        day: now, now: now, busy: busy + [DateInterval(start: eight, end: nine)],
+        durationMinutes: 61, calendar: cal))
+    XCTAssertNil(
+      window.suggestedTime(
+        day: now, now: nine, busy: [], durationMinutes: 1, calendar: cal))
+  }
+
   /// Must fix 4: an alarm's ambiguous hour is in the morning, as in Apple Clock, even when the words
   /// handed over carry no "alarm" ("6:15 tomorrow").
   func testAlarmWordsDefaultToTheMorning() {
