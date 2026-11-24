@@ -42,7 +42,7 @@
     }
   }
 
-  /// App shell: the page fills the screen under the status bar; one docked bottom row holds the four tabs and Ask with +.
+  /// App shell: the page fills the screen under the status bar; two floating controls hold the tabs and Ask with +.
   /// A swipe from the left edge opens conversation history in the sidebar.
   public struct HomeView: View {
     private let composition: ShellComposition
@@ -762,40 +762,45 @@
 
     // MARK: Bottom: tabs, then Ask with +
 
+    private let bottomControlHeight = ButtonConfiguration.minimumHitSize + 8
+
     private var bottomBar: some View {
       VStack(spacing: 8) {
         if tab != .today, !drawer.isOpen { UndoToastView() }
-        dock
+        bottomControls
           .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
           .modifier(TabSwipe(isEnabled: !drawer.isOpen, move: switchTab))
           .drawerSwipeExcluded(tab != HomeTab.allCases.first)
       }
     }
 
-    private var dock: some View {
-      HStack(spacing: 8) {
-        HStack(spacing: 0) {
-          ForEach(HomeTab.allCases) { item in
-            DockTab(
-              tab: item, isSelected: item == tab, marked: item == .today && !showsToday,
-              tint: item == .today ? TodayButtonColor(stored: todayButtonColor).color : .primary
-            ) {
-              select(item)
-            }
-          }
+    private var bottomControls: some View {
+      GlassEffectContainer(spacing: 8) {
+        HStack(spacing: 8) {
+          tabStrip
+          composer
         }
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("Tabs")
-        composer
       }
       .padding(.horizontal, 12)
       .padding(.top, 6)
       .padding(.bottom, 2)
-      .frame(maxWidth: .infinity)
-      .background(.bar, ignoresSafeAreaEdges: .bottom)
-      .overlay(alignment: .top) {
-        Rectangle().fill(Color(.separator)).frame(height: 0.5)
+    }
+
+    private var tabStrip: some View {
+      HStack(spacing: 0) {
+        ForEach(HomeTab.allCases) { item in
+          DockTab(
+            tab: item, isSelected: item == tab, marked: item == .today && !showsToday,
+            tint: item == .today ? TodayButtonColor(stored: todayButtonColor).color : .primary
+          ) {
+            select(item)
+          }
+        }
       }
+      .padding(4)
+      .glassEffect(.regular, in: Capsule())
+      .accessibilityElement(children: .contain)
+      .accessibilityLabel("Tabs")
     }
 
     private var showsToday: Bool {
@@ -819,23 +824,26 @@
         Button {
           openAsk(nil)
         } label: {
-          Text("Ask anything")
-            .font(.body)
-            .foregroundStyle(Color(.placeholderText))
-            .lineLimit(1)
-            .frame(
-              maxWidth: .infinity, minHeight: ButtonConfiguration.minimumHitSize,
-              alignment: .leading
-            )
-            .contentShape(Rectangle())
+          ViewThatFits(in: .horizontal) {
+            Text("Ask anything").fixedSize()
+            Text("Ask").fixedSize()
+            Image(systemName: "sparkles")
+          }
+          .font(.subheadline)
+          .foregroundStyle(Color(.secondaryLabel))
+          .frame(
+            maxWidth: .infinity, minHeight: bottomControlHeight,
+            alignment: .leading
+          )
+          .padding(.trailing, 12)
+          .contentShape(Rectangle())
         }
         .buttonStyle(PressScale())
         .accessibilityLabel("Chat")
         .accessibilityIdentifier("Ask AI or add anything")
         .accessibilityHint("Starts a new chat. You can also pull down on Today or Calendar.")
       }
-      .padding(.trailing, 12)
-      .background(Color(.tertiarySystemFill), in: Capsule())
+      .glassEffect(.regular, in: Capsule())
     }
 
     /// A new event: Apple's own editor when Calendar access is on (presented by UIKit, see `NativeEvents`), else ours.
@@ -888,10 +896,10 @@
 
     private var plusLabel: some View {
       Image(systemName: "plus")
-        .font(ButtonConfiguration.Icon.font)
-        .foregroundStyle(.primary)
+        .font(.system(size: 18, weight: .regular))
+        .foregroundStyle(Color(.secondaryLabel))
         .frame(
-          width: ButtonConfiguration.minimumHitSize, height: ButtonConfiguration.minimumHitSize
+          width: ButtonConfiguration.minimumHitSize, height: bottomControlHeight
         )
         .contentShape(Circle())
     }
@@ -1005,6 +1013,7 @@
     var body: some View {
       Button(action: action) {
         Image(systemName: tab.icon)
+          .symbolVariant(isSelected ? .fill : .none)
           .font(ButtonConfiguration.Icon.font)
           .foregroundStyle(isSelected ? tint : Color(.secondaryLabel))
           .overlay(alignment: .topTrailing) {
@@ -1012,10 +1021,10 @@
               Circle().fill(tint).frame(width: 7, height: 7).offset(x: 5, y: -2)
             }
           }
-          .frame(width: 46, height: ButtonConfiguration.minimumHitSize)
-          .background {
-            if isSelected { Capsule().fill(Color(.tertiarySystemFill)) }
-          }
+          .frame(
+            width: ButtonConfiguration.minimumHitSize, height: ButtonConfiguration.minimumHitSize
+          )
+          .background(isSelected ? Color(.tertiarySystemFill) : .clear, in: Capsule())
           .contentShape(Rectangle())
           .animation(reduceMotion ? nil : PillStyle.selectionAnimation, value: isSelected)
       }
