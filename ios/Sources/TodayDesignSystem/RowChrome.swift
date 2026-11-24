@@ -10,8 +10,8 @@
     package static let iconWidth: CGFloat = 32
     package static let titleGap: CGFloat = 6
     package static let timeWidth: CGFloat = 50
-    package static let minHeight: CGFloat = 44
-    package static let verticalPadding: CGFloat = 5
+    package static let minHeight: CGFloat = ButtonConfiguration.minimumHitSize
+    package static let verticalPadding: CGFloat = 3
   }
 
   /// One vertical rhythm for every Today row. Elsewhere rows keep the 44pt floor.

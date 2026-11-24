@@ -19,15 +19,14 @@ struct DayPartTests {
 
   func at(_ hour: Int) -> Date { midnight.addingTimeInterval(TimeInterval(hour * 3600)) }
 
-  func ids(_ entries: [Entry]) -> [String] {
+  func ids(_ entries: [Entry], closed: Set<DayPart> = [], keep: Set<String> = []) -> [String] {
     DayPart.rows(
-      entries, day: midnight, calendar: calendar, start: { at($0.hour) }, isPlanned: \.planned
+      entries, day: midnight, calendar: calendar, start: { at($0.hour) }, isPlanned: \.planned,
+      isOpen: { !closed.contains($0) }, keepsWhenClosed: { keep.contains($0.id) }
     ).map { row in
       switch row {
-      case .label(let part): "label.\(part)"
-      case .item(let entry, let card, let closes):
-        "\(entry.id)\(card.map { ".\($0)" } ?? "")\(closes ? ".close" : "")"
-      case .cardEnd(let part): "end.\(part)"
+      case .label(let part, let count, let open): "label.\(part).\(count)\(open ? "" : ".closed")"
+      case .item(let entry, let part): "\(entry.id)\(part.map { ".\($0)" } ?? "")"
       }
     }
   }
@@ -40,21 +39,68 @@ struct DayPartTests {
     #expect(DayPart.of(at(-3), day: midnight, calendar: calendar) == .morning)
   }
 
-  @Test func eachPartWithPlansIsOneLabelledCard() {
+  @Test func eachPartWithPlansIsOneCountedSection() {
     let rows = ids([
       Entry(id: "a", hour: 8), Entry(id: "b", hour: 9), Entry(id: "c", hour: 19),
     ])
-    #expect(
-      rows == [
-        "label.morning", "a.morning", "b.morning.close", "end.morning",
-        "label.evening", "c.evening.close", "end.evening",
-      ])
+    #expect(rows == ["label.morning.2", "a.morning", "b.morning", "label.evening.1", "c.evening"])
   }
 
-  @Test func aPartWithOnlyFreeTimeHasNoCard() {
+  @Test func aPartWithOnlyFreeTimeHasNoSection() {
     let rows = ids([
       Entry(id: "a", hour: 8), Entry(id: "free", hour: 13, planned: false),
     ])
-    #expect(rows == ["label.morning", "a.morning.close", "end.morning", "free"])
+    #expect(rows == ["label.morning.1", "a.morning", "free"])
+  }
+
+  @Test func aClosedPartKeepsItsCountAndTimeContext() {
+    let rows = ids(
+      [
+        Entry(id: "a", hour: 8), Entry(id: "free", hour: 9, planned: false),
+        Entry(id: "now", hour: 10, planned: false), Entry(id: "b", hour: 14),
+      ], closed: [.morning], keep: ["now", "free"])
+    #expect(
+      rows == [
+        "label.morning.1.closed", "free.morning", "now.morning", "label.afternoon.1", "b.afternoon",
+      ])
+  }
+
+  @Test func onTodayPartsThatEndedBeforeEntryStartClosed() {
+    let entry = at(13)
+    let open = DayPart.allCases.map {
+      DayPartDisclosure().isOpen($0, day: midnight, entry: entry, calendar: calendar)
+    }
+    #expect(open == [false, true, true])
+    let tomorrow = midnight.addingTimeInterval(86_400)
+    #expect(
+      DayPart.allCases.allSatisfy {
+        DayPartDisclosure().isOpen($0, day: tomorrow, entry: entry, calendar: calendar)
+      })
+  }
+
+  @Test func aTapOverridesTheDefaultForThatDayOnly() {
+    var disclosure = DayPartDisclosure()
+    disclosure.toggle(.morning, day: midnight, entry: at(13), calendar: calendar)
+    disclosure.toggle(.evening, day: midnight, entry: at(13), calendar: calendar)
+    #expect(disclosure.isOpen(.morning, day: midnight, entry: at(13), calendar: calendar))
+    #expect(!disclosure.isOpen(.evening, day: midnight, entry: at(13), calendar: calendar))
+    let tomorrow = midnight.addingTimeInterval(86_400)
+    disclosure.toggle(.afternoon, day: tomorrow, entry: at(13), calendar: calendar)
+    #expect(disclosure.isOpen(.evening, day: tomorrow, entry: at(13), calendar: calendar))
+    #expect(!disclosure.isOpen(.afternoon, day: tomorrow, entry: at(13), calendar: calendar))
+    #expect(disclosure.isOpen(.morning, day: midnight, entry: at(13), calendar: calendar))
+    #expect(!disclosure.isOpen(.evening, day: midnight, entry: at(13), calendar: calendar))
+  }
+
+  @Test func defaultsChangeAtLocalNoonOnADaylightSavingTransition() throws {
+    var local = calendar
+    local.timeZone = try #require(TimeZone(identifier: "America/Los_Angeles"))
+    let noon = try #require(
+      local.date(from: DateComponents(year: 2026, month: 3, day: 8, hour: 12)))
+    let disclosure = DayPartDisclosure()
+    #expect(
+      disclosure.isOpen(.morning, day: noon, entry: noon.addingTimeInterval(-60), calendar: local))
+    #expect(!disclosure.isOpen(.morning, day: noon, entry: noon, calendar: local))
+    #expect(disclosure.isOpen(.afternoon, day: noon, entry: noon, calendar: local))
   }
 }

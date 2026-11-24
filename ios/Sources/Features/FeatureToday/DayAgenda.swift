@@ -107,10 +107,10 @@
     @State private var history = DayHistory()
     @State private var historyDay: Date?
     @State private var freeChoice: FreeTimeChoice?
-    @State private var showsSettled = false
+    @State private var settledOpen = false
     @State private var entry: Date?
     @State private var doneAnchor: Set<PersistentIdentifier> = []
-    @State private var swipes = DayPartSwipes()
+    @State private var parts = DayPartDisclosure()
     @State private var viewport = TimelineViewport()
     @State private var picked: AnyHashable?
     @Environment(\.modelContext) private var context
@@ -122,12 +122,11 @@
         let plan = makePlan(dayItems)
         let rows = partRows(plan)
         VStack(spacing: 0) {
-          if !isPastDay, !plan.marks.isEmpty { ribbon(plan, rows: rows, proxy: proxy) }
-          list(proxy, items: dayItems, rows: rows)
+          if !isPastDay, !plan.marks.isEmpty { ribbon(plan, proxy: proxy) }
+          list(items: dayItems, rows: rows)
             .overlay(alignment: .bottom) {
               if showsUndoToast { UndoToastView() }
             }
-          settledFooter
         }
         .onAppear {
           refreshClock()
@@ -141,6 +140,7 @@
         }
         .onChange(of: day) { _, _ in
           enter()
+          picked = nil
           showsAllOverdue = false
           timeRequest = nil
           pendingTime = nil
@@ -150,6 +150,9 @@
         }
         .onChange(of: timelineSpans(rows), initial: true) { _, spans in
           viewport.setSpans(spans)
+        }
+        .onChange(of: settledTodayIDs.isEmpty) { _, empty in
+          if empty { settledOpen = false }
         }
       }
       .onChange(of: tasks.map { "\($0.title)|\($0.due?.timeIntervalSince1970 ?? 0)|\($0.isDone)" })
@@ -240,6 +243,12 @@
 
     private func refreshClock() {
       let next = presentation.now
+      if !cal.isDate(next, inSameDayAs: now) {
+        parts = DayPartDisclosure()
+        settledOpen = false
+        picked = nil
+        entry = next
+      }
       day = presentation.runtime.refreshedTodayDay(day, previousNow: now, now: next)
       now = next
     }
@@ -310,9 +319,7 @@
     /// The Today tab on today (not the Calendar tab, not another day).
     private var isTodayTab: Bool { cal.isDate(day, inSameDayAs: now) }
 
-    private func list(
-      _ proxy: ScrollViewProxy, items: DayItems, rows: [DayPartRow<TimelineItem>]
-    ) -> some View {
+    private func list(items: DayItems, rows: [DayPartRow<TimelineItem>]) -> some View {
       List {
         Color.clear
           .frame(height: 0)
@@ -394,6 +401,7 @@
           }
         }
         timelineContent(items, rows: rows)
+        settledSection
       }
       .listStyle(.plain)
       .transaction(value: settledTodayIDs) { transaction in
@@ -414,7 +422,6 @@
         viewport.setList(frame)
       }
       .pullToAsk()
-      .background(alignment: .topLeading) { DayPartSwipeLayer(swipes: swipes) }
       .background {
         TimelineHoldDragInstaller(
           model: drag, canLift: { canLift(at: $0, rows: rows) },
@@ -423,13 +430,12 @@
       }
       .entryDeleteDialog($pendingDelete)
       .sheet(item: $freeChoice) { freeSheet($0) }
-      .sheet(isPresented: $showsSettled) { settledSheet }
     }
 
     private func timelineSpans(_ rows: [DayPartRow<TimelineItem>]) -> [AnyHashable: DateInterval] {
       var spans: [AnyHashable: DateInterval] = [:]
       for row in rows {
-        if case .item(let item, _, _) = row { spans[row.id] = item.span }
+        if case .item(let item, _) = row { spans[row.id] = item.span }
       }
       return spans
     }
@@ -441,7 +447,7 @@
           DayPartRows(
             rows: DayPart.rows(
               history.facts.filter(\.isPrimary), day: day, calendar: cal, start: \.at,
-              isPlanned: { _ in true }), swipes: swipes, drag: drag
+              isPlanned: { _ in true }, isOpen: isOpen), drag: drag, toggle: togglePart
           ) { fact in
             HistoricalFactRow(fact: fact, todayStyle: true)
           }
@@ -461,7 +467,7 @@
           Text("Nothing planned").foregroundStyle(.secondary)
             .listRowSeparator(.hidden)
         }
-        DayPartRows(rows: rows, swipes: swipes, drag: drag, viewport: viewport) { item in
+        DayPartRows(rows: rows, drag: drag, viewport: viewport, toggle: togglePart) { item in
           dayItemRow(item)
         }
       }
@@ -470,14 +476,29 @@
     private func partRows(_ plan: DayPlan) -> [DayPartRow<TimelineItem>] {
       guard let session = drag.session else {
         return DayPart.rows(
-          shownRows(plan), day: day, calendar: cal, start: \.start, isPlanned: \.isPlanned)
+          shownRows(plan), day: day, calendar: cal, start: \.start, isPlanned: \.isPlanned,
+          isOpen: isOpen, keepsWhenClosed: \.staysWhenClosed)
       }
       let stop = session.stops[drag.stopIndex]
       var rows = session.anchors
       rows.insert(session.item, at: stop.index)
       return DayPart.rows(
         rows, day: day, calendar: cal,
-        start: { $0.id == session.item.id ? stop.target : $0.start }, isPlanned: \.isPlanned)
+        start: { $0.id == session.item.id ? stop.target : $0.start }, isPlanned: \.isPlanned,
+        isOpen: isOpen, keepsWhenClosed: { $0.staysWhenClosed || $0.id == session.item.id })
+    }
+
+    private var entryTime: Date { entry ?? now }
+
+    private func isOpen(_ part: DayPart) -> Bool {
+      parts.isOpen(part, day: day, entry: entryTime, calendar: cal)
+    }
+
+    private func togglePart(_ part: DayPart) {
+      guard drag.session == nil, !timeBusy else { return }
+      withAnimation(reduceMotion ? nil : .snappy) {
+        parts.toggle(part, day: day, entry: entryTime, calendar: cal)
+      }
     }
 
     private func shownRows(_ plan: DayPlan) -> [TimelineItem] {
@@ -524,9 +545,7 @@
       }
     }
 
-    private func ribbon(
-      _ plan: DayPlan, rows: [DayPartRow<TimelineItem>], proxy: ScrollViewProxy
-    ) -> some View {
+    private func ribbon(_ plan: DayPlan, proxy: ScrollViewProxy) -> some View {
       let current = isToday ? now : nil
       let marks = zip(plan.planned, plan.marks).map { item, entry in
         let repeats: Bool = if case .due(let task) = item { task.repeats != nil } else { false }
@@ -536,12 +555,13 @@
             || current.map { entry.kind != .reminder && entry.stop < $0 } ?? false,
           late: TodayTimeline.isOpenPast(entry, now: current))
       }
+      let targets = ribbonTargets(plan)
       return DayRibbon(
         marks: marks, range: plan.range, calendar: cal, now: current, viewport: viewport,
         label: {
           $0.plannerFormatted(date: .omitted, time: .shortened, runtime: presentation.runtime)
         },
-        pick: { pick($0, animated: $1, rows: rows, proxy: proxy) },
+        pick: { pick($0, animated: $1, targets: targets, proxy: proxy) },
         showNow: {
           withAnimation(reduceMotion ? nil : .snappy) {
             proxy.scrollTo("now-line", anchor: .center)
@@ -552,53 +572,54 @@
       .disabled(drag.session != nil || timeBusy)
     }
 
-    private func pick(
-      _ date: Date, animated: Bool, rows: [DayPartRow<TimelineItem>], proxy: ScrollViewProxy
-    ) -> Bool {
-      var targets: [(id: AnyHashable, span: DateInterval)] = []
-      var label: AnyHashable?
-      for row in rows {
+    private struct RibbonTarget {
+      let id: AnyHashable
+      let span: DateInterval
+      let section: (part: DayPart, id: AnyHashable)?
+    }
+
+    private func ribbonTargets(_ plan: DayPlan) -> [RibbonTarget] {
+      var targets: [RibbonTarget] = []
+      var section: (part: DayPart, id: AnyHashable)?
+      var useHeader = false
+      for row in DayPart.rows(
+        shownRows(plan), day: day, calendar: cal, start: \.start, isPlanned: \.isPlanned)
+      {
         switch row {
-        case .label: label = row.id
-        case .cardEnd: label = nil
-        case .item(let item, _, _):
+        case .label(let part, _, _):
+          section = (part, row.id)
+          useHeader = true
+        case .item(let item, let part):
           guard let span = item.span else { continue }
-          targets.append((label ?? row.id, span))
-          label = nil
+          if part == nil { section = nil }
+          targets.append(
+            RibbonTarget(
+              id: (useHeader ? section?.id : nil) ?? row.id, span: span, section: section))
+          useHeader = false
         }
       }
+      return targets
+    }
+
+    private func pick(
+      _ date: Date, animated: Bool, targets: [RibbonTarget], proxy: ScrollViewProxy
+    ) -> Bool {
       guard let index = TodayTimeline.scrollTarget(for: date, in: targets.map(\.span)) else {
         return false
       }
-      let id = targets[index].id
+      let target = targets[index]
+      let closed = target.section.flatMap { isOpen($0.part) ? nil : $0 }
+      let id = closed?.id ?? target.id
       let changed = id != picked
-      picked = id
-      if animated, !reduceMotion {
-        withAnimation(.snappy) { proxy.scrollTo(id, anchor: .top) }
-      } else if changed || animated {
-        withTransaction(Transaction(animation: nil)) { proxy.scrollTo(id, anchor: .top) }
+      guard changed || animated else { return false }
+      if changed { picked = id }
+      withAnimation(animated && !reduceMotion ? .snappy : nil) {
+        if animated, let closed {
+          parts.set(closed.part, open: true, day: day, calendar: cal)
+        }
+        proxy.scrollTo(id, anchor: .top)
       }
       return changed
-    }
-
-    @ViewBuilder
-    private var settledFooter: some View {
-      let settled = settlesHere && showsSettle ? settledRecords.count : 0
-      if settled > 0 {
-        HStack {
-          Spacer(minLength: 0)
-          Button {
-            showsSettled = true
-          } label: {
-            Text("Settled \(settled)").font(.subheadline).foregroundStyle(.secondary)
-              .frame(minHeight: 44).contentShape(Rectangle())
-          }
-          .buttonStyle(.plain)
-          .accessibilityIdentifier("focus.settled")
-        }
-        .padding(.horizontal, 20)
-        .frame(minHeight: 44)
-      }
     }
 
     @ViewBuilder
@@ -619,13 +640,13 @@
     private func canLift(at point: CGPoint, rows: [DayPartRow<TimelineItem>]) -> Bool {
       guard let id = dragHit(at: point) else { return false }
       for row in rows where row.id == id {
-        if case .item(let item, _, _) = row { return dragTiming(item) != nil }
+        if case .item(let item, _) = row { return dragTiming(item) != nil }
       }
       return false
     }
 
     private func dragHit(at point: CGPoint) -> AnyHashable? {
-      guard !isPastDay, !timeBusy, pendingTime == nil, swipes.slides.isEmpty else { return nil }
+      guard !isPastDay, !timeBusy, pendingTime == nil else { return nil }
       return drag.rowID(at: point)
     }
 
@@ -643,7 +664,16 @@
       anchors.remove(at: originalIndex)
       let stops = TimelineDropPlan.stops(
         anchors: anchors.map(\.dropAnchor), originalIndex: originalIndex, timing: timing, day: day,
-        calendar: cal)
+        calendar: cal
+      ).filter { stop in
+        // Hidden rows still constrain time, but only visible rows can provide a drag boundary.
+        guard stop.index != originalIndex else { return true }
+        guard isOpen(DayPart.of(stop.target, day: day, calendar: cal)) else { return false }
+        guard stop.index > 0 else { return true }
+        let boundary = anchors[stop.index - 1]
+        return boundary.staysWhenClosed
+          || isOpen(DayPart.of(boundary.start, day: day, calendar: cal))
+      }
       guard let original = stops.firstIndex(where: { $0.index == originalIndex }) else {
         return false
       }
@@ -1203,19 +1233,17 @@
         }.map(\.identity))
     }
 
-    private var settledSheet: some View {
-      NavigationStack {
-        List { settledRows }
-          .listStyle(.plain)
-          .navigationTitle("Settled")
-          .navigationBarTitleDisplayMode(.inline)
-          .toolbar {
-            ToolbarItem(placement: .confirmationAction) {
-              Button("Done") { showsSettled = false }
-            }
-          }
+    @ViewBuilder
+    private var settledSection: some View {
+      let settled = settlesHere && showsSettle ? settledRecords.count : 0
+      if settled > 0 {
+        TodaySectionHeader(
+          title: "Settled", count: settled, isOpen: settledOpen, identifier: "focus.settled"
+        ) {
+          withAnimation(reduceMotion ? nil : .snappy) { settledOpen.toggle() }
+        }
+        if settledOpen { settledRows }
       }
-      .presentationDetents([.medium, .large])
     }
 
     private var settledRows: some View {
@@ -1228,10 +1256,8 @@
             identity: record.identity, reference: record.localReference, title: "Unavailable item"
           )
         HStack {
-          VStack(alignment: .leading, spacing: 3) {
-            Text(target.title).foregroundStyle(.primary)
-            Text("Hidden on this day in Today").font(.caption).foregroundStyle(.secondary)
-          }
+          Text(target.title).font(AgendaRowStyle.title).foregroundStyle(.secondary)
+            .lineLimit(1)
           Spacer()
           Button {
             changeFocus(source == nil ? nil : .active, target: target)
@@ -1623,6 +1649,10 @@
     case alarm(OneAlarm, Date, Date?)
     case gap(DateInterval)
     case nowMarker(Date)
+
+    var staysWhenClosed: Bool {
+      !isPlanned
+    }
 
     var id: AnyHashable {
       switch self {
