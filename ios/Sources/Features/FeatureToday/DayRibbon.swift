@@ -27,6 +27,7 @@
     @Environment(\.colorScheme) private var colorScheme
     @GestureState private var touching = false
     @State private var axis: Axis?
+    @State private var scrubDate: Date?
     @State private var detents = 0
     @State private var settles = 0
 
@@ -115,13 +116,19 @@
         axis = abs(dx) > abs(dy) && !opensDrawer ? .horizontal : .ignored
       }
       guard axis == .horizontal else { return }
-      if pick(date(at: value.location.x - frame.minX, width: frame.width), false) {
+      let date = date(at: value.location.x - frame.minX, width: frame.width)
+      scrubDate = date
+      if pick(date, false) {
         detents += 1
       }
     }
 
     private func finish() {
-      if axis == .horizontal { settles += 1 }
+      if let scrubDate {
+        _ = pick(scrubDate, true)
+        settles += 1
+      }
+      scrubDate = nil
       axis = nil
     }
 
