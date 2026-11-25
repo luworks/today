@@ -41,7 +41,7 @@
           title: Text(title.isEmpty ? fallbackTitle : title)
             .strikethrough(mark == .completed)
             .foregroundStyle(.secondary),
-          singleLine: todayStyle
+          agendaStyle: todayStyle
         ) {
           Text(detail).font(.caption).foregroundStyle(.secondary)
         }

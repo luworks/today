@@ -1,6 +1,7 @@
 #if os(iOS)
   import SwiftUI
   import TodayCore
+  import TodayDesignSystem
 
   struct DayPartRows<Item: Identifiable, Row: View>: View {
     let rows: [DayPartRow<Item>]
@@ -46,14 +47,14 @@
     var body: some View {
       Button(action: toggle) {
         HStack(spacing: 10) {
-          Text("\(title) (\(count))").font(.subheadline)
+          Text("\(title) (\(count))").font(AgendaRowStyle.disclosure)
           Rectangle().fill(.quaternary).frame(height: 1)
           Image(systemName: isOpen ? "chevron.up" : "chevron.down")
             .font(.footnote)
             .frame(width: 20)
         }
         .foregroundStyle(.secondary)
-        .frame(minHeight: 36)
+        .frame(minHeight: 30)
         .contentShape(Rectangle())
       }
       .buttonStyle(.plain)
@@ -62,7 +63,7 @@
       .accessibilityAddTraits(.isHeader)
       .accessibilityIdentifier(identifier)
       .listRowSeparator(.hidden)
-      .listRowInsets(EdgeInsets(top: 2, leading: 20, bottom: 0, trailing: 16))
+      .listRowInsets(EdgeInsets(top: 0, leading: 12, bottom: 0, trailing: 12))
       .listRowBackground(Color.clear)
     }
   }
