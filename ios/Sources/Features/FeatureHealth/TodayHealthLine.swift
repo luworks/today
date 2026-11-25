@@ -21,14 +21,34 @@
     package func load() async { await model.loadSummary() }
   }
 
-  /// One quiet line at the top of Today (today only): "6,240 steps · slept 7 hr 12 min". Tap opens the Health sheet (the
-  /// compact list of the metrics you chose). Read-only. Off with Settings → Today → Health summary.
-  package struct TodayHealthLine: View {
-    let line: String
-    package init(line: String) { self.line = line }
-    @State private var showsDetail = false
+  package struct TodayHealthSummary: View {
+    @Environment(HealthLineModel.self) private var health
+    @Environment(\.scenePhase) private var scenePhase
+    @AppStorage(SettingsKey.healthSummary) private var enabled = true
+    let isToday: Bool
+
+    package init(isToday: Bool) { self.isToday = isToday }
 
     package var body: some View {
+      Group {
+        if enabled, isToday, let line = health.line {
+          TodayHealthLine(line: line)
+        }
+      }
+      .task(id: [enabled, isToday, scenePhase == .active]) {
+        guard enabled, isToday, scenePhase == .active else { return }
+        await health.load()
+      }
+    }
+  }
+
+  /// One quiet line at the top of Today (today only): "6,240 steps · slept 7 hr 12 min". Tap opens the Health sheet (the
+  /// compact list of the metrics you chose). Read-only. Off with Settings → Today → Health summary.
+  private struct TodayHealthLine: View {
+    let line: String
+    @State private var showsDetail = false
+
+    var body: some View {
       Button {
         PerformanceTrace.shared.beginPage("health")
         showsDetail = true
@@ -36,16 +56,13 @@
         HStack(spacing: 6) {
           Image(systemName: "heart.fill").font(.caption2).foregroundStyle(HealthStyle.accent)
           Text(line).font(.footnote).foregroundStyle(.secondary).monospacedDigit()
-          Spacer(minLength: 0)
           Image(systemName: "chevron.right").font(.caption2.weight(.semibold)).foregroundStyle(
             .tertiary)
         }
-        .frame(minHeight: 36)
+        .frame(minHeight: ButtonConfiguration.minimumHitSize)
         .contentShape(Rectangle())
       }
       .buttonStyle(.plain)
-      .listRowSeparator(.hidden)
-      .listRowInsets(EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 20))
       .accessibilityElement(children: .ignore)
       .accessibilityLabel(line)
       .accessibilityAddTraits(.isButton)

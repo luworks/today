@@ -456,13 +456,14 @@
     let foldKey: String
     let startsFolded: Bool
     let namesMonth: Bool
+    let monthAccessory: AnyView?
     var onVisibleDays: @MainActor (ClosedRange<Date>) -> Void
     var openDay: ((Date) -> Void)?
     let agenda: (MonthItems) -> Agenda
 
     package init(
       calendar: any CalendarService, day: Binding<Date>, foldKey: String, startsFolded: Bool,
-      namesMonth: Bool = false,
+      namesMonth: Bool = false, monthAccessory: AnyView? = nil,
       onVisibleDays: @escaping @MainActor (ClosedRange<Date>) -> Void = { _ in },
       openDay: ((Date) -> Void)? = nil, @ViewBuilder agenda: @escaping (MonthItems) -> Agenda
     ) {
@@ -471,6 +472,7 @@
       self.foldKey = foldKey
       self.startsFolded = startsFolded
       self.namesMonth = namesMonth
+      self.monthAccessory = monthAccessory
       self.onVisibleDays = onVisibleDays
       self.openDay = openDay
       self.agenda = agenda
@@ -499,7 +501,8 @@
     package var body: some View {
       MonthCalendarLayout(
         calendar: calendar, cal: cal, day: $day, foldKey: foldKey, startsFolded: startsFolded,
-        namesMonth: namesMonth, onVisibleDays: onVisibleDays, openDay: openDay,
+        namesMonth: namesMonth, monthAccessory: monthAccessory, onVisibleDays: onVisibleDays,
+        openDay: openDay,
         items: items, currentItems: { items }, agenda: agenda
       )
       .onReceive(Timer.publish(every: 30, on: .main, in: .common).autoconnect()) { _ in
@@ -555,6 +558,7 @@
     let foldKey: String
     let startsFolded: Bool
     let namesMonth: Bool
+    let monthAccessory: AnyView?
     var onVisibleDays: @MainActor (ClosedRange<Date>) -> Void
     var openDay: ((Date) -> Void)?
     let items: MonthItems
@@ -569,7 +573,9 @@
     @State private var marks = MonthMarksCache()
     @State private var weekPos: Int? = 0
     @State private var weekSettled = 0
-    @ScaledMetric(relativeTo: .body) private var rowHeight: CGFloat = 51
+    @ScaledMetric(relativeTo: .body) private var calendarRowHeight: CGFloat = 51
+    @ScaledMetric(relativeTo: .body) private var todayRowHeight: CGFloat = 44
+    private var rowHeight: CGFloat { namesMonth ? todayRowHeight : calendarRowHeight }
     private var base: Date {
       CalendarMath.monthStart(offset: 0, from: presentation.now, calendar: cal)
     }
@@ -580,22 +586,33 @@
     }
     private var current: Int { settled }
 
+    private var monthHeading: some View {
+      Text(
+        MonthLabel.text(
+          now: month(current), length: .full, calendar: cal, locale: presentation.locale)
+      )
+      .font(.headline)
+      .accessibilityAddTraits(.isHeader)
+      .accessibilityIdentifier("today.monthTitle")
+    }
+
     var body: some View {
       let weeks = CalendarMath.monthWeeks(of: month(current), calendar: cal)
       VStack(spacing: 0) {
         if namesMonth {
-          Text(
-            MonthLabel.text(
-              now: month(current), length: .full, calendar: cal, locale: presentation.locale)
-          )
-          .font(.title3.weight(.bold))
-          .lineLimit(1)
-          .frame(maxWidth: .infinity, alignment: .leading)
+          ViewThatFits(in: .horizontal) {
+            HStack(spacing: 12) {
+              monthHeading.fixedSize(horizontal: true, vertical: false)
+              Spacer(minLength: 0)
+              monthAccessory?.fixedSize(horizontal: true, vertical: false)
+            }
+            VStack(alignment: .leading, spacing: 0) {
+              monthHeading
+              monthAccessory
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+          }
           .padding(.horizontal, 16)
-          .padding(.bottom, 4)
-          .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
-          .accessibilityAddTraits(.isHeader)
-          .accessibilityIdentifier("today.monthTitle")
         }
         weekdayHeader
         Rectangle().fill(Color(.separator)).frame(height: 0.5)

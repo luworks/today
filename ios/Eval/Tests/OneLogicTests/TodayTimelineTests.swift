@@ -60,6 +60,20 @@ struct TodayTimelineTests {
     #expect(rows == [.item(2), .item(1), .free(1), .free(0), .now, .item(0)])
   }
 
+  @Test func onlyTheGapStartingNowSharesTheNowRow() {
+    let items = [event(14, 0, minutes: 60)]
+    let free = [DateInterval(start: at(13), end: at(14)), DateInterval(start: at(15), end: at(16))]
+    #expect(
+      TodayTimeline.rows(items: items, free: free, now: at(13), entry: at(13))
+        == [.nowWithFree(0), .item(0), .free(1)])
+    #expect(
+      TodayTimeline.rows(items: items, free: free, now: at(14), entry: at(14))
+        == [.free(0), .now, .item(0), .free(1)])
+    #expect(
+      TodayTimeline.rows(items: items, free: free, now: nil, entry: nil)
+        == [.free(0), .item(0), .free(1)])
+  }
+
   @Test func nowGoesLastWhenTheDayIsOverAndIsAbsentOnOtherDays() {
     let items = [Item(start: at(7), kind: .reminder)]
     #expect(

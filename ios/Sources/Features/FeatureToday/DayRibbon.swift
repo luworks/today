@@ -22,7 +22,7 @@
     let pick: (Date, Bool) -> Bool
     let showNow: () -> Void
 
-    static let height: CGFloat = 46
+    static let height: CGFloat = 38
 
     @Environment(\.colorScheme) private var colorScheme
     @GestureState private var touching = false
@@ -137,7 +137,7 @@
     ) {
       let left = max(0, ribbonX(viewport.start, in: range, width: width))
       let right = min(width, ribbonX(viewport.end, in: range, width: width))
-      let frame = CGRect(x: min(left, width - 12), y: 5, width: max(right - left, 12), height: 28)
+      let frame = CGRect(x: min(left, width - 12), y: 3, width: max(right - left, 12), height: 23)
       let box = Path(roundedRect: frame, cornerRadius: 9)
       context.fill(
         box, with: .color(Color.accentColor.opacity(colorScheme == .dark ? 0.22 : 0.14)))
@@ -160,12 +160,12 @@
       Canvas { context, size in
         let width = size.width
         context.fill(
-          Path(CGRect(x: 0, y: 18.5, width: width, height: 1)), with: .color(Color(.separator)))
+          Path(CGRect(x: 0, y: 14.5, width: width, height: 1)), with: .color(Color(.separator)))
         drawHours(in: &context, width: width)
         for mark in marks { drawMark(mark, in: &context, width: width) }
         if let now, range.contains(now) {
           context.fill(
-            Path(CGRect(x: ribbonX(now, in: range, width: width) - 1, y: 4, width: 2, height: 30)),
+            Path(CGRect(x: ribbonX(now, in: range, width: width) - 1, y: 2, width: 2, height: 25)),
             with: .color(.red))
         }
       }
@@ -182,7 +182,7 @@
           position < 8 ? .leading : (position > width - 8 ? .trailing : .center)
         context.draw(
           Text("\(hour)").font(.system(size: 10)).foregroundStyle(Color(.tertiaryLabel)),
-          at: CGPoint(x: position, y: 37), anchor: anchor)
+          at: CGPoint(x: position, y: 31), anchor: anchor)
       }
     }
 
@@ -195,21 +195,21 @@
       switch mark.kind {
       case .event:
         let right = ribbonX(mark.end ?? mark.start, in: range, width: width)
-        let rect = CGRect(x: left, y: 13, width: max(right - left, 5), height: 13)
+        let rect = CGRect(x: left, y: 9, width: max(right - left, 5), height: 12)
         layer.fill(Path(roundedRect: rect, cornerRadius: 4), with: .color(.blue))
       case .alarm:
         layer.fill(
-          Path(roundedRect: CGRect(x: left - 1.25, y: 11, width: 2.5, height: 17), cornerRadius: 1),
+          Path(roundedRect: CGRect(x: left - 1.25, y: 7, width: 2.5, height: 15), cornerRadius: 1),
           with: .color(.orange))
       case .reminder:
         let color: Color = mark.late ? .red : .primary
         if mark.repeats {
           layer.stroke(
-            Path(ellipseIn: CGRect(x: left - 3.5, y: 16, width: 7, height: 7)),
+            Path(ellipseIn: CGRect(x: left - 3.5, y: 11.5, width: 7, height: 7)),
             with: .color(color), lineWidth: 1.5)
         } else {
           layer.fill(
-            Path(ellipseIn: CGRect(x: left - 4.5, y: 15, width: 9, height: 9)),
+            Path(ellipseIn: CGRect(x: left - 4.5, y: 10.5, width: 9, height: 9)),
             with: .color(color))
         }
       }
