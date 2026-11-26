@@ -7,11 +7,11 @@
     package static let title = Font.callout
     package static let detail = Font.footnote
     package static let disclosure = Font.footnote
-    package static let iconWidth: CGFloat = 32
-    package static let titleGap: CGFloat = 6
+    package static let iconWidth: CGFloat = 26
+    package static let titleGap: CGFloat = 4
     package static let timeWidth: CGFloat = 50
-    package static let minHeight: CGFloat = 44
-    package static let verticalPadding: CGFloat = 5
+    package static let minHeight: CGFloat = ButtonConfiguration.minimumHitSize
+    package static let verticalPadding: CGFloat = 2
   }
 
   /// One vertical rhythm for every Today row. Elsewhere rows keep the 44pt floor.
@@ -120,7 +120,7 @@
 
     package var body: some View {
       // An overlay, so the 44pt target leaves the row's height alone.
-      VStack(alignment: .leading, spacing: 2) {
+      VStack(alignment: .leading, spacing: 0) {
         column
         if compact, let remote = secondaryTime.label(at: dragTime ?? date) {
           AgendaSecondaryTime.line(remote)
@@ -173,33 +173,33 @@
   }
 
   /// Title and detail share at most two lines, including at accessibility text sizes.
-  /// `singleLine` is Today's row: one line, the short detail trailing and the title truncating first.
+  /// Today's rows prioritize a trailing detail and allow long titles to wrap once.
   package struct TitleDetail<Detail: View>: View {
     package init(
-      title: Text, hasDetail: Bool = true, singleLine: Bool = false,
+      title: Text, hasDetail: Bool = true, agendaStyle: Bool = false,
       @ViewBuilder detail: () -> Detail
     ) {
       self.title = title
       self.hasDetail = hasDetail
-      self.singleLine = singleLine
+      self.agendaStyle = agendaStyle
       self.detail = detail()
     }
     package let title: Text
     package let hasDetail: Bool
-    package let singleLine: Bool
+    package let agendaStyle: Bool
     @ViewBuilder package var detail: Detail
     @Environment(\.dynamicTypeSize) private var typeSize
 
     @ViewBuilder package var body: some View {
-      if singleLine, !typeSize.isAccessibilitySize {
+      if agendaStyle, !typeSize.isAccessibilitySize {
         if hasDetail {
           HStack(alignment: .firstTextBaseline, spacing: 8) {
-            title.lineLimit(1)
+            title.lineLimit(2).fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
             detail.lineLimit(1).layoutPriority(1)
           }
         } else {
-          title.lineLimit(1)
+          title.lineLimit(2).fixedSize(horizontal: false, vertical: true)
         }
       } else if hasDetail {
         ViewThatFits(in: .horizontal) {
@@ -246,46 +246,50 @@
   }
 
   package struct NowRow: View {
-    package init(date: Date) { self.date = date }
-    package let date: Date
-    @Environment(PlannerPresentation.self) private var presentation
-    private var secondaryTime = AgendaSecondaryTime()
+    let date: Date
+    let free: DateInterval?
+    let openFree: () -> Void
 
-    private var localTime: Text {
-      Text(
-        date.formatted(
-          Date.FormatStyle(
-            date: .omitted, time: .shortened, locale: presentation.locale,
-            calendar: presentation.calendar, timeZone: presentation.calendar.timeZone)))
+    package init(date: Date, free: DateInterval?, openFree: @escaping () -> Void) {
+      self.date = date
+      self.free = free
+      self.openFree = openFree
     }
 
     package var body: some View {
       Group {
-        if let remote = secondaryTime.label(at: date) {
-          HStack(alignment: .firstTextBaseline, spacing: 8) {
-            VStack(alignment: .leading, spacing: 2) {
-              localTime
-              AgendaSecondaryTime.line(remote)
-            }
-            NowDot().alignmentGuide(.firstTextBaseline) { $0[VerticalAlignment.center] + 4 }
-            Text("Now")
-            Rectangle().fill(Color.red).frame(height: 1).alignmentGuide(.firstTextBaseline) {
-              $0[VerticalAlignment.center] + 4
-            }
+        if let free {
+          Button(action: openFree) {
+            line(freeLabel: DaySchedule.freeLabel(free.duration))
           }
+          .buttonStyle(.plain)
+          .accessibilityHint("Shows reminders that could fit here")
+          .accessibilityIdentifier("today.freeRow")
         } else {
-          HStack(spacing: 8) {
-            NowDot()
-            Text("Now \(localTime)")
-              .fixedSize(horizontal: true, vertical: false)
-            Rectangle().fill(Color.red).frame(height: 1)
-          }
+          line(freeLabel: nil)
+            .accessibilityElement(children: .combine)
         }
       }
-      .font(AgendaRowStyle.detail.weight(.semibold).monospacedDigit())
-      .foregroundStyle(.red)
       .listRowSeparator(.hidden)
-      .listRowInsets(EdgeInsets(top: 2, leading: 20, bottom: 2, trailing: 20))
+      .listRowInsets(EdgeInsets(top: 0, leading: 12, bottom: 0, trailing: 12))
+    }
+
+    private func line(freeLabel: String?) -> some View {
+      HStack(alignment: .firstTextBaseline, spacing: 0) {
+        TimeColumn(date: date, compact: true, tint: .red)
+        NowDot().modifier(AgendaIconSlot(enabled: true))
+        Text("Now").font(AgendaRowStyle.detail.weight(.semibold)).foregroundStyle(.red)
+        if let freeLabel {
+          Text(freeLabel)
+            .font(AgendaRowStyle.detail)
+            .foregroundStyle(.secondary)
+            .padding(.leading, 6)
+        }
+        Spacer(minLength: 0)
+      }
+      .frame(minHeight: AgendaRowStyle.minHeight)
+      .background(Color.red.opacity(0.055), in: RoundedRectangle(cornerRadius: 6))
+      .contentShape(Rectangle())
     }
   }
 

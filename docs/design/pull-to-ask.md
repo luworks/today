@@ -7,7 +7,9 @@ focused, so typing can start without tapping the bottom field. Follow-up
 a floating ✦ Chat button beside Today (shown only off today) and +; ✦ is the
 fallback and VoiceOver-equivalent entry. V3 (2026-11-21): the top bar is gone
 and one docked bottom row holds the four tabs and an "Ask anything" field with
-+; the field is now that entry.
++; the field is now that entry. Restyle (2026-11-23): the tabs and Ask field now sit in two floating Liquid Glass
+capsules, with a subtle selection fill in the tab strip. The field and + keep
+separate tap targets (`docs/design/bottom-bar-options.html`, version B).
 
 ## Gesture map before this change
 

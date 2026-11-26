@@ -19,7 +19,7 @@
   import SwiftData
 
   enum HomeTab: String, CaseIterable, Identifiable {
-    case today, calendar, tasks, clock
+    case calendar, tasks, clock, today
 
     var id: Self { self }
 
@@ -42,7 +42,7 @@
     }
   }
 
-  /// App shell: the page fills the screen under the status bar; one docked bottom row holds the four tabs and Ask with +.
+  /// App shell: the page fills the screen under the status bar; a glass capsule holds capture and navigation beside the Today button.
   /// A swipe from the left edge opens conversation history in the sidebar.
   public struct HomeView: View {
     private let composition: ShellComposition
@@ -107,7 +107,7 @@
     }
     @State private var remindersPath: [ReminderTarget] = []
     /// The day Today shows. Picking a day in Calendar opens it here.
-    @State private var todayNowRequest = 0
+    @State private var todayNowRequest = false
     @State private var todayDay: Date
     @State private var todayReferenceNow: Date
     /// The full-screen Chat page. A fresh one is built hidden ahead of time (after launch and after each Close), so a
@@ -484,10 +484,11 @@
           case .today:
             MonthCalendar(
               calendar: session.calendar, day: $todayDay, foldKey: "today.today.monthWeekMode",
-              startsFolded: true, namesMonth: true
+              startsFolded: true, namesMonth: true,
+              monthAccessory: AnyView(TodayHealthSummary(isToday: showsToday))
             ) { _ in
               DayAgenda(
-                day: $todayDay, nowRequest: todayNowRequest,
+                day: $todayDay, nowRequest: $todayNowRequest,
                 openTask: { editor = .task($0) },
                 openEvent: { editor = .local($0) }, openAlarm: { editor = .alarm($0) },
                 openTimer: {
@@ -760,42 +761,50 @@
       try? context.save()
     }
 
-    // MARK: Bottom: tabs, then Ask with +
+    // MARK: Bottom controls
 
     private var bottomBar: some View {
       VStack(spacing: 8) {
         if tab != .today, !drawer.isOpen { UndoToastView() }
-        dock
-          .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+        bottomControls
           .modifier(TabSwipe(isEnabled: !drawer.isOpen, move: switchTab))
           .drawerSwipeExcluded(tab != HomeTab.allCases.first)
       }
     }
 
-    private var dock: some View {
-      HStack(spacing: 8) {
-        HStack(spacing: 0) {
-          ForEach(HomeTab.allCases) { item in
-            DockTab(
-              tab: item, isSelected: item == tab, marked: item == .today && !showsToday,
-              tint: item == .today ? TodayButtonColor(stored: todayButtonColor).color : .primary
-            ) {
-              select(item)
+    private var bottomControls: some View {
+      ViewThatFits(in: .horizontal) {
+        dock(height: 56, gap: 10, margin: 20, inset: 5)
+        dock(height: 50, gap: 6, margin: 8, inset: 3)
+      }
+      .padding(.top, 4)
+      .padding(.bottom, 2)
+    }
+
+    private func dock(height: CGFloat, gap: CGFloat, margin: CGFloat, inset: CGFloat) -> some View {
+      GlassEffectContainer(spacing: gap) {
+        HStack(spacing: gap) {
+          HStack(spacing: 0) {
+            plusButton
+            askButton
+            ForEach(HomeTab.allCases.filter { $0 != .today }) { item in
+              DockTab(tab: item, isSelected: item == tab) { select(item) }
             }
           }
+          .padding(.horizontal, inset)
+          .frame(height: height)
+          .glassEffect(.regular, in: Capsule())
+
+          DockTab(
+            tab: .today, isSelected: tab == .today, marked: !showsToday,
+            tint: TodayButtonColor(stored: todayButtonColor).color, standaloneSize: height
+          ) {
+            select(.today)
+          }
+          .glassEffect(.regular.interactive(), in: Circle())
         }
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("Tabs")
-        composer
       }
-      .padding(.horizontal, 12)
-      .padding(.top, 6)
-      .padding(.bottom, 2)
-      .frame(maxWidth: .infinity)
-      .background(.bar, ignoresSafeAreaEdges: .bottom)
-      .overlay(alignment: .top) {
-        Rectangle().fill(Color(.separator)).frame(height: 0.5)
-      }
+      .padding(.horizontal, margin)
     }
 
     private var showsToday: Bool {
@@ -805,7 +814,7 @@
     private func select(_ item: HomeTab) {
       traceTabAction(to: item)
       if item == .today {
-        todayNowRequest += 1
+        todayNowRequest = true
         todayDay = session.runtime.calendar.startOfDay(for: session.runtime.now())
         calendarDay = todayDay
         calendarShown = todayDay...todayDay
@@ -813,29 +822,17 @@
       tab = item
     }
 
-    private var composer: some View {
-      HStack(spacing: 0) {
-        plusButton
-        Button {
-          openAsk(nil)
-        } label: {
-          Text("Ask anything")
-            .font(.body)
-            .foregroundStyle(Color(.placeholderText))
-            .lineLimit(1)
-            .frame(
-              maxWidth: .infinity, minHeight: ButtonConfiguration.minimumHitSize,
-              alignment: .leading
-            )
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(PressScale())
-        .accessibilityLabel("Chat")
-        .accessibilityIdentifier("Ask AI or add anything")
-        .accessibilityHint("Starts a new chat. You can also pull down on Today or Calendar.")
+    private var askButton: some View {
+      Button {
+        openAsk(nil)
+      } label: {
+        Image(systemName: "bubble.left")
+          .modifier(DockIconFrame())
       }
-      .padding(.trailing, 12)
-      .background(Color(.tertiarySystemFill), in: Capsule())
+      .buttonStyle(PressScale())
+      .accessibilityLabel("Chat")
+      .accessibilityIdentifier("Ask AI or add anything")
+      .accessibilityHint("Starts a new chat. You can also pull down on Today or Calendar.")
     }
 
     /// A new event: Apple's own editor when Calendar access is on (presented by UIKit, see `NativeEvents`), else ours.
@@ -888,12 +885,7 @@
 
     private var plusLabel: some View {
       Image(systemName: "plus")
-        .font(ButtonConfiguration.Icon.font)
-        .foregroundStyle(.primary)
-        .frame(
-          width: ButtonConfiguration.minimumHitSize, height: ButtonConfiguration.minimumHitSize
-        )
-        .contentShape(Circle())
+        .modifier(DockIconFrame())
     }
 
     private var creationChoices: some View {
@@ -994,29 +986,44 @@
     }
   }
 
-  struct DockTab: View {
+  private struct DockIconFrame: ViewModifier {
+    func body(content: Content) -> some View {
+      content
+        .font(ButtonConfiguration.Icon.font)
+        .frame(minWidth: ButtonConfiguration.minimumHitSize, maxWidth: .infinity)
+        .frame(height: ButtonConfiguration.minimumHitSize)
+        .contentShape(Rectangle())
+    }
+  }
+
+  private struct DockTab: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let tab: HomeTab
     let isSelected: Bool
-    let marked: Bool
-    let tint: Color
-    var action: () -> Void
+    var marked = false
+    var tint: Color = .primary
+    var standaloneSize: CGFloat? = nil
+    let action: () -> Void
 
     var body: some View {
       Button(action: action) {
         Image(systemName: tab.icon)
-          .font(ButtonConfiguration.Icon.font)
-          .foregroundStyle(isSelected ? tint : Color(.secondaryLabel))
+          .symbolVariant(isSelected ? .fill : .none)
+          .foregroundStyle(tint)
           .overlay(alignment: .topTrailing) {
             if marked {
               Circle().fill(tint).frame(width: 7, height: 7).offset(x: 5, y: -2)
             }
           }
-          .frame(width: 46, height: ButtonConfiguration.minimumHitSize)
+          .modifier(DockIconFrame())
           .background {
-            if isSelected { Capsule().fill(Color(.tertiarySystemFill)) }
+            if isSelected {
+              Capsule().fill(ButtonConfiguration.Icon.selectedFill)
+                .frame(width: standaloneSize == nil ? nil : ButtonConfiguration.minimumHitSize)
+            }
           }
-          .contentShape(Rectangle())
+          .frame(width: standaloneSize, height: standaloneSize)
+          .contentShape(.interaction, Rectangle())
           .animation(reduceMotion ? nil : PillStyle.selectionAnimation, value: isSelected)
       }
       .buttonStyle(PressScale())

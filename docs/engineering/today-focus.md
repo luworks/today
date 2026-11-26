@@ -4,12 +4,13 @@
 
 Settle hides one item from **today's** timeline without changing it. It never completes a reminder, changes a date,
 moves or cancels a meeting, changes an alarm or notification, or writes EventKit. Settled items sit in the
-"Settled N" sheet opened from the footer under the timeline, with Unsettle, Ask AI (#241), Open and Delete. AI has no Settle
-capability. Settings → Today → "Show Settle" (`today.setting.showSettle`, default on) hides the action and the section.
+final `Settled (N)` section at the bottom of the timeline. It starts collapsed and expands in place, with Unsettle,
+Ask AI (#241), Open and Delete. AI has no Settle capability. Settings → Today → "Show Settle"
+(`today.setting.showSettle`, default on) hides the action and the section.
 
 Settle exists only on the device's current day (owner, 2026-11-01). `SettleGate.applies(to:now:calendar:)` in
-TodayCore is the single check; `DayAgenda` uses it for the swipe and long-press action, the Settled footer and sheet, the
-store error line and the hiding of settled rows. A past or future day offers no Settle, has no Settled footer and
+TodayCore is the single check; `DayAgenda` uses it for the swipe and long-press action, the Settled section, the
+store error line and the hiding of settled rows. A past or future day offers no Settle, has no Settled section and
 shows every row: a past day exactly as `DayHistory` rebuilds it, a future day as planned. A choice belongs to the
 local day it was made on and ends with it; the next day the item is a normal row again, with no "returned" history.
 
