@@ -628,8 +628,10 @@
       let route = AskRouter.plan(
         text, context: turnContext, pending: pending,
         savedDraft: proposals.last.map { $0.status != .open } ?? false,
-        agentHasOpenCards: agent?.hasOpenCards ?? false,
-        hasLocalTimeContext: hasLocalTimeContext, editItems: { editItems() },
+        agentHasOpenCards: agent?.hasOpenCards == true
+          || proposals.contains { $0.agentID != nil && $0.status == .open },
+        hasLocalTimeContext: hasLocalTimeContext, agentAvailable: agentModel.isAvailable(),
+        editItems: { editItems() },
         now: sentAt, calendar: runtime.calendar)
       let decision = route.decision
       if let answer = route.previewAnswer, answerOpenPreview(answer) {

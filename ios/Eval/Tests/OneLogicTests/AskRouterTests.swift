@@ -51,6 +51,41 @@ final class AskRouterTests: XCTestCase {
     }
   }
 
+  func testFlexibleTimeReachesTheAgentAndOfflineRetainsTheWindow() throws {
+    for text in [
+      "Cancel NordVPN subs tonight", "Remind me to cancel NordVPN subs tonight", "今晚提醒我倒垃圾",
+    ] {
+      let route = plan(text)
+      XCTAssertEqual(route.decision, .notFastLane, text)
+      XCTAssertTrue(route.useAgent, text)
+    }
+    let capture = try XCTUnwrap(
+      FastLane.localPreview(
+        "Remind me to cancel NordVPN subs tonight", items: [], now: now, calendar: calendar))
+    XCTAssertEqual(capture.timeWindow, .evening)
+    XCTAssertNil(capture.hour)
+    XCTAssertFalse(capture.isReadyToAdd)
+    let exact = plan("Remind me to cancel NordVPN subs at 8pm tonight")
+    guard case .directReminder(let timed) = exact.decision else {
+      return XCTFail("An explicit time should still use the fast lane")
+    }
+    XCTAssertEqual(timed.hour, 20)
+    XCTAssertNil(timed.timeWindow)
+  }
+
+  func testOnlineMaterialCorrectionGoesToTheModel() {
+    let route = AskRouter.plan(
+      "提醒我周四，不对，周五下午两点买面包", context: ConversationContext(turns: []),
+      pending: nil, savedDraft: false, agentHasOpenCards: false, hasLocalTimeContext: false,
+      agentAvailable: true,
+      editItems: {
+        XCTFail("Correction does not require a local lookup")
+        return []
+      },
+      now: now, calendar: calendar)
+    XCTAssertTrue(route.useAgent)
+  }
+
   func testQuestionTimeAnswerOnlyReachesLocalPreviewWithLocalContext() {
     XCTAssertNil(plan("How about 5pm?").previewAnswer)
     XCTAssertNotNil(plan("How about 5pm?", timeContext: true).previewAnswer)

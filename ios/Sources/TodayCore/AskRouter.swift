@@ -11,7 +11,9 @@ public enum AskRouter {
 
   public static func plan(
     _ text: String, context: ConversationContext, pending: Capture?, savedDraft: Bool,
-    agentHasOpenCards: Bool, hasLocalTimeContext: Bool, editItems: () -> [EditItem],
+    agentHasOpenCards: Bool, hasLocalTimeContext: Bool,
+    agentAvailable: @autoclosure () -> Bool = false,
+    editItems: () -> [EditItem],
     now: Date, calendar: Calendar
   ) -> Plan {
     let intent = FastLane.intent(text)
@@ -28,6 +30,7 @@ public enum AskRouter {
       ?? (intent == .conversation ? nil : text)
     return Plan(
       decision: decision, previewAnswer: mayAnswer ? answer : nil,
-      useAgent: AgentRouting.useAgent(decision, agentHasOpenCards: agentHasOpenCards))
+      useAgent: (decision == .clarifyCorrection && !hasLocalTimeContext && agentAvailable())
+        || AgentRouting.useAgent(decision, agentHasOpenCards: agentHasOpenCards))
   }
 }

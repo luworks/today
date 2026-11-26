@@ -215,7 +215,7 @@ public enum ActionPolicy {
   /// A new item has what it needs to be added without asking: an alarm needs its time, an event its
   /// day. Anything less is a question to the user, never a guess (owner decision 2026-11-02).
   public static func autoAddReady(_ c: Capture) -> Bool {
-    guard c.isReadyToAdd else { return false }
+    guard c.isReadyToAdd, c.timeWindow == nil else { return false }
     if c.kind == .event { return c.hasDay }
     return true
   }

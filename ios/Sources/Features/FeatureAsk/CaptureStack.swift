@@ -45,6 +45,7 @@
       entryID = stored.entryID
       retainsDraft = stored.retainsDraft
       pendingExternalID = stored.pendingExternalID
+      agentID = stored.agentID
     }
 
     /// The saved form; nil for a card with no message to sit under.
@@ -53,7 +54,7 @@
         StoredCard(
           id: id, anchor: $0, batch: batch, batchSize: batchSize, capture: capture, status: status,
           itemRef: itemRef, entryID: entryID, retainsDraft: retainsDraft,
-          pendingExternalID: pendingExternalID)
+          pendingExternalID: pendingExternalID, agentID: agentID)
       }
     }
   }
@@ -109,7 +110,8 @@
             onAdd: { onAdd(only.id) }, onCancel: { onSkip(only.id) },
             onUndo: { onUndo(only.id) }, onOpen: { onOpen(only.id) },
             onRename: { onRename(only.id, $0) }, calendars: calendars,
-            onEventOptions: { onEventOptions(only.id, $0, $1) })
+            onEventOptions: { onEventOptions(only.id, $0, $1) },
+            canEditTime: only.pendingExternalID == nil)
         } else {
           list
         }
@@ -164,7 +166,8 @@
           onAdd: { onAdd(p.id) }, onCancel: { onSkip(p.id) }, cancelTitle: "Skip",
           onUndo: { onUndo(p.id) }, onOpen: { onOpen(p.id) },
           onRename: { onRename(p.id, $0) }, calendars: calendars,
-          onEventOptions: { onEventOptions(p.id, $0, $1) })
+          onEventOptions: { onEventOptions(p.id, $0, $1) },
+          canEditTime: p.pendingExternalID == nil)
       } else {
         CompactCaptureRow(
           capture: binding(p.id), lists: lists, status: p.status,
@@ -255,10 +258,8 @@
         VStack(alignment: .leading, spacing: 2) {
           CaptureTitleButton(title: capture.title, editable: status == .added, onSave: onRename)
             .font(.subheadline.weight(.semibold))
-          Text(
-            capture.summary(
-              now: presentation.now, calendar: presentation.calendar, locale: presentation.locale)
-          ).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+          CaptureTimeButton(capture: $capture, status: status, onOpen: onShow)
+            .font(.caption)
           if capture.kind == .task, !capture.ringsAsAlarm {
             Label(capture.listLabel, systemImage: "list.bullet").font(.caption).foregroundStyle(
               .secondary

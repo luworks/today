@@ -289,7 +289,7 @@
         var p = CaptureProposal(
           capture: filed(capture), batchSize: captures.count, batch: batch, anchor: message.id)
         // A one-off reminder commits to Apple Reminders first and keeps a recoverable draft.
-        p.retainsDraft = FastLane.isEligibleOneOff(p.capture)
+        p.retainsDraft = p.capture.timeWindow != nil || FastLane.isEligibleOneOff(p.capture)
         return p
       }
       proposals += added
@@ -321,6 +321,10 @@
       let previewFirst = previewsFirst
       for id in ids {
         guard let p = proposals.first(where: { $0.id == id }), p.status == .open else { continue }
+        if p.capture.timeWindow != nil {
+          receipt.waiting += 1
+          continue
+        }
         guard ActionPolicy.autoAddReady(p.capture) else {
           if p.capture.ringsAsAlarm && p.capture.hour == nil { asksTime = true }
           continue

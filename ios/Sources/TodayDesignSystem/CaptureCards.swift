@@ -12,7 +12,8 @@
       onUndo: @escaping () -> Void = {}, onOpen: @escaping () -> Void = {},
       onRename: @escaping (String) -> Bool = { _ in false },
       calendars: [EventCalendarOption] = [],
-      onEventOptions: @escaping (String?, Int) -> Bool = { _, _ in true }
+      onEventOptions: @escaping (String?, Int) -> Bool = { _, _ in true },
+      canEditTime: Bool = true
     ) {
       _capture = capture
       self.lists = lists
@@ -25,6 +26,7 @@
       self.onUndo = onUndo
       self.onOpen = onOpen
       self.onRename = onRename
+      self.canEditTime = canEditTime
     }
     @Binding package var capture: Capture
     /// The user's Reminders lists; when given, a task shows which one it goes to, changeable with one tap.
@@ -38,6 +40,7 @@
     package var onOpen: () -> Void = {}
 
     package var onRename: (String) -> Bool = { _ in false }
+    package var canEditTime: Bool
     /// Writable Apple calendars, for an event's calendar menu.
     package var calendars: [EventCalendarOption] = []
     /// Applies a new calendar / alert (minutes, `Preferences.noEventAlert` = none); true when the card may show it.
@@ -104,10 +107,9 @@
             return onRename(title)
           }
         ).font(.headline)
-        Text(
-          capture.summary(
-            now: presentation.now, calendar: presentation.calendar, locale: presentation.locale)
-        ).font(.subheadline).foregroundStyle(.secondary)
+        CaptureTimeButton(
+          capture: $capture, status: status, canEdit: canEditTime, onOpen: onOpen
+        ).font(.subheadline)
         if let notes = capture.notes, !notes.isEmpty {
           Text(notes).font(.callout).foregroundStyle(.secondary).accessibilityIdentifier(
             "capture-notes")
@@ -167,6 +169,126 @@
               for: capture, now: presentation.now, calendar: presentation.calendar,
               locale: presentation.locale))
       }
+    }
+  }
+
+  package struct CaptureTimeButton: View {
+    @Environment(PlannerPresentation.self) private var presentation
+    @Binding private var capture: Capture
+    @State private var editor = false
+    private let status: CardStatus
+    private let canEdit: Bool
+    private let onOpen: () -> Void
+
+    package init(
+      capture: Binding<Capture>, status: CardStatus, canEdit: Bool = true,
+      onOpen: @escaping () -> Void
+    ) {
+      _capture = capture
+      self.status = status
+      self.canEdit = canEdit
+      self.onOpen = onOpen
+    }
+
+    package var body: some View {
+      let summary = capture.summary(
+        now: presentation.now, calendar: presentation.calendar, locale: presentation.locale)
+      if canEdit && (status == .open || (status == .added && capture.kind == .task)) {
+        Button {
+          if status == .open { editor = true } else { onOpen() }
+        } label: {
+          HStack {
+            Text(summary)
+            if status == .open, capture.timeWindow != nil, capture.hour != nil {
+              Text("Suggested").font(.caption)
+            }
+            Image(systemName: "pencil").font(.caption)
+          }
+          .multilineTextAlignment(.leading)
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(Color.accentColor)
+        .accessibilityHint("Edit date and time")
+        .accessibilityIdentifier("capture-edit-time")
+        .sheet(isPresented: $editor) {
+          CaptureTimingEditor(
+            capture: capture, now: presentation.now, calendar: presentation.calendar
+          ) { date, time in
+            guard canEdit, status == .open else { return }
+            capture.setTiming(day: date, time: time, calendar: presentation.calendar)
+          }
+        }
+      } else {
+        Text(summary).foregroundStyle(.secondary)
+      }
+    }
+  }
+
+  private struct CaptureTimingEditor: View {
+    @Environment(\.dismiss) private var dismiss
+    @State private var date: Date
+    @State private var hasDay: Bool
+    @State private var hasTime: Bool
+    let capture: Capture
+    let calendar: Calendar
+    let save: (Date?, Date?) -> Void
+
+    init(capture: Capture, now: Date, calendar: Calendar, save: @escaping (Date?, Date?) -> Void) {
+      self.capture = capture
+      self.calendar = calendar
+      self.save = save
+      let day = capture.hasDay ? capture.day : now
+      _date = State(
+        initialValue: capture.clockTime(calendar: calendar)
+          ?? calendar.date(bySettingHour: 9, minute: 0, second: 0, of: day) ?? day)
+      _hasDay = State(
+        initialValue: capture.hasDay || capture.hour != nil || capture.kind == .event
+          || capture.ringsAsAlarm)
+      _hasTime = State(
+        initialValue: capture.hour != nil || capture.ringsAsAlarm || capture.timeWindow != nil)
+    }
+
+    private var canRemoveDay: Bool { capture.kind == .task && !capture.ringsAsAlarm }
+
+    private var validTime: Bool {
+      // Reminders store a date-only deadline at midnight.
+      !hasDay || !hasTime || !canRemoveDay
+        || calendar.dateComponents([.hour, .minute], from: date)
+          != DateComponents(hour: 0, minute: 0)
+    }
+
+    var body: some View {
+      NavigationStack {
+        Form {
+          if canRemoveDay { Toggle("Date", isOn: $hasDay) }
+          if hasDay {
+            DatePicker("Date", selection: $date, displayedComponents: .date)
+            if !capture.ringsAsAlarm {
+              Toggle(capture.kind == .event ? "Start time" : "Time", isOn: $hasTime)
+            }
+            if hasTime { DatePicker("Time", selection: $date, displayedComponents: .hourAndMinute) }
+            if !validTime {
+              Text("Midnight is stored as a date-only reminder. Choose a different time.").font(
+                .caption)
+            }
+          }
+        }
+        .navigationTitle("Date and time")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+          ToolbarItem(placement: .cancellationAction) {
+            Button("Cancel") { dismiss() }
+          }
+          ToolbarItem(placement: .confirmationAction) {
+            Button("Done") {
+              save(hasDay ? date : nil, hasDay && hasTime ? date : nil)
+              dismiss()
+            }.disabled(!validTime)
+          }
+        }
+      }
+      .environment(\.calendar, calendar)
+      .environment(\.timeZone, calendar.timeZone)
     }
   }
 

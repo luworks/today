@@ -22,7 +22,7 @@ public enum OneOffReminderRequest {
         options: [.regularExpression, .caseInsensitive]) == nil
     else { return nil }
     let capture = CaptureConversation.parse(text, now: now, calendar: calendar)
-    return eligible(capture) ? capture : nil
+    return capture.timeWindow == nil && eligible(capture) ? capture : nil
   }
 
   /// "Can you …?", "你能…吗？": a question is not permission to write (it may be answered or previewed).

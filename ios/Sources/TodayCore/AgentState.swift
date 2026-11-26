@@ -29,9 +29,22 @@ public struct AgentProposalBook: Equatable, Sendable {
   }
 
   public private(set) var entries: [Entry] = []
-  private var next = 1
+  public private(set) var next = 1
 
-  public init() {}
+  public init(next: Int = 1) {
+    self.next = max(1, next)
+  }
+
+  public mutating func restoreCreate(id: String, kind: String, status: Status, itemID: String?) {
+    guard id.hasPrefix("p"), let number = Int(id.dropFirst()), number > 0, number < Int.max,
+      entry(id) == nil
+    else { return }
+    next = max(next, number + 1)
+    entries.append(
+      Entry(
+        id: id, tool: .proposeCreate, kind: kind, tier: .preview, status: status,
+        itemID: itemID, run: "", contentKey: nil))
+  }
 
   /// Registers a new card. A create with the same content as an earlier card of the same run returns that card.
   public mutating func open(
@@ -64,7 +77,11 @@ public struct AgentProposalBook: Equatable, Sendable {
   public mutating func set(_ id: String, status: Status, itemID: String? = nil) {
     guard let i = entries.firstIndex(where: { $0.id == id }) else { return }
     entries[i].status = status
-    if let itemID { entries[i].itemID = itemID }
+    if status == .undone && entries[i].tool == .proposeCreate {
+      entries[i].itemID = nil
+    } else if let itemID {
+      entries[i].itemID = itemID
+    }
   }
 
   public mutating func retier(_ id: String, _ tier: ActionPolicy.Tier) {
@@ -125,6 +142,7 @@ public struct AgentHistory: Codable, Equatable, Sendable {
   public var items: [JSONValue]
   /// Short id ("t3", "e1", "a2") → stable item reference.
   public var ids: [String: String]
+  public var nextProposalNumber: Int?
 
   /// Replayed history above this size is compacted (the Worker accepts 256 KB per step).
   public static let maxBytes = 160_000

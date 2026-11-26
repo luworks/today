@@ -13,6 +13,53 @@
   @Suite(.serialized)
   struct AgentPlannerToolsTests {
     @Test
+    func flexibleCaptureChecksAgendaAndRetainsEditedTimeAcrossReopen() async throws {
+      let a = try AgentFixture()
+      defer { a.dispose() }
+      let calendar = a.runtime.calendar
+      let day = try #require(calendar.date(byAdding: .day, value: 1, to: a.now))
+      let six = try #require(calendar.date(bySettingHour: 18, minute: 0, second: 0, of: day))
+      let eight = six.addingTimeInterval(7200)
+      a.context.insert(OneEvent(title: "Busy", start: six, durationMinutes: 120))
+      try a.context.save()
+      a.tools.turn = AgentTurn(text: "水一下花明晚", chinese: true, runID: "window")
+      let out = await a.call(
+        "propose_create",
+        ["items": [["kind": "reminder", "title": "Water plants", "when_text": "tomorrow"]]])
+      let card = try #require(a.sink.shown.first)
+      guard case .create(var capture) = card.body else {
+        Issue.record("Expected a create card")
+        return
+      }
+      #expect(out["results"]?.array?.first?["parsed"]?["time"] == "20:00")
+      #expect(card.tier == .preview)
+      #expect(capture.clockTime(calendar: calendar) == eight)
+      #expect(try a.context.fetchCount(FetchDescriptor<OneTask>()) == 0)
+
+      let chosen = eight.addingTimeInterval(1800)
+      capture.setTiming(day: chosen, time: chosen, calendar: calendar)
+      let stored = StoredCard(
+        id: UUID(), anchor: UUID(), batch: UUID(), batchSize: 1, capture: capture, status: .open,
+        agentID: card.id)
+      let restored = try #require(StoredCard.restore(StoredCard.encode([stored])).first)
+      let reopened = AgentPlannerTools(
+        history: a.tools.history, context: a.context, calendar: a.services.calendar,
+        actions: a.services.actions, ledger: a.services.ledger, runtime: a.runtime)
+      _ = reopened.rememberCapture(
+        restored.capture, proposalID: restored.agentID, status: restored.status,
+        itemRef: restored.itemRef)
+      reopened.turn = AgentTurn(text: "Call it Water balcony plants", chinese: false, runID: "edit")
+      let revision: JSONValue = ["proposal_id": .string(card.id), "title": "Water balcony plants"]
+      let outcome = await reopened.run(
+        AgentToolCall(callID: "revise", name: "revise_proposal", arguments: revision.text))
+      let result = JSONValue.parse(outcome.output)
+      #expect(result?["status"] == "revised")
+      #expect(result?["parsed"]?["title"] == "Water balcony plants")
+      #expect(result?["parsed"]?["time"] == "20:30")
+      #expect(reopened.book.next > 1)
+    }
+
+    @Test
     func requestedEveningMoveUsesFullDurationAndPreservesTarget() async throws {
       let a = try AgentFixture()
       defer { a.dispose() }
