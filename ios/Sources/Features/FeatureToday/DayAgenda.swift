@@ -516,8 +516,7 @@
         switch row {
         case .item(let index): plan.planned[index]
         case .free(let index): .gap(plan.free[index])
-        case .now: .nowMarker(now, nil)
-        case .nowWithFree(let index): .nowMarker(now, plan.free[index])
+        case .now: .nowMarker(now)
         }
       }
     }
@@ -553,7 +552,7 @@
           start: item.start, kind: .reminder, isDone: task.isDone)
       case .alarm(_, let date, _): TodayTimeline.Item(start: date, kind: .alarm)
       case .gap(let gap): TodayTimeline.Item(start: gap.start, kind: .reminder)
-      case .nowMarker(let date, _): TodayTimeline.Item(start: date, kind: .reminder)
+      case .nowMarker(let date): TodayTimeline.Item(start: date, kind: .reminder)
       }
     }
 
@@ -750,11 +749,8 @@
           onDelete: { _ = actions.delete(alarm, context: context, toast: toast) },
           stoppedAt: stoppedAt)
       case .gap(let free): FreeRow(free: free) { openFree(free, from: "today.freeRow") }
-      case .nowMarker(let date, let free):
-        NowRow(date: date, free: free) {
-          if let free { openFree(free, from: "today.freeRow") }
-        }
-        .id(TimelineItem.nowID)
+      case .nowMarker(let date):
+        NowRow(date: date).id(TimelineItem.nowID)
       }
     }
 
@@ -1721,7 +1717,7 @@
     case due(OneTask)
     case alarm(OneAlarm, Date, Date?)
     case gap(DateInterval)
-    case nowMarker(Date, DateInterval?)
+    case nowMarker(Date)
 
     static let nowID = "now-line"
 
@@ -1753,7 +1749,6 @@
         DateInterval(start: start, duration: max(0, event.duration))
       case .external(let event): DateInterval(start: event.start, end: max(event.start, event.end))
       case .gap(let free): free
-      case .nowMarker(_, let gap): gap
       default: DateInterval(start: start, duration: 0)
       }
     }
@@ -1809,7 +1804,7 @@
       case .due(let t): return t.due ?? .distantFuture
       case .alarm(_, let d, _): return d
       case .gap(let free): return free.start
-      case .nowMarker(let d, _): return d
+      case .nowMarker(let d): return d
       }
     }
   }

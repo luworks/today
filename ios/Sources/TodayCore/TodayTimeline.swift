@@ -24,7 +24,6 @@ public enum TodayTimeline {
     case item(Int)
     case free(Int)
     case now
-    case nowWithFree(Int)
   }
 
   public struct Frame: Equatable, Sendable {
@@ -50,19 +49,17 @@ public enum TodayTimeline {
   }
 
   public static func rows(items: [Item], free: [DateInterval], now: Date?) -> [Row] {
-    let currentGap = now.flatMap { start in free.firstIndex { $0.start == start } }
     var entries: [(date: Date, rank: Int, order: Int, row: Row)] =
       items.indices.filter { !isFinished(items[$0], now: now) }.map {
         (items[$0].start, 0, $0, Row.item($0))
       }
-      + free.indices.filter { $0 != currentGap }.map {
+      + free.indices.map {
         (free[$0].start, 1, $0, Row.free($0))
       }
     entries.sort { ($0.date, $0.rank, $0.order) < ($1.date, $1.rank, $1.order) }
     var rows = entries.map(\.row)
     if let now {
-      let marker = currentGap.map(Row.nowWithFree) ?? .now
-      rows.insert(marker, at: entries.firstIndex { $0.date >= now } ?? entries.count)
+      rows.insert(.now, at: entries.firstIndex { $0.date >= now } ?? entries.count)
     }
     return rows
   }
