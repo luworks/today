@@ -247,91 +247,41 @@
 
   package struct NowRow: View {
     let date: Date
-    let free: DateInterval?
-    let openFree: () -> Void
+    @Environment(PlannerPresentation.self) private var presentation
 
-    package init(date: Date, free: DateInterval?, openFree: @escaping () -> Void) {
-      self.date = date
-      self.free = free
-      self.openFree = openFree
+    package init(date: Date) { self.date = date }
+
+    private var time: String {
+      date.formatted(
+        Date.FormatStyle(
+          date: .omitted, time: .shortened, locale: presentation.locale,
+          calendar: presentation.calendar, timeZone: presentation.calendar.timeZone))
     }
 
     package var body: some View {
-      Group {
-        if let free {
-          Button(action: openFree) {
-            line(freeLabel: DaySchedule.freeLabel(free.duration))
+      Color.clear
+        .frame(height: 0)
+        .overlay(alignment: .leading) {
+          HStack(spacing: 0) {
+            Text(verbatim: time)
+              .font(.caption2.weight(.semibold).monospacedDigit())
+              .foregroundStyle(.white)
+              .lineLimit(1)
+              .fixedSize()
+              .padding(.horizontal, 4)
+              .padding(.vertical, 1)
+              .background(Color.red, in: Capsule())
+              .frame(width: AgendaRowStyle.timeWidth, alignment: .leading)
+            Circle().fill(.red).frame(width: 6, height: 6)
+            Rectangle().fill(.red).frame(height: 1)
           }
-          .buttonStyle(.plain)
-          .accessibilityHint("Shows reminders that could fit here")
-          .accessibilityIdentifier("today.freeRow")
-        } else {
-          line(freeLabel: nil)
-            .accessibilityElement(children: .combine)
+          .allowsHitTesting(false)
         }
-      }
-      .listRowSeparator(.hidden)
-      .listRowInsets(EdgeInsets(top: 0, leading: 12, bottom: 0, trailing: 12))
-    }
-
-    private func line(freeLabel: String?) -> some View {
-      HStack(alignment: .firstTextBaseline, spacing: 0) {
-        TimeColumn(date: date, compact: true, tint: .red)
-        NowDot().modifier(AgendaIconSlot(enabled: true))
-        Text("Now").font(AgendaRowStyle.detail.weight(.semibold)).foregroundStyle(.red)
-        if let freeLabel {
-          Text(freeLabel)
-            .font(AgendaRowStyle.detail)
-            .foregroundStyle(.secondary)
-            .padding(.leading, 6)
-        }
-        Spacer(minLength: 0)
-      }
-      .frame(minHeight: AgendaRowStyle.minHeight)
-      .background(Color.red.opacity(0.055), in: RoundedRectangle(cornerRadius: 6))
-      .contentShape(Rectangle())
-    }
-  }
-
-  /// Only this decoration animates; the agenda keeps its existing minute clock.
-  private struct NowDot: View {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.scenePhase) private var scenePhase
-    @State private var visible = false
-    private var animates: Bool { visible && scenePhase == .active && !reduceMotion }
-    var body: some View {
-      ZStack {
-        if animates {
-          BreathingHalo()
-        } else {
-          Circle().fill(Color.red.opacity(0.12)).frame(width: 24, height: 24)
-        }
-        Circle().fill(.red).frame(width: 12, height: 12)
-      }
-      .frame(width: 32, height: 18)
-      .accessibilityHidden(true)
-      .onScrollVisibilityChange(threshold: 0.1) { visible = $0 }
-      .onDisappear { visible = false }
-    }
-  }
-
-  private struct BreathingHalo: View {
-    @State private var expanded = false
-    var body: some View {
-      Circle()
-        .fill(
-          RadialGradient(
-            colors: [.red.opacity(0.4), .red.opacity(0)],
-            center: .center, startRadius: 3, endRadius: 16)
-        )
-        .frame(width: 32, height: 32)
-        .scaleEffect(expanded ? 1 : 0.65)
-        .opacity(expanded ? 0.6 : 1)
-        .onAppear {
-          withAnimation(.easeInOut(duration: 1.8).repeatForever(autoreverses: true)) {
-            expanded = true
-          }
-        }
+        .accessibilityElement()
+        .accessibilityLabel(Text("Now, \(time)"))
+        .listRowSeparator(.hidden)
+        .listRowBackground(Color.clear)
+        .listRowInsets(EdgeInsets(top: 0, leading: 12, bottom: 0, trailing: 12))
     }
   }
 #endif
