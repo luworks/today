@@ -1,14 +1,13 @@
 import Foundation
 
 public enum DayPart: Int, CaseIterable, Sendable {
-  case morning, noon, afternoon, evening
+  case morning, afternoon, evening
 
   public static func of(_ start: Date, day: Date, calendar: Calendar) -> DayPart {
     guard start >= calendar.startOfDay(for: day) else { return .morning }
     let hour = calendar.component(.hour, from: start)
     switch hour {
     case ..<12: return .morning
-    case ..<14: return .noon
     case ..<18: return .afternoon
     default: return .evening
     }

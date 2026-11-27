@@ -117,7 +117,7 @@
         let rows = partRows(plan)
         VStack(spacing: 0) {
           if !isPastDay, !plan.marks.isEmpty { ribbon(plan, proxy: proxy) }
-          list(items: dayItems, rows: rows, finished: plan.finished)
+          list(items: dayItems, rows: rows)
             .contentMargins(
               .bottom, isToday ? TodayTimeline.continuationHeight : 0, for: .scrollContent
             )
@@ -326,7 +326,7 @@
     private var isTodayTab: Bool { cal.isDate(day, inSameDayAs: now) }
 
     private func list(
-      items: DayItems, rows: [DayPartRow<TimelineItem>], finished: [TimelineItem]
+      items: DayItems, rows: [DayPartRow<TimelineItem>]
     ) -> some View {
       List {
         if isTodayTab { TodayTimerRows(controller: timers, open: openTimer) }
@@ -399,7 +399,7 @@
           }
         }
         timelineContent(items, rows: rows)
-        settledSection(finished)
+        settledSection
       }
       .listStyle(.plain)
       .transaction(value: settledTodayIDs) { transaction in
@@ -531,11 +531,8 @@
       }
       let marks = planned.map(timelineEntry)
       let current = isToday ? now : nil
-      let finished = planned.indices.compactMap { index in
-        TodayTimeline.isFinished(marks[index], now: current) ? planned[index] : nil
-      }
       return DayPlan(
-        finished: finished, planned: planned, free: free, marks: marks,
+        planned: planned, free: free, marks: marks,
         rows: TodayTimeline.rows(items: marks, free: free, now: current),
         range: TodayTimeline.ribbonRange(items: marks, day: day, calendar: cal))
     }
@@ -558,13 +555,13 @@
 
     private func ribbon(_ plan: DayPlan, proxy: ScrollViewProxy) -> some View {
       let current = isToday ? now : nil
-      let marks = zip(plan.planned, plan.marks).map { item, entry in
+      let marks = zip(plan.planned, plan.marks).filter {
+        !TodayTimeline.isFinished($0.1, now: current)
+      }.map { item, entry in
         let repeats: Bool = if case .due(let task) = item { task.repeats != nil } else { false }
         return DayRibbon.Mark(
           start: entry.start, end: entry.end, kind: entry.kind, repeats: repeats,
-          faded: entry.isDone
-            || current.map { entry.kind != .reminder && entry.stop < $0 } ?? false,
-          late: TodayTimeline.isOpenPast(entry, now: current))
+          faded: entry.isDone, late: TodayTimeline.isOpenPast(entry, now: current))
       }
       let targets = ribbonTargets(plan)
       return DayRibbon(
@@ -1246,21 +1243,15 @@
     }
 
     @ViewBuilder
-    private func settledSection(_ finished: [TimelineItem]) -> some View {
-      let records = settlesHere && showsSettle ? settledRecords.count : 0
-      let settled = records + finished.count
+    private var settledSection: some View {
+      let settled = settlesHere && showsSettle ? settledRecords.count : 0
       if settled > 0 {
         TodaySectionHeader(
           title: "Settled", count: settled, isOpen: settledOpen, identifier: "focus.settled"
         ) {
           withAnimation(reduceMotion ? nil : .snappy) { settledOpen.toggle() }
         }
-        if settledOpen {
-          ForEach(finished) { item in
-            timelineRow(item, on: day).listRowBackground(Color.clear)
-          }
-          if records > 0 { settledRows }
-        }
+        if settledOpen { settledRows }
       }
     }
 
@@ -1597,7 +1588,6 @@
   }
 
   struct DayPlan {
-    var finished: [TimelineItem]
     var planned: [TimelineItem]
     var free: [DateInterval]
     var marks: [TodayTimeline.Item]
