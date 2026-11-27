@@ -86,6 +86,30 @@ public enum TodayTimeline {
     return bounds.map { DateInterval(start: $0.start, end: $0.end) }
   }
 
+  public struct Continuation: Equatable, Sendable {
+    public let index: Int
+    public let count: Int
+  }
+
+  public static let continuationHeight: CGFloat = 30
+
+  public static func continuation(
+    _ frames: [(minY: CGFloat, maxY: CGFloat)?], top: CGFloat, bottom: CGFloat
+  ) -> Continuation? {
+    let shown = frames.lastIndex { frame in
+      guard let frame else { return false }
+      return frame.maxY > top && frame.maxY <= bottom + 1
+    }
+    let next =
+      shown.map { $0 + 1 }
+      ?? frames.firstIndex { frame in
+        guard let frame else { return false }
+        return intersects(minY: frame.minY, maxY: frame.maxY, top: top, bottom: bottom)
+      }
+    guard let next, frames.indices.contains(next) else { return nil }
+    return Continuation(index: next, count: frames.count - next)
+  }
+
   package static func intersects(
     minY: CGFloat, maxY: CGFloat, top: CGFloat, bottom: CGFloat, inset: CGFloat = 8
   ) -> Bool {

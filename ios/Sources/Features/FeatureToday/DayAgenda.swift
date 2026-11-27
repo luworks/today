@@ -120,13 +120,19 @@
         VStack(spacing: 0) {
           if !isPastDay, !plan.marks.isEmpty { ribbon(plan, proxy: proxy) }
           list(items: dayItems, rows: rows, earlier: plan.earlier)
-          if isToday {
-            TodayContinuation(viewport: viewport, disabled: drag.session != nil || timeBusy) { id in
-              withAnimation(reduceMotion ? nil : .snappy) {
-                proxy.scrollTo(id, anchor: .top)
+            .contentMargins(
+              .bottom, isToday ? TodayTimeline.continuationHeight : 0, for: .scrollContent
+            )
+            .overlay(alignment: .bottom) {
+              if isToday {
+                TodayContinuation(viewport: viewport, disabled: drag.session != nil || timeBusy) {
+                  id in
+                  withAnimation(reduceMotion ? nil : .snappy) {
+                    proxy.scrollTo(id, anchor: .top)
+                  }
+                }
               }
             }
-          }
         }
         .overlay(alignment: .bottom) {
           if showsUndoToast { UndoToastView() }
@@ -408,15 +414,10 @@
       .environment(\.defaultMinListRowHeight, 0)
       .listSectionSpacing(0)
       .scrollContentBackground(.hidden)
-      .onScrollGeometryChange(for: EdgeInsets.self) {
-        $0.contentInsets
-      } action: { _, insets in
-        viewport.setInsets(insets)
-      }
       .onGeometryChange(for: CGRect.self) {
         $0.frame(in: .global)
       } action: { frame in
-        viewport.setList(frame)
+        viewport.setList(frame, footer: isToday ? TodayTimeline.continuationHeight : 0)
       }
       .pullToAsk()
       .background {
@@ -1660,11 +1661,11 @@
     @ObservationIgnored private var frames: [AnyHashable: CGRect] = [:]
     @ObservationIgnored private var spans: [AnyHashable: DateInterval] = [:]
     @ObservationIgnored private var list = CGRect.zero
-    @ObservationIgnored private var insets = EdgeInsets()
+    @ObservationIgnored private var footer: CGFloat = 0
     @ObservationIgnored private var updatePending = false
 
-    private var top: CGFloat { list.minY + insets.top }
-    private var bottom: CGFloat { list.maxY - insets.bottom }
+    private var top: CGFloat { list.minY }
+    private var bottom: CGFloat { list.maxY - footer }
 
     func setSpans(_ spans: [AnyHashable: DateInterval]) {
       self.spans = spans
@@ -1677,13 +1678,9 @@
       scheduleUpdate()
     }
 
-    func setList(_ list: CGRect) {
+    func setList(_ list: CGRect, footer: CGFloat) {
       self.list = list
-      scheduleUpdate()
-    }
-
-    func setInsets(_ insets: EdgeInsets) {
-      self.insets = insets
+      self.footer = footer
       scheduleUpdate()
     }
 
@@ -1720,15 +1717,10 @@
       }
       let next = TodayTimeline.viewport(visible, top: top, bottom: bottom)
       if next != range { range = next }
-      let shown = upcoming.lastIndex(where: { isAboveFooter(frames[$0]) })
-      let nextIndex =
-        shown.map { $0 + 1 }
-        ?? upcoming.firstIndex { isVisible(frames[$0]) }
-      let more = nextIndex.flatMap { index in
-        upcoming.indices.contains(index)
-          ? Continuation(first: upcoming[index], count: upcoming.count - index)
-          : nil
-      }
+      let more = TodayTimeline.continuation(
+        upcoming.map { id in frames[id].map { (minY: $0.minY, maxY: $0.maxY) } },
+        top: top, bottom: bottom
+      ).map { Continuation(first: upcoming[$0.index], count: $0.count) }
       if more != continuation { continuation = more }
     }
   }
@@ -1744,17 +1736,18 @@
           scrollTo(more.first)
         } label: {
           HStack {
-            Text("\(more.count) more today")
+            Text("\(more.count) more today").lineLimit(1)
             Spacer(minLength: 0)
             Image(systemName: "arrow.down")
           }
           .font(.footnote)
           .foregroundStyle(.secondary)
-          .frame(minHeight: 30)
+          .frame(height: TodayTimeline.continuationHeight)
           .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .padding(.horizontal, 12)
+        .background(Color(.systemBackground))
         .disabled(disabled)
         .accessibilityIdentifier("today.more")
       }

@@ -148,4 +148,42 @@ struct TodayTimelineTests {
     #expect(TodayTimeline.date(at: -1, in: range) == at(6))
     #expect(TodayTimeline.date(at: 2, in: range) == at(24))
   }
+
+  func sweep(
+    reservesFooter: Bool, offsets: some Sequence<CGFloat>
+  ) -> [CGFloat: TodayTimeline.Continuation?] {
+    let rows = 12
+    let rowHeight: CGFloat = 44
+    let height: CGFloat = 300
+    let footer = TodayTimeline.continuationHeight
+    var showsFooter = false
+    var seen: [CGFloat: TodayTimeline.Continuation?] = [:]
+    for offset in offsets {
+      let bottom = reservesFooter || showsFooter ? height - footer : height
+      let frames = (0..<rows).map { index -> (minY: CGFloat, maxY: CGFloat)? in
+        let minY = CGFloat(index) * rowHeight - offset
+        return (minY: minY, maxY: minY + rowHeight)
+      }
+      let more = TodayTimeline.continuation(frames, top: 0, bottom: bottom)
+      showsFooter = more != nil
+      seen[offset] = more
+    }
+    return seen
+  }
+
+  @Test func continuationFooterThatResizesTheListDependsOnScrollDirection() {
+    let offsets = stride(from: CGFloat(0), through: 260, by: 2)
+    let down = sweep(reservesFooter: false, offsets: offsets)
+    let up = sweep(reservesFooter: false, offsets: offsets.reversed())
+    #expect(down != up)
+  }
+
+  @Test func continuationWithReservedFooterDependsOnlyOnOffset() {
+    let offsets = stride(from: CGFloat(0), through: 260, by: 2)
+    let down = sweep(reservesFooter: true, offsets: offsets)
+    let up = sweep(reservesFooter: true, offsets: offsets.reversed())
+    #expect(down == up)
+    #expect(down[0] == TodayTimeline.Continuation(index: 6, count: 6))
+    #expect(down[260] == .some(nil))
+  }
 }
