@@ -31,7 +31,6 @@
     var agendaTitle: String {
       switch self {
       case .morning: "Morning"
-      case .noon: "Noon"
       case .afternoon: "Afternoon"
       case .evening: "Evening"
       }
