@@ -31,9 +31,14 @@ struct DayPartTests {
     }
   }
 
-  @Test func hoursSplitAtNoonAndSix() {
+  @Test func hoursSplitAtTwelveTwoAndSix() {
+    #expect(DayPart.of(at(0), day: midnight, calendar: calendar) == .morning)
     #expect(DayPart.of(at(11), day: midnight, calendar: calendar) == .morning)
-    #expect(DayPart.of(at(12), day: midnight, calendar: calendar) == .afternoon)
+    #expect(DayPart.of(at(12), day: midnight, calendar: calendar) == .noon)
+    #expect(DayPart.of(at(13), day: midnight, calendar: calendar) == .noon)
+    #expect(DayPart.of(at(14), day: midnight, calendar: calendar) == .afternoon)
+    #expect(DayPart.of(at(23), day: midnight, calendar: calendar) == .evening)
+    #expect(DayPart.allCases == [.morning, .noon, .afternoon, .evening])
     #expect(DayPart.of(at(17), day: midnight, calendar: calendar) == .afternoon)
     #expect(DayPart.of(at(18), day: midnight, calendar: calendar) == .evening)
     #expect(DayPart.of(at(-3), day: midnight, calendar: calendar) == .morning)
@@ -70,7 +75,7 @@ struct DayPartTests {
     let open = DayPart.allCases.map {
       DayPartDisclosure().isOpen($0, day: midnight, entry: entry, calendar: calendar)
     }
-    #expect(open == [false, true, true])
+    #expect(open == [false, true, true, true])
     let tomorrow = midnight.addingTimeInterval(86_400)
     #expect(
       DayPart.allCases.allSatisfy {

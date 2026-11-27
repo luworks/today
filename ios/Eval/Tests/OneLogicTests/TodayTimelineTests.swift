@@ -21,24 +21,20 @@ struct TodayTimelineTests {
     Item(start: at(hour, minute), end: at(hour, minute + minutes), kind: .event)
   }
 
-  @Test func anEventThatEndedBeforeEntryLeavesTheList() {
-    let entry = at(9)
-    #expect(!TodayTimeline.isListed(event(8, 0, minutes: 30), entry: entry))
-    #expect(TodayTimeline.isListed(event(8, 30, minutes: 60), entry: entry))
-    #expect(!TodayTimeline.isListed(Item(start: at(8), kind: .alarm), entry: entry))
+  @Test func finishedItemsLeaveTodayAndOpenOverdueRemindersStay() {
+    let now = at(12)
+    #expect(TodayTimeline.isFinished(event(8, 0, minutes: 30), now: now))
+    #expect(!TodayTimeline.isFinished(event(11, 30, minutes: 60), now: now))
+    #expect(TodayTimeline.isFinished(Item(start: at(8), kind: .alarm), now: now))
+    #expect(!TodayTimeline.isFinished(Item(start: at(13), kind: .alarm), now: now))
+    #expect(!TodayTimeline.isFinished(Item(start: at(8), kind: .reminder), now: now))
+    #expect(TodayTimeline.isFinished(Item(start: at(8), kind: .reminder, isDone: true), now: now))
+    #expect(TodayTimeline.isFinished(Item(start: at(15), kind: .reminder, isDone: true), now: now))
   }
 
-  @Test func openPastRemindersStayAndDoneOnesLeaveOnlyAtEntry() {
-    let entry = at(12)
-    #expect(TodayTimeline.isListed(Item(start: at(8), kind: .reminder), entry: entry))
-    #expect(
-      TodayTimeline.isListed(Item(start: at(8), kind: .reminder, isDone: true), entry: entry))
-    #expect(
-      !TodayTimeline.isListed(
-        Item(start: at(8), kind: .reminder, isDone: true, doneAtEntry: true), entry: entry))
-    #expect(
-      TodayTimeline.isListed(
-        Item(start: at(8), kind: .reminder, isDone: true, doneAtEntry: true), entry: nil))
+  @Test func otherDaysKeepEveryItem() {
+    #expect(!TodayTimeline.isFinished(event(8, 0, minutes: 30), now: nil))
+    #expect(!TodayTimeline.isFinished(Item(start: at(8), kind: .reminder, isDone: true), now: nil))
   }
 
   @Test func onlyOpenPastRemindersAreLate() {
@@ -56,35 +52,38 @@ struct TodayTimelineTests {
       Item(start: at(7), kind: .reminder),
     ]
     let free = [DateInterval(start: at(10), end: at(14)), DateInterval(start: at(9), end: at(9))]
-    let rows = TodayTimeline.rows(items: items, free: free, now: at(11), entry: at(9, 30))
-    #expect(rows == [.item(2), .item(1), .free(1), .free(0), .now, .item(0)])
+    let rows = TodayTimeline.rows(items: items, free: free, now: at(11))
+    #expect(rows == [.item(2), .free(1), .free(0), .now, .item(0)])
   }
 
   @Test func onlyTheGapStartingNowSharesTheNowRow() {
     let items = [event(14, 0, minutes: 60)]
     let free = [DateInterval(start: at(13), end: at(14)), DateInterval(start: at(15), end: at(16))]
     #expect(
-      TodayTimeline.rows(items: items, free: free, now: at(13), entry: at(13))
+      TodayTimeline.rows(items: items, free: free, now: at(13))
         == [.nowWithFree(0), .item(0), .free(1)])
     #expect(
-      TodayTimeline.rows(items: items, free: free, now: at(14), entry: at(14))
+      TodayTimeline.rows(items: items, free: free, now: at(14))
         == [.free(0), .now, .item(0), .free(1)])
     #expect(
-      TodayTimeline.rows(items: items, free: free, now: nil, entry: nil)
+      TodayTimeline.rows(items: items, free: free, now: nil)
         == [.free(0), .item(0), .free(1)])
   }
 
   @Test func nowGoesLastWhenTheDayIsOverAndIsAbsentOnOtherDays() {
     let items = [Item(start: at(7), kind: .reminder)]
     #expect(
-      TodayTimeline.rows(items: items, free: [], now: at(23), entry: at(23)) == [.item(0), .now])
-    #expect(TodayTimeline.rows(items: items, free: [], now: nil, entry: nil) == [.item(0)])
+      TodayTimeline.rows(items: items, free: [], now: at(23)) == [.item(0), .now])
+    #expect(TodayTimeline.rows(items: items, free: [], now: nil) == [.item(0)])
   }
 
-  @Test func rowsDropWhatEndedBeforeEntry() {
-    let items = [event(8, 0, minutes: 30), Item(start: at(8), kind: .reminder)]
-    #expect(
-      TodayTimeline.rows(items: items, free: [], now: at(10), entry: at(9)) == [.item(1), .now])
+  @Test func rowsDropFinishedItemsAtOnce() {
+    let items = [
+      event(8, 0, minutes: 30), Item(start: at(8), kind: .reminder),
+      Item(start: at(9), kind: .reminder, isDone: true),
+      Item(start: at(11), kind: .reminder, isDone: true),
+    ]
+    #expect(TodayTimeline.rows(items: items, free: [], now: at(10)) == [.item(1), .now])
   }
 
   @Test func viewportSpansTheVisibleRows() {

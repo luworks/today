@@ -9,16 +9,12 @@ public enum TodayTimeline {
     public let end: Date?
     public let kind: Kind
     public let isDone: Bool
-    public let doneAtEntry: Bool
 
-    public init(
-      start: Date, end: Date? = nil, kind: Kind, isDone: Bool = false, doneAtEntry: Bool = false
-    ) {
+    public init(start: Date, end: Date? = nil, kind: Kind, isDone: Bool = false) {
       self.start = start
       self.end = end
       self.kind = kind
       self.isDone = isDone
-      self.doneAtEntry = doneAtEntry
     }
 
     public var stop: Date { max(start, end ?? start) }
@@ -48,16 +44,15 @@ public enum TodayTimeline {
     return item.kind == .reminder && !item.isDone && item.start < now
   }
 
-  public static func isListed(_ item: Item, entry: Date?) -> Bool {
-    guard let entry else { return true }
-    if item.doneAtEntry { return false }
-    return item.kind == .reminder || item.stop >= entry
+  public static func isFinished(_ item: Item, now: Date?) -> Bool {
+    guard let now else { return false }
+    return item.kind == .reminder ? item.isDone : item.stop < now
   }
 
-  public static func rows(items: [Item], free: [DateInterval], now: Date?, entry: Date?) -> [Row] {
+  public static func rows(items: [Item], free: [DateInterval], now: Date?) -> [Row] {
     let currentGap = now.flatMap { start in free.firstIndex { $0.start == start } }
     var entries: [(date: Date, rank: Int, order: Int, row: Row)] =
-      items.indices.filter { isListed(items[$0], entry: entry) }.map {
+      items.indices.filter { !isFinished(items[$0], now: now) }.map {
         (items[$0].start, 0, $0, Row.item($0))
       }
       + free.indices.filter { $0 != currentGap }.map {
